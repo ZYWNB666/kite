@@ -22,11 +22,15 @@ interface OAuthProviderDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   provider?: OAuthProvider | null
+  initialValues?: Partial<OAuthProviderCreateRequest> | null
   onSubmit: (providerData: OAuthProviderCreateRequest) => void
 }
 
-function createOAuthProviderFormData(provider?: OAuthProvider | null) {
-  return {
+function createOAuthProviderFormData(
+  provider?: OAuthProvider | null,
+  initialValues?: Partial<OAuthProviderCreateRequest> | null
+) {
+  const formData = {
     name: provider?.name || '',
     clientId: provider?.clientId || '',
     clientSecret: '',
@@ -40,20 +44,42 @@ function createOAuthProviderFormData(provider?: OAuthProvider | null) {
     allowedGroups: provider?.allowedGroups || '',
     enabled: provider?.enabled ?? true,
   }
+
+  if (provider || !initialValues) {
+    return formData
+  }
+
+  return {
+    ...formData,
+    name: initialValues.name ?? formData.name,
+    clientId: initialValues.clientId ?? formData.clientId,
+    clientSecret: initialValues.clientSecret ?? formData.clientSecret,
+    authUrl: initialValues.authUrl ?? formData.authUrl,
+    tokenUrl: initialValues.tokenUrl ?? formData.tokenUrl,
+    userInfoUrl: initialValues.userInfoUrl ?? formData.userInfoUrl,
+    scopes: initialValues.scopes ?? formData.scopes,
+    issuer: initialValues.issuer ?? formData.issuer,
+    usernameClaim: initialValues.usernameClaim ?? formData.usernameClaim,
+    groupsClaim: initialValues.groupsClaim ?? formData.groupsClaim,
+    allowedGroups: initialValues.allowedGroups ?? formData.allowedGroups,
+    enabled: initialValues.enabled ?? formData.enabled,
+  }
 }
 
 export function OAuthProviderDialog({
   open,
   onOpenChange,
   provider,
+  initialValues,
   onSubmit,
 }: OAuthProviderDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {open ? (
         <OAuthProviderDialogContent
-          key={provider?.id ?? 'new'}
+          key={`${provider?.id ?? 'new'}-${initialValues?.name ?? ''}-${initialValues?.issuer ?? ''}`}
           provider={provider}
+          initialValues={initialValues}
           onOpenChange={onOpenChange}
           onSubmit={onSubmit}
         />
@@ -64,6 +90,7 @@ export function OAuthProviderDialog({
 
 function OAuthProviderDialogContent({
   provider,
+  initialValues,
   onOpenChange,
   onSubmit,
 }: Omit<OAuthProviderDialogProps, 'open'>) {
@@ -71,7 +98,7 @@ function OAuthProviderDialogContent({
   const isEditMode = !!provider
 
   const [formData, setFormData] = useState(() =>
-    createOAuthProviderFormData(provider)
+    createOAuthProviderFormData(provider, initialValues)
   )
 
   const [validationError, setValidationError] = useState('')

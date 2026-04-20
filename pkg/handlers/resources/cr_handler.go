@@ -22,6 +22,7 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/kubectl/pkg/describe"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/yaml"
 )
 
 // CRHandler handles API operations for Custom Resources based on CRD name
@@ -31,6 +32,58 @@ type CRHandler struct {
 // NewCRHandler creates a new CRHandler
 func NewCRHandler() *CRHandler {
 	return &CRHandler{}
+}
+
+func crToYAML(obj *unstructured.Unstructured) string {
+	if obj == nil {
+		return ""
+	}
+	copied := obj.DeepCopy()
+	copied.SetManagedFields(nil)
+	annotations := copied.GetAnnotations()
+	if annotations != nil {
+		delete(annotations, common.KubectlAnnotation)
+		copied.SetAnnotations(annotations)
+	}
+	yamlBytes, err := yaml.Marshal(copied.Object)
+	if err != nil {
+		return ""
+	}
+	return string(yamlBytes)
+}
+
+func (h *CRHandler) recordHistory(c *gin.Context, crdName, opType string, prev, curr *unstructured.Unstructured, success bool, errMsg string) {
+	cs := c.MustGet("cluster").(*cluster.ClientSet)
+	user := c.MustGet("user").(model.User)
+
+	resourceName := ""
+	namespace := ""
+	if curr != nil {
+		resourceName = curr.GetName()
+		namespace = curr.GetNamespace()
+	}
+	if resourceName == "" && prev != nil {
+		resourceName = prev.GetName()
+	}
+	if namespace == "" && prev != nil {
+		namespace = prev.GetNamespace()
+	}
+
+	history := model.ResourceHistory{
+		ClusterName:   cs.Name,
+		ResourceType:  crdName,
+		ResourceName:  resourceName,
+		Namespace:     namespace,
+		OperationType: opType,
+		ResourceYAML:  crToYAML(curr),
+		PreviousYAML:  crToYAML(prev),
+		Success:       success,
+		ErrorMessage:  errMsg,
+		OperatorID:    user.ID,
+	}
+	if err := model.DB.Create(&history).Error; err != nil {
+		klog.Errorf("Failed to create resource history for %s/%s: %v", crdName, resourceName, err)
+	}
 }
 
 // getCRDByName retrieves the CRD definition by name
@@ -231,11 +284,19 @@ func (h *CRHandler) Create(c *gin.Context) {
 		cr.SetNamespace(namespace)
 	}
 
+	success := false
+	errMsg := ""
+	defer func() {
+		h.recordHistory(c, crdName, "create", nil, &cr, success, errMsg)
+	}()
+
 	if err := cs.K8sClient.Create(ctx, &cr); err != nil {
+		errMsg = err.Error()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
+	success = true
 	c.JSON(http.StatusCreated, cr)
 }
 
@@ -315,11 +376,19 @@ func (h *CRHandler) Update(c *gin.Context) {
 		updatedCR.SetNamespace(existingCR.GetNamespace())
 	}
 
+	success := false
+	errMsg := ""
+	defer func() {
+		h.recordHistory(c, crdName, "update", existingCR, &updatedCR, success, errMsg)
+	}()
+
 	if err := cs.K8sClient.Update(ctx, &updatedCR); err != nil {
+		errMsg = err.Error()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
+	success = true
 	c.JSON(http.StatusOK, updatedCR)
 }
 
@@ -393,7 +462,16 @@ func (h *CRHandler) Delete(c *gin.Context) {
 		gracePeriodSeconds := int64(0)
 		opts.GracePeriodSeconds = &gracePeriodSeconds
 	}
+	prevCR := cr.DeepCopy()
+
+	success := false
+	errMsg := ""
+	defer func() {
+		h.recordHistory(c, crdName, "delete", prevCR, nil, success, errMsg)
+	}()
+
 	if err := cs.K8sClient.Delete(ctx, cr, opts); err != nil {
+		errMsg = err.Error()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -412,14 +490,18 @@ func (h *CRHandler) Delete(c *gin.Context) {
 				}
 				err = kube.WaitForResourceDeletion(ctx, cs.K8sClient, cr, 1*time.Second)
 				if err == nil {
+					success = true
+					c.JSON(http.StatusOK, gin.H{"message": "Custom resource deleted successfully"})
 					return
 				}
 			}
+			errMsg = err.Error()
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 	}
 
+	success = true
 	c.JSON(http.StatusOK, gin.H{"message": "Custom resource deleted successfully"})
 }
 

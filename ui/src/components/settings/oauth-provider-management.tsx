@@ -25,6 +25,13 @@ import { OAuthProviderDialog } from './oauth-provider-dialog'
 export function OAuthProviderManagement() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const feishuInitialValues: Partial<OAuthProviderCreateRequest> = {
+    name: 'feishu',
+    issuer: 'https://open.feishu.cn',
+    scopes: 'openid,profile,email',
+    usernameClaim: 'email',
+    enabled: true,
+  }
 
   // Use real API to fetch OAuth providers
   const { data: providers = [], isLoading, error } = useOAuthProviderList()
@@ -33,6 +40,9 @@ export function OAuthProviderManagement() {
   const [editingProvider, setEditingProvider] = useState<OAuthProvider | null>(
     null
   )
+  const [providerInitialValues, setProviderInitialValues] = useState<
+    Partial<OAuthProviderCreateRequest> | null
+  >(null)
   const [deletingProvider, setDeletingProvider] =
     useState<OAuthProvider | null>(null)
   const getStatusBadge = useCallback(
@@ -106,6 +116,7 @@ export function OAuthProviderManagement() {
           </>
         ),
         onClick: (provider) => {
+          setProviderInitialValues(null)
           setEditingProvider(provider)
           setShowProviderDialog(true)
         },
@@ -137,6 +148,7 @@ export function OAuthProviderManagement() {
         )
       )
       setShowProviderDialog(false)
+      setProviderInitialValues(null)
     },
     onError: (error: Error) => {
       toast.error(
@@ -168,6 +180,7 @@ export function OAuthProviderManagement() {
       )
       setShowProviderDialog(false)
       setEditingProvider(null)
+      setProviderInitialValues(null)
     },
     onError: (error: Error) => {
       toast.error(
@@ -263,16 +276,31 @@ export function OAuthProviderManagement() {
                 {t('oauthManagement.title', 'OAuth Provider Management')}
               </CardTitle>
             </div>
-            <Button
-              onClick={() => {
-                setEditingProvider(null)
-                setShowProviderDialog(true)
-              }}
-              className="gap-2"
-            >
-              <IconPlus className="h-4 w-4" />
-              {t('oauthManagement.actions.add', 'Add Provider')}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEditingProvider(null)
+                  setProviderInitialValues(feishuInitialValues)
+                  setShowProviderDialog(true)
+                }}
+                className="gap-2"
+              >
+                <IconPlus className="h-4 w-4" />
+                {t('oauthManagement.actions.addFeishu', 'Add Feishu SSO')}
+              </Button>
+              <Button
+                onClick={() => {
+                  setEditingProvider(null)
+                  setProviderInitialValues(null)
+                  setShowProviderDialog(true)
+                }}
+                className="gap-2"
+              >
+                <IconPlus className="h-4 w-4" />
+                {t('oauthManagement.actions.add', 'Add Provider')}
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -305,9 +333,11 @@ export function OAuthProviderManagement() {
           setShowProviderDialog(open)
           if (!open) {
             setEditingProvider(null)
+            setProviderInitialValues(null)
           }
         }}
         provider={editingProvider}
+        initialValues={providerInitialValues}
         onSubmit={handleSubmitProvider}
       />
 
