@@ -1,87 +1,100 @@
-name: Build and Push Preview Docker Image
+name: Build Docker Image
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: read
   packages: write
 
 concurrency:
-  group: docker-ci-${{ github.event.workflow_run.head_branch }}
+  group: docker-image-${{ github.ref }}
   cancel-in-progress: true
 
-on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
-    branches: [main]
-
 env:
-  GO_VERSION: "1.25"
-  NODE_VERSION: "24"
+  REGISTRY: ghcr.io
+  REGISTRY_IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
-  docker:
-    name: Build Docker Image
+  docker-registry:
     runs-on: ubuntu-latest
-    # Only run if the triggering CI workflow concluded successfully
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-
     steps:
-      - name: Checkout code (commit from CI run)
-        uses: actions/checkout@v5
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@v3
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: pnpm/action-setup@v4
+      - name: Extract port-registry metadata
+        id: meta_registry
+        uses: docker/metadata-action@v5
         with:
-          version: 10
+          images: ${{ env.REGISTRY_IMAGE }}-registry
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
+      - name: Build and push port-registry image
+        uses: docker/build-push-action@v6
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "pnpm"
-          cache-dependency-path: ui/pnpm-lock.yaml
+          context: .
+          file: ./docker/Dockerfile
+          target: port-registry
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta_registry.outputs.tags }}
+          labels: ${{ steps.meta_registry.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max,scope=port-registry
+          provenance: false
 
-      - name: Setup Go
-        uses: actions/setup-go@v6
+  docker-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: true
-          check-latest: true
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install deps
-        run: make deps
+      - name: Extract port-agent metadata
+        id: meta_agent
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY_IMAGE }}-agent
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Generate tags
-        id: tags
-        run: |
-          echo "tags=ghcr.io/${{ github.repository_owner }}/kite:main" >> $GITHUB_OUTPUT
-          echo "image_tag=main" >> $GITHUB_OUTPUT
-
-      - name: Build
-        run: make cross-compile
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v7
+      - name: Build and push port-agent image
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile.binary
+          target: port-agent
+          platforms: linux/amd64
           push: true
-          tags: ${{ steps.tags.outputs.tags }}
-          labels: runnumber=${{ github.run_id }}
+          tags: ${{ steps.meta_agent.outputs.tags }}
+          labels: ${{ steps.meta_agent.outputs.labels }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
+          cache-to: type=gha,mode=max,scope=port-agent
+          provenance: false
