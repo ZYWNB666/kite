@@ -41,8 +41,18 @@ func TestIsClusterLocalURL(t *testing.T) {
 			want: true,
 		},
 		{
+			name: "svc host without port",
+			url:  "http://prometheus.monitoring.svc",
+			want: true,
+		},
+		{
 			name: "external url",
 			url:  "https://prometheus.example.com",
+			want: false,
+		},
+		{
+			name: "external url with svc-like subdomain",
+			url:  "https://svc.example.com",
 			want: false,
 		},
 	}

@@ -2,13 +2,16 @@ package resources
 
 import (
 	"context"
+	"math"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/zxh326/kite/pkg/cluster"
 	"github.com/zxh326/kite/pkg/common"
 	"github.com/zxh326/kite/pkg/kube"
+	"github.com/zxh326/kite/pkg/model"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -464,4 +467,52 @@ func (h *CRHandler) Describe(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"result": out})
+}
+
+func (h *CRHandler) ListHistory(c *gin.Context) {
+	crdName := c.Param("crd")
+	namespace := c.Param("namespace")
+	resourceName := c.Param("name")
+	cs := c.MustGet("cluster").(*cluster.ClientSet)
+
+	pageSize, err := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid pageSize parameter"})
+		return
+	}
+	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid page parameter"})
+		return
+	}
+
+	var total int64
+	if err := model.DB.Model(&model.ResourceHistory{}).Where("cluster_name = ? AND resource_type = ? AND resource_name = ? AND namespace = ?", cs.Name, crdName, resourceName, namespace).Count(&total).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	history := []model.ResourceHistory{}
+	if err := model.DB.Preload("Operator").Where("cluster_name = ? AND resource_type = ? AND resource_name = ? AND namespace = ?", cs.Name, crdName, resourceName, namespace).Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&history).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	totalPages := int(math.Ceil(float64(total) / float64(pageSize)))
+	hasNextPage := page < totalPages
+	hasPrevPage := page > 1
+
+	response := gin.H{
+		"data": history,
+		"pagination": gin.H{
+			"page":        page,
+			"pageSize":    pageSize,
+			"total":       total,
+			"totalPages":  totalPages,
+			"hasNextPage": hasNextPage,
+			"hasPrevPage": hasPrevPage,
+		},
+	}
+
+	c.JSON(http.StatusOK, response)
 }

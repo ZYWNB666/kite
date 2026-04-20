@@ -110,7 +110,16 @@ func newClientSet(name string, k8sConfig *rest.Config, prometheusURL string) (*C
 }
 
 func isClusterLocalURL(urlStr string) bool {
-	return strings.Contains(urlStr, ".svc.cluster.local") || strings.Contains(urlStr, ".svc:")
+	if strings.Contains(urlStr, ".svc.cluster.local") || strings.Contains(urlStr, ".svc:") {
+		return true
+	}
+	// Handle short form without port, e.g. http://prometheus.monitoring.svc
+	parsed, err := url.Parse(urlStr)
+	if err != nil {
+		return false
+	}
+	host := parsed.Hostname()
+	return strings.HasSuffix(host, ".svc") || strings.Contains(host, ".svc.")
 }
 
 func createK8sProxyTransport(k8sConfig *rest.Config, prometheusURL string) (*k8sProxyTransport, error) {
