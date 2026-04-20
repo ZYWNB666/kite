@@ -75,6 +75,7 @@ interface ResourceCatalogEntryBase {
     groupKey: SidebarGroupKey
     order: number
     titleKey?: string
+    url?: string
   }
 }
 
@@ -88,6 +89,21 @@ export const sidebarGroupOrder = [
 ] as const satisfies readonly SidebarGroupKey[]
 
 export const resourceCatalog = [
+  {
+    type: 'leaderworkersets',
+    singular: 'leaderworkerset',
+    singularLabel: 'LeaderWorkerSet',
+    pluralLabel: 'LeaderWorkerSets',
+    shortLabel: 'LWS',
+    clusterScope: false,
+    titleKey: 'nav.leaderworkersets',
+    icon: 'IconBoxMultiple',
+    sidebar: {
+      groupKey: 'sidebar.groups.workloads',
+      order: -1,
+      url: '/crds/leaderworkersets.leaderworkerset.x-k8s.io',
+    },
+  },
   {
     type: 'pods',
     singular: 'pod',

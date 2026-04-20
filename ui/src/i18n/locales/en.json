@@ -69,6 +69,7 @@
   },
   "nav": {
     "overview": "Overview",
+    "leaderworkersets": "LWS",
     "pods": "Pods",
     "deployments": "Deployments",
     "statefulsets": "StatefulSets",

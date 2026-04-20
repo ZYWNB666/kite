@@ -49,3 +49,6 @@ kite
 
 
 .gocache/
+.corepack/*
+.corepack
+.vscode/*

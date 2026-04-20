@@ -21,6 +21,7 @@ type SidebarResource = CatalogResource & {
     groupKey: (typeof sidebarGroupOrder)[number]
     order: number
     titleKey?: string
+    url?: string
   }
 }
 
@@ -43,12 +44,12 @@ resourceCatalog
         sidebar.titleKey ||
         ('titleKey' in resource ? resource.titleKey : undefined) ||
         resource.pluralLabel,
-      url: `/${resource.type}`,
+      url: sidebar.url || `/${resource.type}`,
       icon: getResourceIconComponent(resource.icon),
     })
   })
 
-export const SIDEBAR_CONFIG_VERSION = 1
+export const SIDEBAR_CONFIG_VERSION = 2
 
 function getIconName(iconComponent: ComponentType<{ className?: string }>) {
   const entry = Object.entries(sidebarIconMap).find(

@@ -93,6 +93,18 @@ export function PodTable(props: {
         },
       },
       {
+        header: 'GPU',
+        accessor: (pod: PodWithMetrics) => pod.metrics?.gpuLimit ?? 0,
+        cell: (value: unknown) => {
+          const gpu = value as number
+          return (
+            <span className="text-sm text-muted-foreground tabular-nums">
+              {gpu > 0 ? gpu : '-'}
+            </span>
+          )
+        },
+      },
+      {
         header: 'IP',
         accessor: (pod: Pod) => pod.status?.podIP || '-',
         cell: (value: unknown) => (

@@ -182,6 +182,7 @@ export type MetricsData = {
   memoryLimit?: number
   cpuRequest?: number
   memoryRequest?: number
+  gpuLimit?: number
   pods?: number
   podsLimit?: number
 }

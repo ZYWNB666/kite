@@ -55,6 +55,7 @@
   "nav": {
     "overview": "概览",
     "workloads": "工作负载",
+    "leaderworkersets": "LWS",
     "pods": "容器组",
     "deployments": "部署",
     "statefulsets": "有状态副本集",

@@ -9,13 +9,28 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: kite
-    namespace: kube-system
+    namespace: test
 ---
 kind: ServiceAccount
 apiVersion: v1
 metadata:
   name: kite
-  namespace: kube-system
+  namespace: test
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    app: kite
+  name: kite-storage
+  namespace: test
+spec:
+  storageClassName: openebs-hostpath
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -23,13 +38,14 @@ metadata:
   labels:
     app: kite
   name: kite
-  namespace: kube-system
+  namespace: test
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: kite
-  strategy: {}
+  strategy:
+    type: Recreate
   template:
     metadata:
       labels:
@@ -40,6 +56,11 @@ spec:
         - image: ghcr.io/kite-org/kite:latest
           imagePullPolicy: IfNotPresent
           name: kite
+          env:
+            - name: DB_TYPE
+              value: sqlite
+            - name: DB_DSN
+              value: /data/kite.db
           resources:
             limits:
               cpu: 1000m
@@ -62,6 +83,13 @@ spec:
           ports:
             - containerPort: 8080
               protocol: TCP
+          volumeMounts:
+            - name: kite-storage
+              mountPath: /data
+      volumes:
+        - name: kite-storage
+          persistentVolumeClaim:
+            claimName: kite-storage
 ---
 apiVersion: v1
 kind: Service
@@ -69,7 +97,7 @@ metadata:
   labels:
     app: kite
   name: kite
-  namespace: kube-system
+  namespace: test
 spec:
   ports:
     - name: http

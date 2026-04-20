@@ -46,6 +46,7 @@ type PodMetrics struct {
 	MemoryUsage   int64 `json:"memoryUsage,omitempty"`
 	MemoryLimit   int64 `json:"memoryLimit,omitempty"`
 	MemoryRequest int64 `json:"memoryRequest,omitempty"`
+	GPULimit      int64 `json:"gpuLimit,omitempty"`
 }
 
 type PodWithMetrics struct {
@@ -79,6 +80,7 @@ func GetPodMetrics(metricsMap map[string]metricsv1.PodMetrics, pod *corev1.Pod) 
 	}
 	var cpuLimit, memLimit int64
 	var cpuRequest, memRequest int64
+	var gpuLimit int64
 	for _, container := range pod.Spec.Containers {
 		if cpuQuantity, ok := container.Resources.Limits["cpu"]; ok {
 			cpuLimit += cpuQuantity.MilliValue()
@@ -92,6 +94,11 @@ func GetPodMetrics(metricsMap map[string]metricsv1.PodMetrics, pod *corev1.Pod) 
 		if memQuantity, ok := container.Resources.Requests["memory"]; ok {
 			memRequest += memQuantity.Value()
 		}
+		for name, quantity := range container.Resources.Limits {
+			if strings.HasSuffix(string(name), "gpu") {
+				gpuLimit += quantity.Value()
+			}
+		}
 	}
 	return &PodMetrics{
 		CPUUsage:      cpuUsage,
@@ -100,6 +107,7 @@ func GetPodMetrics(metricsMap map[string]metricsv1.PodMetrics, pod *corev1.Pod) 
 		MemoryLimit:   memLimit,
 		CPURequest:    cpuRequest,
 		MemoryRequest: memRequest,
+		GPULimit:      gpuLimit,
 	}
 }
 
