@@ -106,6 +106,10 @@ type listMetadataType = {
 
 // Define resource type mappings
 export interface ResourcesTypeMap {
+  leaderworkersets: {
+    items: CustomResource[]
+    metadata?: listMetadataType
+  }
   pods: {
     items: PodWithMetrics[]
     metadata?: listMetadataType
@@ -196,6 +200,7 @@ export type NodeWithMetrics = Node & {
 }
 
 export interface ResourceTypeMap {
+  leaderworkersets: CustomResource
   pods: PodWithMetrics
   deployments: Deployment
   statefulsets: StatefulSet
