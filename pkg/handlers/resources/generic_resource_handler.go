@@ -67,11 +67,25 @@ func (h *GenericResourceHandler[T, V]) recordHistory(c *gin.Context, opType stri
 	cs := c.MustGet("cluster").(*cluster.ClientSet)
 	user := c.MustGet("user").(model.User)
 
+	// Try to get metadata from curr first, fallback to prev if curr is nil/empty
+	resourceName := ""
+	namespace := ""
+	if !reflect.ValueOf(curr).IsNil() {
+		resourceName = curr.GetName()
+		namespace = curr.GetNamespace()
+	}
+	if resourceName == "" && !reflect.ValueOf(prev).IsNil() {
+		resourceName = prev.GetName()
+	}
+	if namespace == "" && !reflect.ValueOf(prev).IsNil() {
+		namespace = prev.GetNamespace()
+	}
+
 	history := model.ResourceHistory{
 		ClusterName:   cs.Name,
 		ResourceType:  h.name,
-		ResourceName:  curr.GetName(),
-		Namespace:     curr.GetNamespace(),
+		ResourceName:  resourceName,
+		Namespace:     namespace,
 		OperationType: opType,
 		ResourceYAML:  h.ToYAML(curr),
 		PreviousYAML:  h.ToYAML(prev),
