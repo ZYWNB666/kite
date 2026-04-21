@@ -304,23 +304,29 @@ func (f *FeishuProvider) getAppAccessToken() (string, error) {
 }
 
 // ExchangeCodeForToken exchanges the authorization code for user access token.
-// Feishu requires app_access_token in the Authorization header (non-standard).
+// Supports both:
+// 1. Feishu open platform (open.feishu.cn): requires app_access_token in Authorization header
+// 2. Feishu passport/OIDC (passport.feishu.cn): uses standard OAuth2 with client_id/client_secret
 func (f *FeishuProvider) ExchangeCodeForToken(code string) (*TokenResponse, error) {
-	appAccessToken, err := f.getAppAccessToken()
-	if err != nil {
-		return nil, err
-	}
-
-	body := map[string]string{
-		"grant_type": "authorization_code",
-		"code":       code,
-	}
-
 	var lastErr error
 	errDetails := make([]string, 0, len(f.getTokenEndpoints()))
+
 	for _, endpoint := range f.getTokenEndpoints() {
+		// Detect endpoint type and use appropriate authentication method
+		isPassportEndpoint := strings.Contains(endpoint, "passport.feishu.cn") ||
+			strings.Contains(endpoint, "passport.larksuite.com")
+
 		var data feishuUserTokenData
-		err = f.postAuthenJSON(endpoint, appAccessToken, "token exchange", body, &data)
+		var err error
+
+		if isPassportEndpoint {
+			// Standard OAuth2 flow for passport endpoints
+			err = f.exchangeTokenStandardOAuth(endpoint, code, &data)
+		} else {
+			// Feishu open platform flow with app_access_token
+			err = f.exchangeTokenWithAppToken(endpoint, code, &data)
+		}
+
 		if err == nil && data.AccessToken != "" {
 			return &TokenResponse{
 				AccessToken:  data.AccessToken,
@@ -343,23 +349,86 @@ func (f *FeishuProvider) ExchangeCodeForToken(code string) (*TokenResponse, erro
 	return nil, lastErr
 }
 
-// RefreshToken refreshes the user access token using the refresh token.
-// Feishu requires app_access_token in the Authorization header (non-standard).
-func (f *FeishuProvider) RefreshToken(refreshToken string) (*TokenResponse, error) {
+// exchangeTokenWithAppToken exchanges code using Feishu open platform flow (requires app_access_token)
+func (f *FeishuProvider) exchangeTokenWithAppToken(endpoint string, code string, out *feishuUserTokenData) error {
 	appAccessToken, err := f.getAppAccessToken()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	body := map[string]string{
-		"grant_type":    "refresh_token",
-		"refresh_token": refreshToken,
+		"grant_type":   "authorization_code",
+		"code":         code,
+		"redirect_uri": f.RedirectURL,
 	}
 
+	return f.postAuthenJSON(endpoint, appAccessToken, "token exchange", body, out)
+}
+
+// exchangeTokenStandardOAuth exchanges code using standard OAuth2 flow (for passport endpoints)
+func (f *FeishuProvider) exchangeTokenStandardOAuth(endpoint string, code string, out *feishuUserTokenData) error {
+	body := map[string]string{
+		"grant_type":    "authorization_code",
+		"code":          code,
+		"redirect_uri":  f.RedirectURL,
+		"client_id":     f.AppID,
+		"client_secret": f.AppSecret,
+	}
+
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("failed to marshal token exchange request: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", endpoint, strings.NewReader(string(bodyBytes)))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to call token exchange endpoint %s: %w", endpoint, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read token exchange response from %s: %w", endpoint, err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("feishu token exchange HTTP %d from %s: %s", resp.StatusCode, endpoint, strings.TrimSpace(string(respBytes)))
+	}
+
+	if err := decodeFeishuResponse(bytes.NewReader(respBytes), "token exchange", out); err != nil {
+		return fmt.Errorf("%w (endpoint=%s)", err, endpoint)
+	}
+
+	return nil
+}
+
+// RefreshToken refreshes the user access token using the refresh token.
+// Supports both open platform and passport/OIDC endpoints.
+func (f *FeishuProvider) RefreshToken(refreshToken string) (*TokenResponse, error) {
 	var lastErr error
 	for _, endpoint := range f.getRefreshEndpoints() {
+		// Detect endpoint type and use appropriate authentication method
+		isPassportEndpoint := strings.Contains(endpoint, "passport.feishu.cn") ||
+			strings.Contains(endpoint, "passport.larksuite.com")
+
 		var data feishuUserTokenData
-		err = f.postAuthenJSON(endpoint, appAccessToken, "refresh token", body, &data)
+		var err error
+
+		if isPassportEndpoint {
+			// Standard OAuth2 flow for passport endpoints
+			err = f.refreshTokenStandardOAuth(endpoint, refreshToken, &data)
+		} else {
+			// Feishu open platform flow with app_access_token
+			err = f.refreshTokenWithAppToken(endpoint, refreshToken, &data)
+		}
+
 		if err == nil {
 			return &TokenResponse{
 				AccessToken:  data.AccessToken,
@@ -373,6 +442,64 @@ func (f *FeishuProvider) RefreshToken(refreshToken string) (*TokenResponse, erro
 	}
 
 	return nil, lastErr
+}
+
+// refreshTokenWithAppToken refreshes token using Feishu open platform flow
+func (f *FeishuProvider) refreshTokenWithAppToken(endpoint string, refreshToken string, out *feishuUserTokenData) error {
+	appAccessToken, err := f.getAppAccessToken()
+	if err != nil {
+		return err
+	}
+
+	body := map[string]string{
+		"grant_type":    "refresh_token",
+		"refresh_token": refreshToken,
+	}
+
+	return f.postAuthenJSON(endpoint, appAccessToken, "refresh token", body, out)
+}
+
+// refreshTokenStandardOAuth refreshes token using standard OAuth2 flow
+func (f *FeishuProvider) refreshTokenStandardOAuth(endpoint string, refreshToken string, out *feishuUserTokenData) error {
+	body := map[string]string{
+		"grant_type":    "refresh_token",
+		"refresh_token": refreshToken,
+		"client_id":     f.AppID,
+		"client_secret": f.AppSecret,
+	}
+
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("failed to marshal refresh token request: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", endpoint, strings.NewReader(string(bodyBytes)))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to call refresh token endpoint %s: %w", endpoint, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read refresh token response from %s: %w", endpoint, err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("feishu refresh token HTTP %d from %s: %s", resp.StatusCode, endpoint, strings.TrimSpace(string(respBytes)))
+	}
+
+	if err := decodeFeishuResponse(bytes.NewReader(respBytes), "refresh token", out); err != nil {
+		return fmt.Errorf("%w (endpoint=%s)", err, endpoint)
+	}
+
+	return nil
 }
 
 // GetUserInfo retrieves user information using the user access token.
