@@ -135,6 +135,12 @@ func FindWithSubOrUpsertUser(user *User) error {
 	user.ID = existingUser.ID
 	user.CreatedAt = existingUser.CreatedAt
 	user.SidebarPreference = existingUser.SidebarPreference
+
+	// Log username changes for debugging
+	if existingUser.Username != user.Username {
+		klog.Infof("Updating user %d username: %q -> %q", user.ID, existingUser.Username, user.Username)
+	}
+
 	err := DB.Save(user).Error
 	InvalidateUserCache(uint64(user.ID))
 	return err
@@ -191,6 +197,41 @@ func GetUserByUsername(username string) (*User, error) {
 		return nil, err
 	}
 	return &user, nil
+}
+
+// GetUserRolesFromDB retrieves all roles assigned to a user from the database.
+// This includes both direct user assignments and group assignments.
+func GetUserRolesFromDB(username string) ([]common.Role, error) {
+	type RoleWithAssignment struct {
+		Role
+		SubjectType string
+		Subject     string
+	}
+
+	var results []RoleWithAssignment
+	err := DB.Table("roles").
+		Select("roles.*, role_assignments.subject_type, role_assignments.subject").
+		Joins("JOIN role_assignments ON role_assignments.role_id = roles.id").
+		Where("role_assignments.subject_type = ? AND role_assignments.subject = ?", SubjectTypeUser, username).
+		Find(&results).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to query user roles: %w", err)
+	}
+
+	roles := make([]common.Role, 0, len(results))
+	for _, r := range results {
+		roles = append(roles, common.Role{
+			Name:        r.Name,
+			Description: r.Description,
+			Clusters:    r.Clusters,
+			Resources:   r.Resources,
+			Namespaces:  r.Namespaces,
+			Verbs:       r.Verbs,
+		})
+	}
+
+	return roles, nil
 }
 
 // ListUsers returns users with pagination. If limit is 0, defaults to 20.

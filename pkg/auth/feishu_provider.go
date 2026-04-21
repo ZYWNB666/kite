@@ -141,6 +141,8 @@ func NewFeishuProvider(op model.OAuthProvider) (*FeishuProvider, error) {
 		}
 	}
 
+	klog.Infof("Creating Feishu provider %s with UsernameClaim=%q", op.Name, op.UsernameClaim)
+
 	return &FeishuProvider{
 		AppID:         op.ClientID,
 		AppSecret:     string(op.ClientSecret),
@@ -533,10 +535,12 @@ func (f *FeishuProvider) GetUserInfo(accessToken string) (*model.User, error) {
 		return nil, err
 	}
 
-	klog.V(1).Infof("Feishu user info: open_id=%s, name=%s, email=%s, mobile=%s", data.OpenID, data.Name, data.Email, data.Mobile)
+	klog.Infof("Feishu user info: open_id=%s, name=%s, email=%s, mobile=%s", data.OpenID, data.Name, data.Email, data.Mobile)
+	klog.Infof("Feishu provider %s: UsernameClaim=%q", f.Name, f.UsernameClaim)
 
 	// Determine username: custom claim → email → mobile → name → open_id
 	username := f.resolveUsername(data)
+	klog.Infof("Feishu provider %s: Resolved username=%q (from claim %q)", f.Name, username, f.UsernameClaim)
 
 	user := &model.User{
 		Provider:  f.Name,
@@ -577,12 +581,16 @@ func (f *FeishuProvider) resolveUsername(data feishuUserInfoData) string {
 		switch f.UsernameClaim {
 		case "email":
 			if data.Email != "" {
+				klog.V(2).Infof("Using email as username: %s", data.Email)
 				return data.Email
 			}
 		case "mobile", "phone": // phone is alias for mobile
 			if data.Mobile != "" {
-				return cleanMobileNumber(data.Mobile)
+				cleaned := cleanMobileNumber(data.Mobile)
+				klog.V(2).Infof("Using mobile as username: %s (cleaned from %s)", cleaned, data.Mobile)
+				return cleaned
 			}
+			klog.Warningf("UsernameClaim is 'phone' but mobile is empty for provider %s", f.Name)
 		case "name":
 			if data.Name != "" {
 				return data.Name

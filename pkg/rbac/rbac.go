@@ -55,6 +55,18 @@ func GetUserRoles(user model.User) []common.Role {
 		return user.Roles
 	}
 	rolesMap := make(map[string]common.Role)
+
+	// Load roles from database (role_assignments table)
+	dbRoles, err := model.GetUserRolesFromDB(user.Username)
+	if err != nil {
+		klog.Warningf("Failed to load database roles for user %s: %v", user.Username, err)
+	} else {
+		for _, role := range dbRoles {
+			rolesMap[role.Name] = role
+		}
+	}
+
+	// Load roles from RBAC config file
 	rwlock.RLock()
 	defer rwlock.RUnlock()
 	for _, mapping := range RBACConfig.RoleMapping {
