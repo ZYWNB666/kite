@@ -51,7 +51,8 @@ func CanAccessNamespace(user model.User, cluster, name string) bool {
 
 // GetUserRoles returns all roles for a user/oidcGroups
 func GetUserRoles(user model.User) []common.Role {
-	if user.Roles != nil {
+	// Only return cached roles if they exist and are non-empty
+	if user.Roles != nil && len(user.Roles) > 0 {
 		return user.Roles
 	}
 	rolesMap := make(map[string]common.Role)

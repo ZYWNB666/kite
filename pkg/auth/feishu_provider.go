@@ -78,14 +78,39 @@ type feishuUserTokenData struct {
 }
 
 type feishuUserInfoData struct {
-	OpenID    string `json:"open_id"`
-	UnionID   string `json:"union_id"`
-	UserID    string `json:"user_id"`
-	Name      string `json:"name"`
-	EnName    string `json:"en_name"`
-	Email     string `json:"email"`
-	Mobile    string `json:"mobile"`
-	AvatarURL string `json:"avatar_url"`
+	OpenID      string `json:"open_id"`
+	UnionID     string `json:"union_id"`
+	UserID      string `json:"user_id"`
+	Name        string `json:"name"`
+	EnName      string `json:"en_name"`
+	Email       string `json:"email"`
+	Mobile      string `json:"mobile"`       // 飞书企业自建应用
+	Phone       string `json:"phone"`        // 可能的别名
+	PhoneNumber string `json:"phone_number"` // OIDC 标准字段
+	AvatarURL   string `json:"avatar_url"`
+	Picture     string `json:"picture"` // OIDC 标准头像字段
+}
+
+// GetMobile returns the mobile number from various possible fields
+func (d *feishuUserInfoData) GetMobile() string {
+	if d.Mobile != "" {
+		return d.Mobile
+	}
+	if d.PhoneNumber != "" {
+		return d.PhoneNumber
+	}
+	if d.Phone != "" {
+		return d.Phone
+	}
+	return ""
+}
+
+// GetAvatar returns the avatar URL from various possible fields
+func (d *feishuUserInfoData) GetAvatar() string {
+	if d.AvatarURL != "" {
+		return d.AvatarURL
+	}
+	return d.Picture
 }
 
 // decodeFeishuResponse decodes Feishu/Lark API response and supports both:
@@ -535,8 +560,9 @@ func (f *FeishuProvider) GetUserInfo(accessToken string) (*model.User, error) {
 		return nil, err
 	}
 
-	klog.Infof("Feishu user info: open_id=%s, name=%s, email=%s, mobile=%s", data.OpenID, data.Name, data.Email, data.Mobile)
-	klog.Infof("Feishu provider %s: UsernameClaim=%q", f.Name, f.UsernameClaim)
+	klog.Infof("Feishu user info: open_id=%s, name=%s, email=%s, mobile=%s", data.OpenID, data.Name, data.Email, data.GetMobile())
+	klog.Infof("Feishu user info RAW: user_id=%s, union_id=%s, en_name=%s", data.UserID, data.UnionID, data.EnName)
+	klog.Infof("Feishu provider %s: UsernameClaim=%q, UserInfoURL=%q", f.Name, f.UsernameClaim, userInfoURL)
 
 	// Determine username: custom claim → email → mobile → name → open_id
 	username := f.resolveUsername(data)
@@ -547,7 +573,7 @@ func (f *FeishuProvider) GetUserInfo(accessToken string) (*model.User, error) {
 		Sub:       data.OpenID,
 		Username:  username,
 		Name:      data.Name,
-		AvatarURL: data.AvatarURL,
+		AvatarURL: data.GetAvatar(),
 	}
 
 	// Feishu's standard user info API does not return group/department information.
@@ -585,12 +611,14 @@ func (f *FeishuProvider) resolveUsername(data feishuUserInfoData) string {
 				return data.Email
 			}
 		case "mobile", "phone": // phone is alias for mobile
-			if data.Mobile != "" {
-				cleaned := cleanMobileNumber(data.Mobile)
-				klog.V(2).Infof("Using mobile as username: %s (cleaned from %s)", cleaned, data.Mobile)
+			mobile := data.GetMobile()
+			if mobile != "" {
+				cleaned := cleanMobileNumber(mobile)
+				klog.V(2).Infof("Using mobile as username: %s (cleaned from %s)", cleaned, mobile)
 				return cleaned
 			}
-			klog.Warningf("UsernameClaim is 'phone' but mobile is empty for provider %s", f.Name)
+			klog.Warningf("UsernameClaim is 'phone' but mobile is empty for provider %s (raw: mobile=%q, phone=%q, phone_number=%q)",
+				f.Name, data.Mobile, data.Phone, data.PhoneNumber)
 		case "name":
 			if data.Name != "" {
 				return data.Name
@@ -619,8 +647,9 @@ func (f *FeishuProvider) resolveUsername(data feishuUserInfoData) string {
 	if data.Email != "" {
 		return data.Email
 	}
-	if data.Mobile != "" {
-		return cleanMobileNumber(data.Mobile)
+	mobile := data.GetMobile()
+	if mobile != "" {
+		return cleanMobileNumber(mobile)
 	}
 	if data.Name != "" {
 		return data.Name
