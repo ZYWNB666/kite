@@ -15,6 +15,26 @@ const sectionLabelClassName =
   'text-balance text-xs font-medium text-muted-foreground uppercase'
 const bodyTextClassName = 'text-sm text-pretty'
 
+function getGPUResourceValue(resources?: Record<string, unknown>) {
+  if (!resources) return ''
+
+  const directGPU =
+    resources['nvidia.com/gpu'] ??
+    resources['gpu'] ??
+    resources['amd.com/gpu']
+  if (directGPU !== undefined && directGPU !== null && directGPU !== '') {
+    return String(directGPU)
+  }
+
+  for (const [key, value] of Object.entries(resources)) {
+    if (key.toLowerCase().includes('gpu') && value !== undefined && value !== null && value !== '') {
+      return String(value)
+    }
+  }
+
+  return ''
+}
+
 function renderState(state: ContainerState) {
   if (state.running) {
     return (
@@ -405,6 +425,24 @@ export function ContainerInfoCard({
                             </span>
                           </div>
                         )}
+                        {getGPUResourceValue(
+                          container.resources.requests as Record<
+                            string,
+                            unknown
+                          >
+                        ) && (
+                          <div className="flex gap-2 text-xs">
+                            <span className="text-muted-foreground">GPU:</span>
+                            <span className="font-mono tabular-nums">
+                              {getGPUResourceValue(
+                                container.resources.requests as Record<
+                                  string,
+                                  unknown
+                                >
+                              )}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     )}
                     {container.resources.limits && (
@@ -427,6 +465,21 @@ export function ContainerInfoCard({
                             </span>
                             <span className="font-mono tabular-nums">
                               {container.resources.limits.memory}
+                            </span>
+                          </div>
+                        )}
+                        {getGPUResourceValue(
+                          container.resources.limits as Record<string, unknown>
+                        ) && (
+                          <div className="flex gap-2 text-xs">
+                            <span className="text-muted-foreground">GPU:</span>
+                            <span className="font-mono tabular-nums">
+                              {getGPUResourceValue(
+                                container.resources.limits as Record<
+                                  string,
+                                  unknown
+                                >
+                              )}
                             </span>
                           </div>
                         )}

@@ -1,15 +1,5 @@
 # 常见问题 (FAQ)
 
-## 数据共享
-
-默认情况下，Kite 不会收集任何分析数据。
-
-如果您希望帮助改进产品，可以将环境变量 `ENABLE_ANALYTICS` 设置为 `true`。
-
-Kite 将使用 umami 收集极少的匿名使用数据。
-
-源代码可在 [这里](https://github.com/kite-org/kite/blob/main/pkg/utils/utils.go#L10-L16) 找到。
-
 ## 权限问题
 
 如果在访问资源时，遇到如下错误提示，

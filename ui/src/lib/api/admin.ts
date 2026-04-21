@@ -352,7 +352,6 @@ export interface GeneralSetting {
   kubectlEnabled: boolean
   kubectlImage: string
   nodeTerminalImage: string
-  enableAnalytics: boolean
   enableVersionCheck: boolean
   passwordLoginDisabled: boolean
 }
@@ -367,7 +366,6 @@ export interface GeneralSettingUpdateRequest {
   kubectlEnabled?: boolean
   kubectlImage?: string
   nodeTerminalImage?: string
-  enableAnalytics?: boolean
   enableVersionCheck?: boolean
   passwordLoginDisabled?: boolean
 }

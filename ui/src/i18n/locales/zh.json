@@ -347,7 +347,6 @@
       "title": "运行时",
       "description": "配置数据分析和版本检查行为。",
       "form": {
-        "enableAnalytics": "启用数据分析",
         "enableVersionCheck": "启用版本检查"
       }
     },

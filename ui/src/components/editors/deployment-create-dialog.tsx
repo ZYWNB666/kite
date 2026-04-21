@@ -590,6 +590,21 @@ export function DeploymentCreateDialog({
                               })
                             }
                           />
+                          <Input
+                            placeholder="GPU (e.g., 1)"
+                            value={containerConfig.resources.requests.gpu}
+                            onChange={(e) =>
+                              updateContainer(containerIndex, {
+                                resources: {
+                                  ...containerConfig.resources,
+                                  requests: {
+                                    ...containerConfig.resources.requests,
+                                    gpu: e.target.value,
+                                  },
+                                },
+                              })
+                            }
+                          />
                         </div>
                       </div>
                       <div className="space-y-2">
@@ -622,6 +637,21 @@ export function DeploymentCreateDialog({
                                   limits: {
                                     ...containerConfig.resources.limits,
                                     memory: e.target.value,
+                                  },
+                                },
+                              })
+                            }
+                          />
+                          <Input
+                            placeholder="GPU (e.g., 1)"
+                            value={containerConfig.resources.limits.gpu}
+                            onChange={(e) =>
+                              updateContainer(containerIndex, {
+                                resources: {
+                                  ...containerConfig.resources,
+                                  limits: {
+                                    ...containerConfig.resources.limits,
+                                    gpu: e.target.value,
                                   },
                                 },
                               })

@@ -70,14 +70,11 @@ func TestSetupStatic(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	oldBase := common.Base
-	oldEnableAnalytics := common.EnableAnalytics
 	defer func() {
 		common.Base = oldBase
-		common.EnableAnalytics = oldEnableAnalytics
 	}()
 
 	common.Base = "/kite"
-	common.EnableAnalytics = true
 
 	r := gin.New()
 	setupStatic(r)
@@ -95,7 +92,7 @@ func TestSetupStatic(t *testing.T) {
 		}
 	})
 
-	t.Run("serves index for ui routes with base and analytics injected", func(t *testing.T) {
+	t.Run("serves index for ui routes with base injected", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/kite/overview", nil)
 		rec := httptest.NewRecorder()
 		r.ServeHTTP(rec, req)
@@ -106,9 +103,6 @@ func TestSetupStatic(t *testing.T) {
 		body := rec.Body.String()
 		if !strings.Contains(body, `window.__dynamic_base__="/kite"`) {
 			t.Fatalf("body missing dynamic base injection")
-		}
-		if !strings.Contains(body, "cloud.umami.is/script.js") {
-			t.Fatalf("body missing analytics injection")
 		}
 	})
 

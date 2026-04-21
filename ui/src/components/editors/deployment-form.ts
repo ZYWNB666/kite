@@ -26,8 +26,8 @@ export interface ContainerConfig {
   port?: number
   pullPolicy: 'Always' | 'IfNotPresent' | 'Never'
   resources: {
-    requests: { cpu: string; memory: string }
-    limits: { cpu: string; memory: string }
+    requests: { cpu: string; memory: string; gpu: string }
+    limits: { cpu: string; memory: string; gpu: string }
   }
   volumeMounts?: VolumeMountForm[]
   container: Container
@@ -51,8 +51,8 @@ export const createDefaultContainer = (index: number): ContainerConfig => ({
   image: '',
   pullPolicy: 'IfNotPresent',
   resources: {
-    requests: { cpu: '', memory: '' },
-    limits: { cpu: '', memory: '' },
+    requests: { cpu: '', memory: '', gpu: '' },
+    limits: { cpu: '', memory: '', gpu: '' },
   },
   container: {
     name: `container-${index + 1}`,
@@ -137,8 +137,13 @@ function buildVolumes(volumeForms: VolumeForm[]): Volume[] {
 function buildContainers(configs: ContainerConfig[]): Container[] {
   return configs.map((cfg) => {
     const hasRequests =
-      cfg.resources.requests.cpu || cfg.resources.requests.memory
-    const hasLimits = cfg.resources.limits.cpu || cfg.resources.limits.memory
+      cfg.resources.requests.cpu ||
+      cfg.resources.requests.memory ||
+      cfg.resources.requests.gpu
+    const hasLimits =
+      cfg.resources.limits.cpu ||
+      cfg.resources.limits.memory ||
+      cfg.resources.limits.gpu
 
     return {
       name: cfg.name,
@@ -167,6 +172,9 @@ function buildContainers(configs: ContainerConfig[]): Container[] {
               ...(cfg.resources.requests.memory && {
                 memory: cfg.resources.requests.memory,
               }),
+              ...(cfg.resources.requests.gpu && {
+                'nvidia.com/gpu': cfg.resources.requests.gpu,
+              }),
             },
           }),
           ...(hasLimits && {
@@ -176,6 +184,9 @@ function buildContainers(configs: ContainerConfig[]): Container[] {
               }),
               ...(cfg.resources.limits.memory && {
                 memory: cfg.resources.limits.memory,
+              }),
+              ...(cfg.resources.limits.gpu && {
+                'nvidia.com/gpu': cfg.resources.limits.gpu,
               }),
             },
           }),

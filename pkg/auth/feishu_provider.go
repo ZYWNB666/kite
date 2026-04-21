@@ -1,8 +1,10 @@
 package auth
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -14,17 +16,23 @@ import (
 )
 
 const (
-	feishuAuthURL     = "https://open.feishu.cn/open-apis/authen/v1/authorize"
-	feishuAppTokenURL = "https://open.feishu.cn/open-apis/auth/v3/app_access_token/internal/"
-	feishuTokenURL    = "https://open.feishu.cn/open-apis/authen/v1/oidc/access_token"
-	feishuUserInfoURL = "https://open.feishu.cn/open-apis/authen/v1/user_info"
-	feishuRefreshURL  = "https://open.feishu.cn/open-apis/authen/v1/oidc/refresh_access_token"
+	feishuAuthURL        = "https://open.feishu.cn/open-apis/authen/v1/index"
+	feishuAuthURLOIDC    = "https://open.feishu.cn/open-apis/authen/v1/authorize"
+	feishuAppTokenURL    = "https://open.feishu.cn/open-apis/auth/v3/app_access_token/internal/"
+	feishuTokenURL       = "https://open.feishu.cn/open-apis/authen/v1/access_token"
+	feishuTokenURLOIDC   = "https://open.feishu.cn/open-apis/authen/v1/oidc/access_token"
+	feishuUserInfoURL    = "https://open.feishu.cn/open-apis/authen/v1/user_info"
+	feishuRefreshURL     = "https://open.feishu.cn/open-apis/authen/v1/refresh_access_token"
+	feishuRefreshURLOIDC = "https://open.feishu.cn/open-apis/authen/v1/oidc/refresh_access_token"
 
-	larkAuthURL     = "https://open.larksuite.com/open-apis/authen/v1/authorize"
-	larkAppTokenURL = "https://open.larksuite.com/open-apis/auth/v3/app_access_token/internal/"
-	larkTokenURL    = "https://open.larksuite.com/open-apis/authen/v1/oidc/access_token"
-	larkUserInfoURL = "https://open.larksuite.com/open-apis/authen/v1/user_info"
-	larkRefreshURL  = "https://open.larksuite.com/open-apis/authen/v1/oidc/refresh_access_token"
+	larkAuthURL        = "https://open.larksuite.com/open-apis/authen/v1/index"
+	larkAuthURLOIDC    = "https://open.larksuite.com/open-apis/authen/v1/authorize"
+	larkAppTokenURL    = "https://open.larksuite.com/open-apis/auth/v3/app_access_token/internal/"
+	larkTokenURL       = "https://open.larksuite.com/open-apis/authen/v1/access_token"
+	larkTokenURLOIDC   = "https://open.larksuite.com/open-apis/authen/v1/oidc/access_token"
+	larkUserInfoURL    = "https://open.larksuite.com/open-apis/authen/v1/user_info"
+	larkRefreshURL     = "https://open.larksuite.com/open-apis/authen/v1/refresh_access_token"
+	larkRefreshURLOIDC = "https://open.larksuite.com/open-apis/authen/v1/oidc/refresh_access_token"
 )
 
 // FeishuProvider implements OAuthProvider for Feishu/Lark OAuth2.
@@ -35,6 +43,10 @@ type FeishuProvider struct {
 	AppSecret     string
 	RedirectURL   string
 	Name          string
+	AuthURL       string
+	TokenURL      string
+	UserInfoURL   string
+	RefreshURL    string
 	UsernameClaim string
 	AllowedGroups []string
 	isLark        bool
@@ -47,9 +59,10 @@ type FeishuProvider struct {
 
 // feishuAPIResponse is the common wrapper for all Feishu API responses
 type feishuAPIResponse struct {
-	Code int             `json:"code"`
-	Msg  string          `json:"msg"`
-	Data json.RawMessage `json:"data"`
+	Code    int             `json:"code"`
+	Msg     string          `json:"msg"`
+	Message string          `json:"message"`
+	Data    json.RawMessage `json:"data"`
 }
 
 type feishuAppTokenData struct {
@@ -75,6 +88,44 @@ type feishuUserInfoData struct {
 	AvatarURL string `json:"avatar_url"`
 }
 
+// decodeFeishuResponse decodes Feishu/Lark API response and supports both:
+// 1) standard wrapper with data field: {"code":0,"msg":"ok","data":{...}}
+// 2) flat payload at top level: {"code":0,"msg":"ok","access_token":"..."}
+func decodeFeishuResponse(respBody io.Reader, apiName string, out interface{}) error {
+	bodyBytes, err := io.ReadAll(respBody)
+	if err != nil {
+		return fmt.Errorf("failed to read %s response: %w", apiName, err)
+	}
+
+	var apiResp feishuAPIResponse
+	if err := json.Unmarshal(bodyBytes, &apiResp); err != nil {
+		return fmt.Errorf("failed to decode %s response: %w, body=%s", apiName, err, strings.TrimSpace(string(bodyBytes)))
+	}
+
+	msg := apiResp.Msg
+	if msg == "" {
+		msg = apiResp.Message
+	}
+
+	if apiResp.Code != 0 {
+		return fmt.Errorf("feishu %s error: code=%d, msg=%s", apiName, apiResp.Code, msg)
+	}
+
+	// Prefer wrapped `data` payload when present.
+	if len(apiResp.Data) > 0 && string(apiResp.Data) != "null" {
+		if err := json.Unmarshal(apiResp.Data, out); err == nil {
+			return nil
+		}
+	}
+
+	// Fallback for APIs that return top-level fields.
+	if err := json.Unmarshal(bodyBytes, out); err != nil {
+		return fmt.Errorf("failed to parse %s data: %w", apiName, err)
+	}
+
+	return nil
+}
+
 // NewFeishuProvider creates a new Feishu/Lark OAuth2 provider
 func NewFeishuProvider(op model.OAuthProvider) (*FeishuProvider, error) {
 	isLark := strings.Contains(strings.ToLower(op.Issuer), "larksuite.com") ||
@@ -95,6 +146,10 @@ func NewFeishuProvider(op model.OAuthProvider) (*FeishuProvider, error) {
 		AppSecret:     string(op.ClientSecret),
 		RedirectURL:   op.RedirectURL,
 		Name:          string(op.Name),
+		AuthURL:       strings.TrimSpace(op.AuthURL),
+		TokenURL:      strings.TrimSpace(op.TokenURL),
+		UserInfoURL:   strings.TrimSpace(op.UserInfoURL),
+		RefreshURL:    "",
 		UsernameClaim: op.UsernameClaim,
 		AllowedGroups: allowedGroups,
 		isLark:        isLark,
@@ -109,14 +164,82 @@ func (f *FeishuProvider) GetProviderName() string {
 // Unlike standard OAuth2, Feishu uses app_id instead of client_id.
 func (f *FeishuProvider) GetAuthURL(state string) string {
 	authURL := feishuAuthURL
+	if f.AuthURL != "" {
+		authURL = f.AuthURL
+	}
 	if f.isLark {
 		authURL = larkAuthURL
+		if f.AuthURL != "" {
+			authURL = f.AuthURL
+		}
 	}
 	params := url.Values{}
 	params.Set("app_id", f.AppID)
 	params.Set("redirect_uri", f.RedirectURL)
 	params.Set("state", state)
 	return authURL + "?" + params.Encode()
+}
+
+func (f *FeishuProvider) getTokenEndpoints() []string {
+	if f.TokenURL != "" {
+		return []string{f.TokenURL}
+	}
+	if f.isLark {
+		return []string{larkTokenURL, larkTokenURLOIDC}
+	}
+	return []string{feishuTokenURL, feishuTokenURLOIDC}
+}
+
+func (f *FeishuProvider) getRefreshEndpoints() []string {
+	if f.RefreshURL != "" {
+		return []string{f.RefreshURL}
+	}
+	if f.isLark {
+		return []string{larkRefreshURL, larkRefreshURLOIDC}
+	}
+	return []string{feishuRefreshURL, feishuRefreshURLOIDC}
+}
+
+func (f *FeishuProvider) postAuthenJSON(
+	endpoint string,
+	appAccessToken string,
+	apiName string,
+	reqBody map[string]string,
+	out interface{},
+) error {
+	bodyBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return fmt.Errorf("failed to marshal %s request: %w", apiName, err)
+	}
+
+	req, err := http.NewRequest("POST", endpoint, strings.NewReader(string(bodyBytes)))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	req.Header.Set("Authorization", "Bearer "+appAccessToken)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to call %s endpoint %s: %w", apiName, endpoint, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read %s response from %s: %w", apiName, endpoint, err)
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("feishu %s HTTP %d from %s: %s", apiName, resp.StatusCode, endpoint, strings.TrimSpace(string(respBytes)))
+	}
+
+	if err := decodeFeishuResponse(bytes.NewReader(respBytes), apiName, out); err != nil {
+		return fmt.Errorf("%w (endpoint=%s)", err, endpoint)
+	}
+
+	return nil
 }
 
 // getAppAccessToken retrieves a valid app_access_token, using cache when possible.
@@ -157,17 +280,9 @@ func (f *FeishuProvider) getAppAccessToken() (string, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	var apiResp feishuAPIResponse
-	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
-		return "", fmt.Errorf("failed to decode app_access_token response: %w", err)
-	}
-	if apiResp.Code != 0 {
-		return "", fmt.Errorf("feishu app_access_token error: code=%d, msg=%s", apiResp.Code, apiResp.Msg)
-	}
-
 	var data feishuAppTokenData
-	if err := json.Unmarshal(apiResp.Data, &data); err != nil {
-		return "", fmt.Errorf("failed to parse app_access_token data: %w", err)
+	if err := decodeFeishuResponse(resp.Body, "app_access_token", &data); err != nil {
+		return "", err
 	}
 
 	// Cache the token, expire 5 minutes early as safety margin
@@ -179,6 +294,10 @@ func (f *FeishuProvider) getAppAccessToken() (string, error) {
 	}
 	f.appAccessTokenExp = time.Now().Add(expiry)
 	f.mu.Unlock()
+
+	if data.AppAccessToken == "" {
+		return "", fmt.Errorf("feishu app_access_token is empty")
+	}
 
 	klog.V(1).Infof("Refreshed app_access_token for %s, expires in %ds", f.Name, data.Expire)
 	return data.AppAccessToken, nil
@@ -192,53 +311,36 @@ func (f *FeishuProvider) ExchangeCodeForToken(code string) (*TokenResponse, erro
 		return nil, err
 	}
 
-	tokenURL := feishuTokenURL
-	if f.isLark {
-		tokenURL = larkTokenURL
-	}
-
 	body := map[string]string{
 		"grant_type": "authorization_code",
 		"code":       code,
 	}
-	bodyBytes, err := json.Marshal(body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal token request: %w", err)
+
+	var lastErr error
+	errDetails := make([]string, 0, len(f.getTokenEndpoints()))
+	for _, endpoint := range f.getTokenEndpoints() {
+		var data feishuUserTokenData
+		err = f.postAuthenJSON(endpoint, appAccessToken, "token exchange", body, &data)
+		if err == nil && data.AccessToken != "" {
+			return &TokenResponse{
+				AccessToken:  data.AccessToken,
+				RefreshToken: data.RefreshToken,
+				TokenType:    data.TokenType,
+				ExpiresIn:    data.ExpiresIn,
+			}, nil
+		}
+		if err == nil && data.AccessToken == "" {
+			err = fmt.Errorf("token exchange succeeded but access_token is empty on endpoint %s", endpoint)
+		}
+		lastErr = err
+		errDetails = append(errDetails, err.Error())
+		klog.Warningf("Feishu token exchange failed on endpoint %s (provider=%s): %v", endpoint, f.Name, err)
 	}
 
-	req, err := http.NewRequest("POST", tokenURL, strings.NewReader(string(bodyBytes)))
-	if err != nil {
-		return nil, err
+	if len(errDetails) > 0 {
+		return nil, fmt.Errorf("all token endpoints failed: %s", strings.Join(errDetails, " | "))
 	}
-	req.Header.Set("Content-Type", "application/json; charset=utf-8")
-	req.Header.Set("Authorization", "Bearer "+appAccessToken)
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to exchange code for token: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	var apiResp feishuAPIResponse
-	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
-		return nil, fmt.Errorf("failed to decode token response: %w", err)
-	}
-	if apiResp.Code != 0 {
-		return nil, fmt.Errorf("feishu token exchange error: code=%d, msg=%s", apiResp.Code, apiResp.Msg)
-	}
-
-	var data feishuUserTokenData
-	if err := json.Unmarshal(apiResp.Data, &data); err != nil {
-		return nil, fmt.Errorf("failed to parse token data: %w", err)
-	}
-
-	return &TokenResponse{
-		AccessToken:  data.AccessToken,
-		RefreshToken: data.RefreshToken,
-		TokenType:    data.TokenType,
-		ExpiresIn:    data.ExpiresIn,
-	}, nil
+	return nil, lastErr
 }
 
 // RefreshToken refreshes the user access token using the refresh token.
@@ -249,60 +351,41 @@ func (f *FeishuProvider) RefreshToken(refreshToken string) (*TokenResponse, erro
 		return nil, err
 	}
 
-	refreshURL := feishuRefreshURL
-	if f.isLark {
-		refreshURL = larkRefreshURL
-	}
-
 	body := map[string]string{
 		"grant_type":    "refresh_token",
 		"refresh_token": refreshToken,
 	}
-	bodyBytes, err := json.Marshal(body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal refresh request: %w", err)
+
+	var lastErr error
+	for _, endpoint := range f.getRefreshEndpoints() {
+		var data feishuUserTokenData
+		err = f.postAuthenJSON(endpoint, appAccessToken, "refresh token", body, &data)
+		if err == nil {
+			return &TokenResponse{
+				AccessToken:  data.AccessToken,
+				RefreshToken: data.RefreshToken,
+				TokenType:    data.TokenType,
+				ExpiresIn:    data.ExpiresIn,
+			}, nil
+		}
+		lastErr = err
+		klog.Warningf("Feishu token refresh failed on endpoint %s (provider=%s): %v", endpoint, f.Name, err)
 	}
 
-	req, err := http.NewRequest("POST", refreshURL, strings.NewReader(string(bodyBytes)))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json; charset=utf-8")
-	req.Header.Set("Authorization", "Bearer "+appAccessToken)
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to refresh token: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	var apiResp feishuAPIResponse
-	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
-		return nil, fmt.Errorf("failed to decode refresh response: %w", err)
-	}
-	if apiResp.Code != 0 {
-		return nil, fmt.Errorf("feishu refresh token error: code=%d, msg=%s", apiResp.Code, apiResp.Msg)
-	}
-
-	var data feishuUserTokenData
-	if err := json.Unmarshal(apiResp.Data, &data); err != nil {
-		return nil, fmt.Errorf("failed to parse refresh data: %w", err)
-	}
-
-	return &TokenResponse{
-		AccessToken:  data.AccessToken,
-		RefreshToken: data.RefreshToken,
-		TokenType:    data.TokenType,
-		ExpiresIn:    data.ExpiresIn,
-	}, nil
+	return nil, lastErr
 }
 
 // GetUserInfo retrieves user information using the user access token.
 func (f *FeishuProvider) GetUserInfo(accessToken string) (*model.User, error) {
 	userInfoURL := feishuUserInfoURL
+	if f.UserInfoURL != "" {
+		userInfoURL = f.UserInfoURL
+	}
 	if f.isLark {
 		userInfoURL = larkUserInfoURL
+		if f.UserInfoURL != "" {
+			userInfoURL = f.UserInfoURL
+		}
 	}
 
 	req, err := http.NewRequest("GET", userInfoURL, nil)
@@ -318,17 +401,9 @@ func (f *FeishuProvider) GetUserInfo(accessToken string) (*model.User, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	var apiResp feishuAPIResponse
-	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
-		return nil, fmt.Errorf("failed to decode user info response: %w", err)
-	}
-	if apiResp.Code != 0 {
-		return nil, fmt.Errorf("feishu user info error: code=%d, msg=%s", apiResp.Code, apiResp.Msg)
-	}
-
 	var data feishuUserInfoData
-	if err := json.Unmarshal(apiResp.Data, &data); err != nil {
-		return nil, fmt.Errorf("failed to parse user info data: %w", err)
+	if err := decodeFeishuResponse(resp.Body, "user info", &data); err != nil {
+		return nil, err
 	}
 
 	klog.V(1).Infof("Feishu user info: open_id=%s, name=%s, email=%s, mobile=%s", data.OpenID, data.Name, data.Email, data.Mobile)

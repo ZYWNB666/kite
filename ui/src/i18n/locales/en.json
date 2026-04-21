@@ -321,9 +321,8 @@
     },
     "runtime": {
       "title": "Runtime",
-      "description": "Configure analytics and version checking behavior.",
+      "description": "Configure version checking behavior.",
       "form": {
-        "enableAnalytics": "Enable analytics",
         "enableVersionCheck": "Enable version check"
       }
     },

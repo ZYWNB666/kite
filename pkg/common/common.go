@@ -24,11 +24,10 @@ const (
 )
 
 var (
-	Port            = "8080"
-	JwtSecret       = DefaultJWTSecret
-	EnableAnalytics = false
-	Host            = ""
-	Base            = ""
+	Port      = "8080"
+	JwtSecret = DefaultJWTSecret
+	Host      = ""
+	Base      = ""
 
 	NodeTerminalImage    = "busybox:latest"
 	KubectlTerminalImage = "zzde/kubectl:latest"
@@ -65,9 +64,6 @@ func LoadEnvs() {
 		Port = port
 	}
 
-	if analytics := os.Getenv("ENABLE_ANALYTICS"); analytics == "true" {
-		EnableAnalytics = true
-	}
 	if ns := os.Getenv("NAMESPACE"); ns != "" {
 		AgentPodNamespace = ns
 	}

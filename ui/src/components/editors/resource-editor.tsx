@@ -11,7 +11,7 @@ interface ResourceEditorProps {
 export function ResourceEditor({ container, onUpdate }: ResourceEditorProps) {
   const updateResources = (
     type: 'requests' | 'limits',
-    resource: 'cpu' | 'memory',
+    resource: string,
     value: string
   ) => {
     onUpdate({
@@ -65,6 +65,22 @@ export function ResourceEditor({ container, onUpdate }: ResourceEditorProps) {
               e.g., 128Mi, 1Gi, 512M
             </p>
           </div>
+          <div>
+            <Label htmlFor="gpu-request" className="text-sm">
+              GPU Request
+            </Label>
+            <Input
+              id="gpu-request"
+              value={container.resources?.requests?.['nvidia.com/gpu'] || ''}
+              onChange={(e) =>
+                updateResources('requests', 'nvidia.com/gpu', e.target.value)
+              }
+              placeholder="1"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              e.g., 1, 2
+            </p>
+          </div>
         </div>
       </div>
 
@@ -102,6 +118,22 @@ export function ResourceEditor({ container, onUpdate }: ResourceEditorProps) {
             />
             <p className="text-xs text-muted-foreground mt-1">
               e.g., 512Mi, 2Gi, 1G
+            </p>
+          </div>
+          <div>
+            <Label htmlFor="gpu-limit" className="text-sm">
+              GPU Limit
+            </Label>
+            <Input
+              id="gpu-limit"
+              value={container.resources?.limits?.['nvidia.com/gpu'] || ''}
+              onChange={(e) =>
+                updateResources('limits', 'nvidia.com/gpu', e.target.value)
+              }
+              placeholder="1"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              e.g., 1, 2
             </p>
           </div>
         </div>

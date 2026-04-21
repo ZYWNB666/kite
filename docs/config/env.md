@@ -14,6 +14,4 @@ Kite supports several environment variables by default to change the default val
 
 - **NODE_TERMINAL_IMAGE**: Docker image used for generating Node Terminal Agent.
 
-- **ENABLE_ANALYTICS**: Enable data analytics functionality, default value is `false`. When enabled, Kite will collect limited data to help improve the product.
-
 - **PORT**: Port on which Kite runs, default value is `8080`.

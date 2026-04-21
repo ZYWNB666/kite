@@ -9,7 +9,6 @@ func TestLoadEnvs(t *testing.T) {
 	old := struct {
 		JwtSecret            string
 		Port                 string
-		EnableAnalytics      bool
 		AgentPodNamespace    string
 		NodeTerminalImage    string
 		KubectlTerminalImage string
@@ -25,7 +24,6 @@ func TestLoadEnvs(t *testing.T) {
 	}{
 		JwtSecret:            JwtSecret,
 		Port:                 Port,
-		EnableAnalytics:      EnableAnalytics,
 		AgentPodNamespace:    AgentPodNamespace,
 		NodeTerminalImage:    NodeTerminalImage,
 		KubectlTerminalImage: KubectlTerminalImage,
@@ -42,7 +40,6 @@ func TestLoadEnvs(t *testing.T) {
 	defer func() {
 		JwtSecret = old.JwtSecret
 		Port = old.Port
-		EnableAnalytics = old.EnableAnalytics
 		AgentPodNamespace = old.AgentPodNamespace
 		NodeTerminalImage = old.NodeTerminalImage
 		KubectlTerminalImage = old.KubectlTerminalImage
@@ -59,7 +56,6 @@ func TestLoadEnvs(t *testing.T) {
 
 	t.Setenv("JWT_SECRET", "test-jwt-secret")
 	t.Setenv("PORT", "9090")
-	t.Setenv("ENABLE_ANALYTICS", "true")
 	t.Setenv("NAMESPACE", "test-namespace")
 	t.Setenv("NODE_TERMINAL_IMAGE", "test-node-image")
 	t.Setenv("KUBECTL_TERMINAL_IMAGE", "test-kubectl-image")
@@ -80,9 +76,6 @@ func TestLoadEnvs(t *testing.T) {
 	}
 	if Port != "9090" {
 		t.Fatalf("Port = %q, want %q", Port, "9090")
-	}
-	if !EnableAnalytics {
-		t.Fatalf("EnableAnalytics = %v, want true", EnableAnalytics)
 	}
 	if AgentPodNamespace != "test-namespace" {
 		t.Fatalf("AgentPodNamespace = %q, want %q", AgentPodNamespace, "test-namespace")

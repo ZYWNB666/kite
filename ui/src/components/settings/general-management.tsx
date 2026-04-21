@@ -39,7 +39,6 @@ interface GeneralSettingsFormData {
   kubectlEnabled: boolean
   kubectlImage: string
   nodeTerminalImage: string
-  enableAnalytics: boolean
   enableVersionCheck: boolean
 }
 
@@ -58,7 +57,6 @@ export function GeneralManagement() {
     kubectlEnabled: true,
     kubectlImage: DEFAULT_KUBECTL_IMAGE,
     nodeTerminalImage: DEFAULT_NODE_TERMINAL_IMAGE,
-    enableAnalytics: true,
     enableVersionCheck: true,
   })
 
@@ -75,7 +73,6 @@ export function GeneralManagement() {
       kubectlEnabled: data.kubectlEnabled ?? true,
       kubectlImage: data.kubectlImage || DEFAULT_KUBECTL_IMAGE,
       nodeTerminalImage: data.nodeTerminalImage || DEFAULT_NODE_TERMINAL_IMAGE,
-      enableAnalytics: data.enableAnalytics ?? false,
       enableVersionCheck: data.enableVersionCheck ?? true,
     })
   }, [data])
@@ -152,7 +149,6 @@ export function GeneralManagement() {
       kubectlImage: formData.kubectlImage.trim() || DEFAULT_KUBECTL_IMAGE,
       nodeTerminalImage:
         formData.nodeTerminalImage.trim() || DEFAULT_NODE_TERMINAL_IMAGE,
-      enableAnalytics: formData.enableAnalytics,
       enableVersionCheck: formData.enableVersionCheck,
     }
     if (formData.aiApiKey.trim()) {
@@ -415,25 +411,9 @@ export function GeneralManagement() {
             <p className="mt-1 text-xs text-muted-foreground">
               {t(
                 'generalManagement.runtime.description',
-                'Configure analytics and version checking behavior.'
+                'Configure version checking behavior.'
               )}
             </p>
-          </div>
-
-          <div className="flex items-center justify-between border-t p-3">
-            <Label htmlFor="general-enable-analytics" className="text-sm">
-              {t(
-                'generalManagement.runtime.form.enableAnalytics',
-                'Enable analytics'
-              )}
-            </Label>
-            <Switch
-              id="general-enable-analytics"
-              checked={formData.enableAnalytics}
-              onCheckedChange={(checked) =>
-                setFormData((prev) => ({ ...prev, enableAnalytics: checked }))
-              }
-            />
           </div>
 
           <div className="flex items-center justify-between border-t p-3">

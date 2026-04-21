@@ -84,29 +84,20 @@ func TestDefaultGeneralAIModelByProvider(t *testing.T) {
 }
 
 func TestApplyRuntimeGeneralSetting(t *testing.T) {
-	originalAnalytics := common.EnableAnalytics
 	originalVersionCheck := common.EnableVersionCheck
 	t.Cleanup(func() {
-		common.EnableAnalytics = originalAnalytics
 		common.EnableVersionCheck = originalVersionCheck
 	})
 
 	applyRuntimeGeneralSetting(&GeneralSetting{
-		EnableAnalytics:    true,
 		EnableVersionCheck: false,
 	})
 
-	if !common.EnableAnalytics {
-		t.Fatalf("EnableAnalytics = %v, want true", common.EnableAnalytics)
-	}
 	if common.EnableVersionCheck {
 		t.Fatalf("EnableVersionCheck = %v, want false", common.EnableVersionCheck)
 	}
 
 	applyRuntimeGeneralSetting(nil)
-	if !common.EnableAnalytics {
-		t.Fatalf("nil setting changed EnableAnalytics")
-	}
 	if common.EnableVersionCheck {
 		t.Fatalf("nil setting changed EnableVersionCheck")
 	}

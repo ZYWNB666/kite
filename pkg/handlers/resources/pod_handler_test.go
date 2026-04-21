@@ -43,6 +43,7 @@ func TestGetPodMetrics(t *testing.T) {
 						Limits: corev1.ResourceList{
 							corev1.ResourceCPU:    resource.MustParse("500m"),
 							corev1.ResourceMemory: resource.MustParse("256Mi"),
+							corev1.ResourceName("nvidia.com/gpu"): resource.MustParse("1"),
 						},
 						Requests: corev1.ResourceList{
 							corev1.ResourceCPU:    resource.MustParse("250m"),
@@ -56,6 +57,7 @@ func TestGetPodMetrics(t *testing.T) {
 						Limits: corev1.ResourceList{
 							corev1.ResourceCPU:    resource.MustParse("250m"),
 							corev1.ResourceMemory: resource.MustParse("64Mi"),
+							corev1.ResourceName("vendor.com/gpu.shared"): resource.MustParse("2"),
 						},
 						Requests: corev1.ResourceList{
 							corev1.ResourceCPU: resource.MustParse("100m"),
@@ -98,15 +100,46 @@ func TestGetPodMetrics(t *testing.T) {
 	if got.CPURequest != 350 || got.MemoryRequest != 128*1024*1024 {
 		t.Fatalf("unexpected requests: %#v", got)
 	}
+	if got.GPULimit != 3 {
+		t.Fatalf("unexpected gpu limits: %#v", got)
+	}
 }
 
 func TestGetPodMetricsMissingMetrics(t *testing.T) {
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Namespace: "default", Name: "demo"},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name: "app",
+					Resources: corev1.ResourceRequirements{
+						Limits: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("500m"),
+							corev1.ResourceMemory: resource.MustParse("256Mi"),
+							corev1.ResourceName("nvidia.com/gpu"): resource.MustParse("1"),
+						},
+						Requests: corev1.ResourceList{
+							corev1.ResourceCPU:    resource.MustParse("200m"),
+							corev1.ResourceMemory: resource.MustParse("128Mi"),
+						},
+					},
+				},
+			},
+		},
 	}
 
-	if got := GetPodMetrics(map[string]metricsv1.PodMetrics{}, pod); got != nil {
-		t.Fatalf("expected nil metrics, got %#v", got)
+	got := GetPodMetrics(map[string]metricsv1.PodMetrics{}, pod)
+	if got == nil {
+		t.Fatalf("expected metrics, got nil")
+	}
+	if got.CPUUsage != 0 || got.MemoryUsage != 0 {
+		t.Fatalf("expected zero usage without metrics, got %#v", got)
+	}
+	if got.CPULimit != 500 || got.MemoryLimit != 256*1024*1024 || got.GPULimit != 1 {
+		t.Fatalf("expected limits from pod spec, got %#v", got)
+	}
+	if got.CPURequest != 200 || got.MemoryRequest != 128*1024*1024 {
+		t.Fatalf("expected requests from pod spec, got %#v", got)
 	}
 }
 

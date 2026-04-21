@@ -65,17 +65,16 @@ type PodListWithMetrics struct {
 
 func GetPodMetrics(metricsMap map[string]metricsv1.PodMetrics, pod *corev1.Pod) *PodMetrics {
 	key := pod.Namespace + "/" + pod.Name
-	podMetrics, ok := metricsMap[key]
-	if !ok || len(podMetrics.Containers) == 0 {
-		return nil
-	}
+	podMetrics, hasUsageMetrics := metricsMap[key]
 	var cpuUsage, memUsage int64
-	for _, container := range podMetrics.Containers {
-		if cpuQuantity, ok := container.Usage["cpu"]; ok {
-			cpuUsage += cpuQuantity.MilliValue()
-		}
-		if memQuantity, ok := container.Usage["memory"]; ok {
-			memUsage += memQuantity.Value()
+	if hasUsageMetrics {
+		for _, container := range podMetrics.Containers {
+			if cpuQuantity, ok := container.Usage["cpu"]; ok {
+				cpuUsage += cpuQuantity.MilliValue()
+			}
+			if memQuantity, ok := container.Usage["memory"]; ok {
+				memUsage += memQuantity.Value()
+			}
 		}
 	}
 	var cpuLimit, memLimit int64
@@ -95,7 +94,7 @@ func GetPodMetrics(metricsMap map[string]metricsv1.PodMetrics, pod *corev1.Pod) 
 			memRequest += memQuantity.Value()
 		}
 		for name, quantity := range container.Resources.Limits {
-			if strings.HasSuffix(string(name), "gpu") {
+			if strings.Contains(strings.ToLower(string(name)), "gpu") {
 				gpuLimit += quantity.Value()
 			}
 		}

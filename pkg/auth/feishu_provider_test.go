@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -121,12 +122,12 @@ func TestFeishuProviderGetAuthURL(t *testing.T) {
 		{
 			name:     "feishu auth URL",
 			isLark:   false,
-			wantBase: "https://open.feishu.cn/open-apis/authen/v1/authorize",
+			wantBase: "https://open.feishu.cn/open-apis/authen/v1/index",
 		},
 		{
 			name:     "lark auth URL",
 			isLark:   true,
-			wantBase: "https://open.larksuite.com/open-apis/authen/v1/authorize",
+			wantBase: "https://open.larksuite.com/open-apis/authen/v1/index",
 		},
 	}
 
@@ -350,5 +351,57 @@ func TestFeishuAPIErrorResponse(t *testing.T) {
 	}
 	if apiResp.Msg != "invalid app_access_token" {
 		t.Fatalf("msg = %q, want %q", apiResp.Msg, "invalid app_access_token")
+	}
+}
+
+func TestDecodeFeishuResponseWrapped(t *testing.T) {
+	raw := `{"code":0,"msg":"ok","data":{"access_token":"u-test","refresh_token":"r-test","token_type":"Bearer","expires_in":7200}}`
+	var data feishuUserTokenData
+	if err := decodeFeishuResponse(bytes.NewBufferString(raw), "token exchange", &data); err != nil {
+		t.Fatalf("decodeFeishuResponse() error = %v", err)
+	}
+	if data.AccessToken != "u-test" {
+		t.Fatalf("AccessToken = %q, want %q", data.AccessToken, "u-test")
+	}
+	if data.RefreshToken != "r-test" {
+		t.Fatalf("RefreshToken = %q, want %q", data.RefreshToken, "r-test")
+	}
+}
+
+func TestDecodeFeishuResponseFlat(t *testing.T) {
+	raw := `{"code":0,"msg":"ok","app_access_token":"a-test","expire":7200}`
+	var data feishuAppTokenData
+	if err := decodeFeishuResponse(bytes.NewBufferString(raw), "app_access_token", &data); err != nil {
+		t.Fatalf("decodeFeishuResponse() error = %v", err)
+	}
+	if data.AppAccessToken != "a-test" {
+		t.Fatalf("AppAccessToken = %q, want %q", data.AppAccessToken, "a-test")
+	}
+	if data.Expire != 7200 {
+		t.Fatalf("Expire = %d, want %d", data.Expire, 7200)
+	}
+}
+
+func TestDecodeFeishuResponseError(t *testing.T) {
+	raw := `{"code":99991668,"msg":"invalid app_access_token","data":{}}`
+	var data feishuAppTokenData
+	err := decodeFeishuResponse(bytes.NewBufferString(raw), "app_access_token", &data)
+	if err == nil {
+		t.Fatalf("decodeFeishuResponse() should fail for non-zero code")
+	}
+	if !strings.Contains(err.Error(), "code=99991668") {
+		t.Fatalf("error = %q, want contains %q", err.Error(), "code=99991668")
+	}
+}
+
+func TestDecodeFeishuResponseErrorMessageField(t *testing.T) {
+	raw := `{"code":99991663,"message":"invalid code","data":{}}`
+	var data feishuUserTokenData
+	err := decodeFeishuResponse(bytes.NewBufferString(raw), "token exchange", &data)
+	if err == nil {
+		t.Fatalf("decodeFeishuResponse() should fail for non-zero code")
+	}
+	if !strings.Contains(err.Error(), "invalid code") {
+		t.Fatalf("error = %q, want contains %q", err.Error(), "invalid code")
 	}
 }

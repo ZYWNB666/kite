@@ -7,6 +7,26 @@ import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { Label } from './ui/label'
 
+function getGPUResourceValue(resources?: Record<string, unknown>) {
+  if (!resources) return ''
+
+  const directGPU =
+    resources['nvidia.com/gpu'] ??
+    resources['gpu'] ??
+    resources['amd.com/gpu']
+  if (directGPU !== undefined && directGPU !== null && directGPU !== '') {
+    return String(directGPU)
+  }
+
+  for (const [key, value] of Object.entries(resources)) {
+    if (key.toLowerCase().includes('gpu') && value !== undefined && value !== null && value !== '') {
+      return String(value)
+    }
+  }
+
+  return ''
+}
+
 export function ContainerTable(props: {
   container: Container
   onContainerUpdate?: (updatedContainer: Container) => void
@@ -148,6 +168,26 @@ export function ContainerTable(props: {
                                 </span>
                               </div>
                             )}
+                            {getGPUResourceValue(
+                              container.resources.requests as Record<
+                                string,
+                                unknown
+                              >
+                            ) && (
+                              <div className="flex gap-2">
+                                <span className="text-muted-foreground">
+                                  GPU:
+                                </span>
+                                <span>
+                                  {getGPUResourceValue(
+                                    container.resources.requests as Record<
+                                      string,
+                                      unknown
+                                    >
+                                  )}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}
@@ -171,6 +211,26 @@ export function ContainerTable(props: {
                                   Memory:
                                 </span>
                                 <span>{container.resources.limits.memory}</span>
+                              </div>
+                            )}
+                            {getGPUResourceValue(
+                              container.resources.limits as Record<
+                                string,
+                                unknown
+                              >
+                            ) && (
+                              <div className="flex gap-2">
+                                <span className="text-muted-foreground">
+                                  GPU:
+                                </span>
+                                <span>
+                                  {getGPUResourceValue(
+                                    container.resources.limits as Record<
+                                      string,
+                                      unknown
+                                    >
+                                  )}
+                                </span>
                               </div>
                             )}
                           </div>

@@ -1,15 +1,5 @@
 # Frequently Asked Questions (FAQ)
 
-## Data Sharing
-
-By default, Kite does not collect any analytics data.
-
-If you would like to help improve the product, you can set the environment variable `ENABLE_ANALYTICS` to `true`.
-
-Kite will use umami to collect minimal anonymous usage data.
-
-The source code can be found [here](https://github.com/kite-org/kite/blob/main/pkg/utils/utils.go#L10-L16).
-
 ## Permission Issues
 
 If you encounter an error message like the following when accessing resources:

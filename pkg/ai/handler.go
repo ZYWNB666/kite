@@ -206,7 +206,6 @@ func HandleGetGeneralSetting(c *gin.Context) {
 		"kubectlEnabled":        setting.KubectlEnabled,
 		"kubectlImage":          setting.KubectlImage,
 		"nodeTerminalImage":     setting.NodeTerminalImage,
-		"enableAnalytics":       setting.EnableAnalytics,
 		"enableVersionCheck":    setting.EnableVersionCheck,
 		"passwordLoginDisabled": setting.PasswordLoginDisabled,
 	})
@@ -222,7 +221,6 @@ type UpdateGeneralSettingRequest struct {
 	KubectlEnabled        bool    `json:"kubectlEnabled"`
 	KubectlImage          string  `json:"kubectlImage"`
 	NodeTerminalImage     string  `json:"nodeTerminalImage"`
-	EnableAnalytics       bool    `json:"enableAnalytics"`
 	EnableVersionCheck    bool    `json:"enableVersionCheck"`
 	PasswordLoginDisabled *bool   `json:"passwordLoginDisabled"`
 }
@@ -297,7 +295,6 @@ func HandleUpdateGeneralSetting(c *gin.Context) {
 		"kubectl_enabled":      req.KubectlEnabled,
 		"kubectl_image":        kubectlImage,
 		"node_terminal_image":  nodeTerminalImage,
-		"enable_analytics":     req.EnableAnalytics,
 		"enable_version_check": req.EnableVersionCheck,
 	}
 	if req.PasswordLoginDisabled != nil {
@@ -325,7 +322,6 @@ func HandleUpdateGeneralSetting(c *gin.Context) {
 		"kubectlEnabled":        updated.KubectlEnabled,
 		"kubectlImage":          updated.KubectlImage,
 		"nodeTerminalImage":     updated.NodeTerminalImage,
-		"enableAnalytics":       updated.EnableAnalytics,
 		"enableVersionCheck":    updated.EnableVersionCheck,
 		"passwordLoginDisabled": updated.PasswordLoginDisabled,
 	})

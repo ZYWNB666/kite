@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next'
 import { Link, useLocation } from 'react-router-dom'
 
 import { useVersionInfo } from '@/lib/api'
+import { useAuth } from '@/contexts/auth-context'
 import {
   Sidebar,
   SidebarContent,
@@ -27,12 +28,50 @@ import { ClusterSelector } from './cluster-selector'
 import { Collapsible, CollapsibleTrigger } from './ui/collapsible'
 import { VersionInfo } from './version-info'
 
+const SECURITY_RESOURCE_URL_PREFIXES = [
+  '/serviceaccounts',
+  '/roles',
+  '/rolebindings',
+  '/clusterroles',
+  '/clusterrolebindings',
+]
+
+function isSecurityUrl(url: string) {
+  return SECURITY_RESOURCE_URL_PREFIXES.some((prefix) => url.startsWith(prefix))
+}
+
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { t } = useTranslation()
   const location = useLocation()
+  const { user } = useAuth()
   const { isMobile, setOpenMobile } = useSidebar()
   const { config, isLoading, getIconComponent } = useSidebarConfig()
   const { data: versionInfo } = useVersionInfo()
+  const isAdmin = user?.isAdmin() ?? false
+
+  const securityGroupIds = useMemo(() => {
+    if (!config) return new Set<string>()
+    return new Set(
+      config.groups
+        .filter(
+          (group) =>
+            group.id === 'sidebar-groups-security' ||
+            group.nameKey === 'sidebar.groups.security'
+        )
+        .map((group) => group.id)
+    )
+  }, [config])
+
+  const securityItemIds = useMemo(() => {
+    if (!config || securityGroupIds.size === 0) return new Set<string>()
+    const ids = new Set<string>()
+    config.groups.forEach((group) => {
+      if (securityGroupIds.has(group.id)) {
+        group.items.forEach((item) => ids.add(item.id))
+      }
+    })
+    return ids
+  }, [config, securityGroupIds])
 
   const pinnedItems = useMemo(() => {
     if (!config) return []
@@ -40,22 +79,33 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       .flatMap((group) => group.items)
       .filter((item) => config.pinnedItems.includes(item.id))
       .filter((item) => !config.hiddenItems.includes(item.id))
-  }, [config])
+      .filter(
+        (item) =>
+          isAdmin ||
+          (!securityItemIds.has(item.id) && !isSecurityUrl(item.url))
+      )
+  }, [config, isAdmin, securityItemIds])
 
   const visibleGroups = useMemo(() => {
     if (!config) return []
     return config.groups
       .filter((group) => group.visible)
+      .filter((group) => isAdmin || !securityGroupIds.has(group.id))
       .sort((a, b) => a.order - b.order)
       .map((group) => ({
         ...group,
         items: group.items
           .filter((item) => !config.hiddenItems.includes(item.id))
           .filter((item) => !config.pinnedItems.includes(item.id))
+          .filter(
+            (item) =>
+              isAdmin ||
+              (!securityItemIds.has(item.id) && !isSecurityUrl(item.url))
+          )
           .sort((a, b) => a.order - b.order),
       }))
       .filter((group) => group.items.length > 0)
-  }, [config])
+  }, [config, isAdmin, securityGroupIds, securityItemIds])
 
   const isActive = (url: string) => {
     if (url === '/') {

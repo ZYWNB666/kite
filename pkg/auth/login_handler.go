@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -228,7 +229,9 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	klog.V(1).Infof("OAuth Callback - Exchanging code for token with provider: %s", provider)
 	tokenResp, err := oauthProvider.ExchangeCodeForToken(code)
 	if err != nil {
-		c.Redirect(http.StatusFound, base+"/login?error=token_exchange_failed&reason=token_exchange_failed&provider="+provider)
+		errDetail := url.QueryEscape(err.Error())
+		klog.Errorf("OAuth Callback - Token exchange failed for provider %s, err=%v", provider, err)
+		c.Redirect(http.StatusFound, base+"/login?error=token_exchange_failed&reason=token_exchange_failed&provider="+provider+"&detail="+errDetail)
 		return
 	}
 
