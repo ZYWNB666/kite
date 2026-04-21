@@ -546,12 +546,28 @@ func (f *FeishuProvider) GetUserInfo(accessToken string) (*model.User, error) {
 		AvatarURL: data.AvatarURL,
 	}
 
-	if !isAllowedGroup(user.OIDCGroups, f.AllowedGroups) {
-		klog.Warningf("User %s is not in any allowed groups %v (provider: %s)", user.Username, f.AllowedGroups, f.Name)
-		return nil, ErrNotInAllowedGroups
+	// Feishu's standard user info API does not return group/department information.
+	// If allowed_groups is configured, log a warning and skip group validation.
+	if len(f.AllowedGroups) > 0 {
+		klog.Warningf("Feishu provider %s has allowed_groups configured %v, but Feishu user info API does not provide group data. Skipping group validation for user %s. To enable group validation, you would need to implement department API calls.",
+			f.Name, f.AllowedGroups, user.Username)
 	}
 
 	return user, nil
+}
+
+// cleanMobileNumber removes country code prefix from mobile number
+// e.g., "+8617550585613" → "17550585613"
+func cleanMobileNumber(mobile string) string {
+	if mobile == "" {
+		return mobile
+	}
+	// Remove common country code prefixes
+	mobile = strings.TrimPrefix(mobile, "+86")  // China
+	mobile = strings.TrimPrefix(mobile, "+852") // Hong Kong
+	mobile = strings.TrimPrefix(mobile, "+853") // Macau
+	mobile = strings.TrimPrefix(mobile, "+886") // Taiwan
+	return mobile
 }
 
 // resolveUsername determines the username from Feishu user info data.
@@ -563,9 +579,9 @@ func (f *FeishuProvider) resolveUsername(data feishuUserInfoData) string {
 			if data.Email != "" {
 				return data.Email
 			}
-		case "mobile":
+		case "mobile", "phone": // phone is alias for mobile
 			if data.Mobile != "" {
-				return data.Mobile
+				return cleanMobileNumber(data.Mobile)
 			}
 		case "name":
 			if data.Name != "" {
@@ -596,7 +612,7 @@ func (f *FeishuProvider) resolveUsername(data feishuUserInfoData) string {
 		return data.Email
 	}
 	if data.Mobile != "" {
-		return data.Mobile
+		return cleanMobileNumber(data.Mobile)
 	}
 	if data.Name != "" {
 		return data.Name

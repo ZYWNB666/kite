@@ -205,6 +205,31 @@ func TestFeishuGetAppAccessToken(t *testing.T) {
 	}
 }
 
+func TestCleanMobileNumber(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"China +86", "+8617550585613", "17550585613"},
+		{"China +86 another", "+8613800138000", "13800138000"},
+		{"Hong Kong +852", "+85298765432", "98765432"},
+		{"Macau +853", "+85388888888", "88888888"},
+		{"Taiwan +886", "+886912345678", "912345678"},
+		{"No prefix", "13800138000", "13800138000"},
+		{"Empty string", "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := cleanMobileNumber(tt.input)
+			if got != tt.want {
+				t.Errorf("cleanMobileNumber(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestFeishuProviderResolveUsername(t *testing.T) {
 	provider := &FeishuProvider{
 		AppID: "cli_test",
@@ -227,7 +252,8 @@ func TestFeishuProviderResolveUsername(t *testing.T) {
 	}{
 		{"default uses email", "", "zhangsan@example.com"},
 		{"email claim", "email", "zhangsan@example.com"},
-		{"mobile claim", "mobile", "+8613800138000"},
+		{"mobile claim", "mobile", "13800138000"},                  // +86 prefix removed
+		{"phone claim (alias for mobile)", "phone", "13800138000"}, // +86 prefix removed
 		{"name claim", "name", "张三"},
 		{"en_name claim", "en_name", "Zhang San"},
 		{"open_id claim", "open_id", "ou_test123"},
@@ -258,8 +284,8 @@ func TestFeishuProviderResolveUsernameFallbacks(t *testing.T) {
 		Mobile: "+8613800138001",
 	}
 	got := provider.resolveUsername(userInfoData)
-	if got != "+8613800138001" {
-		t.Fatalf("resolveUsername() = %q, want %q", got, "+8613800138001")
+	if got != "13800138001" { // +86 prefix removed
+		t.Fatalf("resolveUsername() = %q, want %q", got, "13800138001")
 	}
 
 	// No email, no mobile → should use name
