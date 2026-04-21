@@ -100,6 +100,7 @@ func (h *ResourceApplyHandler) ApplyResource(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create resource: " + err.Error()})
 			return
 		}
+		err = nil // Clear error after successful creation
 	case err == nil:
 		obj.SetResourceVersion(existingObj.GetResourceVersion())
 		if err := cs.K8sClient.Update(ctx, obj); err != nil {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { IconAlertCircle, IconEye } from '@tabler/icons-react'
+import { IconEye } from '@tabler/icons-react'
 import {
   ColumnDef,
   getCoreRowModel,
@@ -14,12 +14,6 @@ import { formatDate } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import {
   Select,
@@ -44,7 +38,6 @@ export function AuditLog() {
   const [selectedHistory, setSelectedHistory] =
     useState<ResourceHistory | null>(null)
   const [isDiffOpen, setIsDiffOpen] = useState(false)
-  const [isErrorDialogOpen, setIsErrorDialogOpen] = useState(false)
 
   const { data: usersData } = useUserList(1, 200)
   const { data: clusters = [] } = useClusterList()
@@ -212,22 +205,6 @@ export function AuditLog() {
         header: t('auditLog.table.actions', 'Actions'),
         cell: ({ row }) => {
           const item = row.original
-          if (!item.success) {
-            return (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setSelectedHistory(item)
-                  setIsErrorDialogOpen(true)
-                }}
-                disabled={!item.errorMessage}
-              >
-                <IconAlertCircle className="w-4 h-4 mr-1" />
-                {t('auditLog.actions.viewError', 'View Error')}
-              </Button>
-            )
-          }
           return (
             <Button
               variant="outline"
@@ -425,28 +402,6 @@ export function AuditLog() {
           height={560}
         />
       )}
-
-      <Dialog
-        open={isErrorDialogOpen}
-        onOpenChange={(open) => {
-          setIsErrorDialogOpen(open)
-          if (!open) {
-            setSelectedHistory(null)
-          }
-        }}
-      >
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>
-              {t('auditLog.errorTitle', 'Error Details')}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="text-sm text-muted-foreground whitespace-pre-wrap">
-            {selectedHistory?.errorMessage ||
-              t('auditLog.noErrorMessage', 'No error message')}
-          </div>
-        </DialogContent>
-      </Dialog>
     </Card>
   )
 }
