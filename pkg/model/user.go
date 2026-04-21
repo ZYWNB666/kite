@@ -10,6 +10,7 @@ import (
 	"github.com/zxh326/kite/pkg/common"
 	"github.com/zxh326/kite/pkg/utils"
 	"gorm.io/gorm"
+	"k8s.io/klog/v2"
 )
 
 type User struct {
@@ -117,7 +118,15 @@ func FindWithSubOrUpsertUser(user *User) error {
 	user.LastLoginAt = &now
 	if err := DB.Where("sub = ?", user.Sub).First(&existingUser).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return DB.Create(user).Error
+			// Create new user
+			if err := DB.Create(user).Error; err != nil {
+				return err
+			}
+			// Auto-assign default role for OAuth users
+			if err := assignOAuthDefaultRole(user); err != nil {
+				klog.Warningf("Failed to assign default role to new OAuth user %s: %v", user.Username, err)
+			}
+			return nil
 		}
 		return err
 	}
@@ -129,6 +138,51 @@ func FindWithSubOrUpsertUser(user *User) error {
 	err := DB.Save(user).Error
 	InvalidateUserCache(uint64(user.ID))
 	return err
+}
+
+// assignOAuthDefaultRole assigns the default role to a new OAuth user if OAUTH_DEFAULT_ROLE is set.
+func assignOAuthDefaultRole(user *User) error {
+	if common.OAuthDefaultRole == "" {
+		return nil // No default role configured
+	}
+
+	// Skip if user is not OAuth (password or api_key provider)
+	if user.Provider == "password" || user.Provider == common.APIKeyProvider {
+		return nil
+	}
+
+	// Find the role
+	var role Role
+	if err := DB.Where("name = ?", common.OAuthDefaultRole).First(&role).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("default role %q not found", common.OAuthDefaultRole)
+		}
+		return fmt.Errorf("failed to find default role: %w", err)
+	}
+
+	// Check if assignment already exists
+	var existingAssignment RoleAssignment
+	err := DB.Where("role_id = ? AND subject_type = ? AND subject = ?",
+		role.ID, SubjectTypeUser, user.Username).First(&existingAssignment).Error
+	if err == nil {
+		return nil // Assignment already exists
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return fmt.Errorf("failed to check existing assignment: %w", err)
+	}
+
+	// Create role assignment
+	assignment := RoleAssignment{
+		RoleID:      role.ID,
+		SubjectType: SubjectTypeUser,
+		Subject:     user.Username,
+	}
+	if err := DB.Create(&assignment).Error; err != nil {
+		return fmt.Errorf("failed to create role assignment: %w", err)
+	}
+
+	klog.Infof("Assigned default role %q to new OAuth user %s (provider: %s)", common.OAuthDefaultRole, user.Username, user.Provider)
+	return nil
 }
 
 func GetUserByUsername(username string) (*User, error) {

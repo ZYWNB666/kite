@@ -53,6 +53,11 @@ var (
 	APIKeyProvider = "api_key"
 
 	AgentPodNamespace = "kube-system"
+
+	// OAuthDefaultRole is the default role assigned to new OAuth users.
+	// Can be set via OAUTH_DEFAULT_ROLE environment variable.
+	// Defaults to "viewer" if not set.
+	OAuthDefaultRole = "viewer"
 )
 
 func LoadEnvs() {
@@ -125,5 +130,10 @@ func LoadEnvs() {
 			}
 		}
 		klog.Warningf("CORS enabled for origins: %v — disable in production", CORSAllowedOrigins)
+	}
+
+	if v := os.Getenv("OAUTH_DEFAULT_ROLE"); v != "" {
+		OAuthDefaultRole = strings.TrimSpace(v)
+		klog.Infof("OAuth default role set to: %s", OAuthDefaultRole)
 	}
 }
