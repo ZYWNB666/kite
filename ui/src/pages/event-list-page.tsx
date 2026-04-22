@@ -81,14 +81,32 @@ export function EventListPage() {
           </div>
         ),
       }),
-      columnHelper.accessor((row) => row.reportingComponent, {
-        id: 'source',
-        header: t('events.source'),
-        cell: ({ getValue }) => (
-          <div className="text-muted-foreground text-sm max-w-sm whitespace-pre-wrap break-words">
-            {getValue() || '-'}
-          </div>
-        ),
+      columnHelper.accessor(
+        (row) => row.reportingComponent || row.source?.component || '',
+        {
+          id: 'source',
+          header: t('events.source'),
+          cell: ({ getValue }) => (
+            <div className="text-muted-foreground text-sm max-w-sm whitespace-pre-wrap break-words">
+              {getValue() || '-'}
+            </div>
+          ),
+        }
+      ),
+      columnHelper.accessor((row) => row.source?.host, {
+        id: 'node',
+        header: t('pods.node'),
+        cell: ({ getValue }) => {
+          const node = getValue()
+          if (node) {
+            return (
+              <div className="font-medium app-link text-sm">
+                <Link to={`/nodes/${node}`}>{node}</Link>
+              </div>
+            )
+          }
+          return <span className="text-muted-foreground text-sm">-</span>
+        },
       }),
       columnHelper.accessor((row) => row.count, {
         id: 'count',

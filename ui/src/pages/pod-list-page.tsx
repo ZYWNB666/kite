@@ -96,6 +96,18 @@ export function PodListPage() {
           <MetricCell metrics={row.original.metrics} type="memory" />
         ),
       }),
+      columnHelper.accessor((row) => row.metrics?.gpuLimit ?? 0, {
+        id: 'gpu',
+        header: 'GPU',
+        cell: ({ getValue }) => {
+          const gpu = getValue()
+          return (
+            <span className="text-sm text-muted-foreground tabular-nums">
+              {gpu > 0 ? gpu : '-'}
+            </span>
+          )
+        },
+      }),
       columnHelper.accessor((row) => row.status?.podIP, {
         id: 'podIP',
         header: 'IP',
