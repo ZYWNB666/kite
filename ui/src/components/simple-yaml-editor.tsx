@@ -27,17 +27,17 @@ export function SimpleYamlEditor({
     colorTheme
   )
   return (
-    <div className="border rounded-md overflow-hidden">
+    <div className="border rounded-md overflow-hidden" style={{ height }}>
       <MonacoEditor
         key={`simple-yaml-editor-${colorTheme}-${actualTheme}-${backgroundColor}`}
-        height={height}
+        height="100%"
         defaultLanguage="yaml"
         value={value}
         onChange={onChange}
         loading={
           <div
             className="flex items-center justify-center h-full text-muted-foreground"
-            style={{ height }}
+            style={{ height: '100%' }}
           >
             Loading editor...
           </div>

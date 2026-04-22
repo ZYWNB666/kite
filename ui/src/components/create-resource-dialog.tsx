@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { IconLoader2 } from '@tabler/icons-react'
+import { IconLoader2, IconMaximize, IconMinimize } from '@tabler/icons-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { applyResource, useTemplates } from '@/lib/api'
-import { translateError } from '@/lib/utils'
+import { cn, translateError } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -50,6 +50,7 @@ function CreateResourceDialogContent({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
   const [yamlContent, setYamlContent] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [isMaximized, setIsMaximized] = useState(false)
 
   const handleTemplateChange = (templateName: string) => {
     if (templateName === 'empty') {
@@ -74,7 +75,6 @@ function CreateResourceDialogContent({
       toast.success(
         t('createResource.success', 'Resource created successfully')
       )
-      onOpenChange(false)
     } catch (err) {
       console.error('Failed to apply resource', err)
       toast.error(translateError(err, t))
@@ -90,17 +90,40 @@ function CreateResourceDialogContent({
   }
 
   return (
-    <DialogContent className="!max-w-4xl sm:!max-w-4xl max-h-[80vh] flex flex-col">
+    <DialogContent
+      className={cn(
+        'flex flex-col transition-all duration-200',
+        isMaximized
+          ? '!max-w-[100vw] !w-[100vw] !h-[100vh] !max-h-[100vh] m-0 !rounded-none border-0'
+          : '!max-w-4xl sm:!max-w-4xl max-h-[80vh]'
+      )}
+    >
       <DialogHeader>
-        <DialogTitle>Create Resource</DialogTitle>
-        <DialogDescription>
-          Paste any Kubernetes resource YAML configuration and apply it to the
-          cluster
-        </DialogDescription>
+        <div className="flex items-center justify-between pr-8">
+          <div className="text-left">
+            <DialogTitle>Create Resource</DialogTitle>
+            <DialogDescription>
+              Paste any Kubernetes resource YAML configuration and apply it to the
+              cluster
+            </DialogDescription>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsMaximized(!isMaximized)}
+            className="h-8 w-8 text-muted-foreground hover:text-foreground shrink-0"
+          >
+            {isMaximized ? (
+              <IconMinimize className="h-4 w-4" />
+            ) : (
+              <IconMaximize className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
       </DialogHeader>
 
-      <div className="flex-1 space-y-4">
-        <div className="space-y-2">
+      <div className="flex-1 flex flex-col space-y-4 min-h-0">
+        <div className="space-y-2 shrink-0">
           <Label htmlFor="template">Template</Label>
           <Select
             value={selectedTemplateId || 'empty'}
@@ -126,13 +149,13 @@ function CreateResourceDialogContent({
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="yaml">YAML Configuration</Label>
-          <div className="min-h-[300px] border rounded-md">
+        <div className="space-y-2 flex-1 flex flex-col min-h-0">
+          <Label htmlFor="yaml" className="shrink-0">YAML Configuration</Label>
+          <div className="flex-1 min-h-[300px]">
             <SimpleYamlEditor
               value={yamlContent}
               onChange={(value) => setYamlContent(value || '')}
-              height="400px"
+              height="100%"
             />
           </div>
         </div>
