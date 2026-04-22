@@ -95,10 +95,10 @@ function CreateResourceDialogContent({
         'flex flex-col transition-all duration-200',
         isMaximized
           ? '!max-w-[100vw] !w-[100vw] !h-[100vh] !max-h-[100vh] m-0 !rounded-none border-0'
-          : '!max-w-4xl sm:!max-w-4xl max-h-[80vh]'
+          : '!max-w-4xl sm:!max-w-4xl !h-[80vh]'
       )}
     >
-      <DialogHeader>
+      <DialogHeader className="shrink-0">
         <div className="flex items-center justify-between pr-8">
           <div className="text-left">
             <DialogTitle>Create Resource</DialogTitle>
@@ -122,7 +122,7 @@ function CreateResourceDialogContent({
         </div>
       </DialogHeader>
 
-      <div className="flex-1 flex flex-col space-y-4 min-h-0">
+      <div className="flex-1 flex flex-col space-y-4 min-h-0 overflow-hidden">
         <div className="space-y-2 shrink-0">
           <Label htmlFor="template">Template</Label>
           <Select
@@ -149,9 +149,9 @@ function CreateResourceDialogContent({
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-2 flex-1 flex flex-col min-h-0">
-          <Label htmlFor="yaml" className="shrink-0">YAML Configuration</Label>
-          <div className="flex-1 min-h-[300px]">
+        <div className="flex-1 flex flex-col min-h-0">
+          <Label htmlFor="yaml" className="shrink-0 mb-2">YAML Configuration</Label>
+          <div className="flex-1 min-h-0">
             <SimpleYamlEditor
               value={yamlContent}
               onChange={(value) => setYamlContent(value || '')}
@@ -161,7 +161,7 @@ function CreateResourceDialogContent({
         </div>
       </div>
 
-      <DialogFooter>
+      <DialogFooter className="shrink-0">
         <Button variant="outline" onClick={handleCancel} disabled={isLoading}>
           Cancel
         </Button>
