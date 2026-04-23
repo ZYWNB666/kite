@@ -11,18 +11,36 @@ import { useLocation, useParams } from 'react-router-dom'
 import { PageContext } from '@/components/ai-chat/ai-chat-types'
 import { toSingularResource } from '@/components/ai-chat/ai-chat-utils'
 
+import type { CornerPosition } from '@/components/ai-chat/ai-chatbox'
+
 interface AIChatContextType {
   isOpen: boolean
   openChat: () => void
   closeChat: () => void
   toggleChat: () => void
   pageContext: PageContext
+  /** Which corner the chat panel is docked to */
+  corner: CornerPosition
+  /** Move the chat panel to a specific corner */
+  setCorner: (corner: CornerPosition) => void
 }
 
 const AIChatContext = createContext<AIChatContextType | undefined>(undefined)
 
 export function AIChatProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false)
+  const [corner, setCorner] = useState<CornerPosition>(() => {
+    const saved = localStorage.getItem('ai-chat-corner')
+    if (
+      saved === 'bottom-right' ||
+      saved === 'bottom-left' ||
+      saved === 'top-right' ||
+      saved === 'top-left'
+    ) {
+      return saved
+    }
+    return 'bottom-right'
+  })
   const location = useLocation()
   const params = useParams()
 
@@ -36,6 +54,11 @@ export function AIChatProvider({ children }: { children: ReactNode }) {
 
   const toggleChat = useCallback(() => {
     setIsOpen((prev) => !prev)
+  }, [])
+
+  const handleSetCorner = useCallback((newCorner: CornerPosition) => {
+    setCorner(newCorner)
+    localStorage.setItem('ai-chat-corner', newCorner)
   }, [])
 
   const pageContext = useMemo<PageContext>(() => {
@@ -89,6 +112,8 @@ export function AIChatProvider({ children }: { children: ReactNode }) {
         closeChat,
         toggleChat,
         pageContext,
+        corner,
+        setCorner: handleSetCorner,
       }}
     >
       {children}

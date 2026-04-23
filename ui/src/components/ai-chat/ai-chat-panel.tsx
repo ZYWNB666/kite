@@ -6,7 +6,14 @@ import {
   type KeyboardEvent,
 } from 'react'
 import { useAIChatContext } from '@/contexts/ai-chat-context'
-import { Bot, Clock, ExternalLink, MessageSquarePlus, X } from 'lucide-react'
+import {
+  Bot,
+  Clock,
+  ExternalLink,
+  MessageSquarePlus,
+  Minus,
+  X,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { withSubPath } from '@/lib/subpath'
@@ -208,6 +215,22 @@ export function AIChatPanel({
 
           <Separator orientation="vertical" className="mx-0.5 h-4" />
 
+          {!standalone && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={closeChat}
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">Minimize</TooltipContent>
+            </Tooltip>
+          )}
+
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -219,7 +242,7 @@ export function AIChatPanel({
                 <X className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top">Close</TooltipContent>
+            <TooltipContent side="top">{standalone ? 'Close' : 'Close'}</TooltipContent>
           </Tooltip>
         </div>
       </div>

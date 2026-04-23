@@ -88,6 +88,55 @@ function renderState(state: ContainerState) {
   return null
 }
 
+function hasLastState(state?: ContainerState): boolean {
+  if (!state) return false
+  return !!(state.running || state.waiting || state.terminated)
+}
+
+function renderLastState(state: ContainerState) {
+  if (state.terminated) {
+    const t = state.terminated
+    const isOOM = t.reason === 'OOMKilled'
+    const isError = (t.exitCode ?? 0) !== 0
+
+    return (
+      <div className="mt-1 rounded-md border border-dashed px-3 py-2 space-y-1 bg-muted/30">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge
+            variant={isOOM || isError ? 'destructive' : 'secondary'}
+            className="tabular-nums text-xs"
+          >
+            {isOOM ? 'OOMKilled' : `Terminated (exit: ${t.exitCode})`}
+          </Badge>
+          {t.reason && !isOOM && (
+            <span className="text-xs text-muted-foreground">
+              Reason: {t.reason}
+            </span>
+          )}
+          {t.signal !== undefined && t.signal !== null && t.signal !== 0 && (
+            <Badge variant="outline" className="text-xs tabular-nums">
+              Signal: {t.signal}
+            </Badge>
+          )}
+        </div>
+        <div className="text-xs text-muted-foreground space-y-0.5">
+          {t.startedAt && (
+            <div>Started at: {formatDate(t.startedAt)}</div>
+          )}
+          {t.finishedAt && (
+            <div>Finished at: {formatDate(t.finishedAt)}</div>
+          )}
+          {t.message && (
+            <div className="text-pretty">Message: {t.message}</div>
+          )}
+        </div>
+      </div>
+    )
+  }
+  // For non-terminated last states, reuse the existing renderState
+  return <div className="mt-1">{renderState(state)}</div>
+}
+
 export function ContainerInfoCard({
   container,
   status,
@@ -225,6 +274,14 @@ export function ContainerInfoCard({
           <div>
             <Label className={sectionLabelClassName}>State</Label>
             <div className="mt-1">{renderState(status.state)}</div>
+          </div>
+        )}
+
+        {/* Last State */}
+        {status?.lastState && hasLastState(status.lastState) && (
+          <div>
+            <Label className={sectionLabelClassName}>Last State</Label>
+            {renderLastState(status.lastState)}
           </div>
         )}
 

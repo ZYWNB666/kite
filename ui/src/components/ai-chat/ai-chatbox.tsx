@@ -20,6 +20,12 @@ const DEFAULT_WIDTH = 420
 const DESKTOP_MARGIN = 16
 const MOBILE_DEFAULT_HEIGHT_RATIO = 0.62
 
+export type CornerPosition =
+  | 'bottom-right'
+  | 'bottom-left'
+  | 'top-right'
+  | 'top-left'
+
 export function StandaloneAIChatbox() {
   const [searchParams] = useSearchParams()
   return (
@@ -38,7 +44,8 @@ export function AIChatbox({
   sessionId?: string
 }) {
   const isMobile = useIsMobile()
-  const { isOpen, openChat, closeChat } = useAIChatContext()
+  const { isOpen, openChat, closeChat, corner, setCorner } =
+    useAIChatContext()
   const { data: { enabled: aiEnabled } = { enabled: false } } = useAIStatus()
   const { pathname } = useLocation()
   const shouldShowAIChatbox = standalone || !/^\/settings\/?$/.test(pathname)
@@ -60,6 +67,14 @@ export function AIChatbox({
   const startH = useRef(0)
   const startX = useRef(0)
   const startW = useRef(0)
+
+  // Drag-to-corner state
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  const dragStartPos = useRef({ x: 0, y: 0 })
+  const dragStartCorner = useRef(corner)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const dragMoved = useRef(false)
 
   const getDesktopBounds = useCallback((vw: number, vh: number) => {
     const maxWidth = Math.max(MIN_WIDTH, Math.min(720, vw - DESKTOP_MARGIN))
@@ -127,13 +142,18 @@ export function AIChatbox({
         window.innerWidth,
         window.innerHeight
       )
+      // Determine resize direction based on corner
+      const isTop = corner.startsWith('top')
+      const delta = isTop
+        ? e.clientY - startY.current
+        : startY.current - e.clientY
       const newH = Math.min(
         maxHeight,
-        Math.max(minHeight, startH.current + (startY.current - e.clientY))
+        Math.max(minHeight, startH.current + delta)
       )
       setHeight(newH)
     },
-    [getDesktopBounds, isMobile]
+    [corner, getDesktopBounds, isMobile]
   )
 
   const onPointerUp = useCallback(() => {
@@ -158,35 +178,149 @@ export function AIChatbox({
         window.innerWidth,
         window.innerHeight
       )
+      // Determine resize direction based on corner
+      const isLeft = corner.endsWith('left')
+      const delta = isLeft
+        ? e.clientX - startX.current
+        : startX.current - e.clientX
       const newW = Math.min(
         maxWidth,
-        Math.max(minWidth, startW.current + (startX.current - e.clientX))
+        Math.max(minWidth, startW.current + delta)
       )
       setWidth(newW)
     },
-    [getDesktopBounds, isMobile]
+    [corner, getDesktopBounds, isMobile]
   )
 
   const onWidthPointerUp = useCallback(() => {
     widthDragging.current = false
   }, [])
 
+  // Drag-to-corner: determine nearest corner from center position
+  const snapToNearestCorner = useCallback(
+    (centerX: number, centerY: number): CornerPosition => {
+      const vw = viewportSize.width
+      const vh = viewportSize.height
+      const isLeft = centerX < vw / 2
+      const isTop = centerY < vh / 2
+      if (isTop && isLeft) return 'top-left'
+      if (isTop && !isLeft) return 'top-right'
+      if (!isTop && isLeft) return 'bottom-left'
+      return 'bottom-right'
+    },
+    [viewportSize]
+  )
+
+  const handleDragStart = useCallback(
+    (e: PointerEvent) => {
+      if (isMobile || standalone) return
+      // Only drag from header area (first 44px)
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+
+      setIsDragging(true)
+      dragMoved.current = false
+      dragStartPos.current = { x: e.clientX, y: e.clientY }
+      dragStartCorner.current = corner
+      setDragOffset({ x: 0, y: 0 })
+      ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+    },
+    [corner, isMobile, standalone]
+  )
+
+  const handleDragMove = useCallback(
+    (e: PointerEvent) => {
+      if (!isDragging || isMobile) return
+      const dx = e.clientX - dragStartPos.current.x
+      const dy = e.clientY - dragStartPos.current.y
+      if (!dragMoved.current && Math.abs(dx) + Math.abs(dy) < 5) return
+      dragMoved.current = true
+      setDragOffset({ x: dx, y: dy })
+    },
+    [isDragging, isMobile]
+  )
+
+  const handleDragEnd = useCallback(() => {
+    if (!isDragging) return
+    setIsDragging(false)
+
+    if (!dragMoved.current) {
+      setDragOffset({ x: 0, y: 0 })
+      return
+    }
+
+    // Calculate the center of the chatbox during drag
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (rect) {
+      const centerX = rect.left + rect.width / 2
+      const centerY = rect.top + rect.height / 2
+      const newCorner = snapToNearestCorner(centerX, centerY)
+      setCorner(newCorner)
+    }
+
+    setDragOffset({ x: 0, y: 0 })
+  }, [isDragging, snapToNearestCorner, setCorner])
+
   if (!shouldShowAIChatbox) return null
   if (!aiEnabled) return null
 
   if (!standalone && !isOpen) {
-    return <AIChatTrigger onOpen={openChat} />
+    return <AIChatTrigger onOpen={openChat} corner={corner} />
   }
+
+  // Calculate position styles based on corner
+  const getCornerStyles = (): React.CSSProperties => {
+    if (standalone || isMobile) return {}
+
+    const margin = DESKTOP_MARGIN
+    const base: React.CSSProperties = {}
+
+    if (corner.startsWith('bottom')) {
+      base.bottom = margin
+      base.top = 'auto'
+    } else {
+      base.top = margin
+      base.bottom = 'auto'
+    }
+
+    if (corner.endsWith('right')) {
+      base.right = margin
+      base.left = 'auto'
+    } else {
+      base.left = margin
+      base.right = 'auto'
+    }
+
+    if (isDragging && dragMoved.current) {
+      base.transform = `translate(${dragOffset.x}px, ${dragOffset.y}px)`
+      base.transition = 'none'
+    } else {
+      base.transition = 'top 0.3s ease, bottom 0.3s ease, left 0.3s ease, right 0.3s ease'
+    }
+
+    return base
+  }
+
+  // Determine resize handle positions based on corner
+  const isTop = corner.startsWith('top')
+  const isLeft = corner.endsWith('left')
+
+  const heightResizeStyle: React.CSSProperties = isTop
+    ? { bottom: -4, left: 16, right: 16, height: 8, cursor: 'ns-resize' }
+    : { top: -4, left: 16, right: 16, height: 8, cursor: 'ns-resize' }
+
+  const widthResizeStyle: React.CSSProperties = isLeft
+    ? { right: -4, top: 44, bottom: 0, width: 8, cursor: 'ew-resize' }
+    : { left: -4, top: 44, bottom: 0, width: 8, cursor: 'ew-resize' }
 
   return (
     <div
+      ref={containerRef}
       className={
         standalone
           ? 'fixed inset-0 z-50 flex flex-col bg-background'
           : `fixed z-50 flex flex-col border bg-background shadow-2xl ${
-              isMobile
-                ? 'left-2 right-2 rounded-lg'
-                : 'bottom-4 right-4 rounded-lg'
+              isMobile ? 'left-2 right-2 rounded-lg' : 'rounded-lg'
             }`
       }
       style={
@@ -200,12 +334,14 @@ export function AIChatbox({
             : {
                 width: desktopWidth,
                 height: desktopHeight,
+                ...getCornerStyles(),
               }
       }
     >
       {!isMobile && !standalone && (
         <div
-          className="absolute -top-1 left-4 right-4 z-10 h-2 cursor-ns-resize"
+          className="absolute z-10"
+          style={heightResizeStyle}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
@@ -213,10 +349,23 @@ export function AIChatbox({
       )}
       {!isMobile && !standalone && (
         <div
-          className="absolute -left-1 top-11 bottom-0 z-10 w-2 cursor-ew-resize"
+          className="absolute z-10"
+          style={widthResizeStyle}
           onPointerDown={onWidthPointerDown}
           onPointerMove={onWidthPointerMove}
           onPointerUp={onWidthPointerUp}
+        />
+      )}
+
+      {/* Drag handle overlay on the title bar */}
+      {!isMobile && !standalone && (
+        <div
+          className={`absolute top-0 left-0 right-0 z-20 h-11 ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+          style={{ touchAction: 'none' }}
+          onPointerDown={handleDragStart}
+          onPointerMove={handleDragMove}
+          onPointerUp={handleDragEnd}
+          onPointerCancel={handleDragEnd}
         />
       )}
 

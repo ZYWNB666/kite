@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Bot } from 'lucide-react'
 
+import type { CornerPosition } from './ai-chatbox'
+
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,
@@ -9,7 +11,7 @@ import {
 } from '@/components/ui/tooltip'
 
 const FAB_SIZE = 48
-const FAB_BASE_BOTTOM = 56
+const FAB_BASE_OFFSET = 56
 const FAB_MIN_MARGIN = 16
 const FAB_DRAG_THRESHOLD = 4
 
@@ -17,7 +19,13 @@ function getViewportHeight() {
   return window.visualViewport?.height ?? window.innerHeight
 }
 
-export function AIChatTrigger({ onOpen }: { onOpen: () => void }) {
+export function AIChatTrigger({
+  onOpen,
+  corner = 'bottom-right',
+}: {
+  onOpen: () => void
+  corner?: CornerPosition
+}) {
   const [viewportHeight, setViewportHeight] = useState(() =>
     getViewportHeight()
   )
@@ -32,14 +40,29 @@ export function AIChatTrigger({ onOpen }: { onOpen: () => void }) {
   const movedRef = useRef(false)
   const suppressClickRef = useRef(false)
 
-  const minTranslateY = Math.min(
-    0,
-    FAB_MIN_MARGIN - (viewportHeight - FAB_SIZE - FAB_BASE_BOTTOM)
-  )
+  const isBottom = corner.startsWith('bottom')
+  const isRight = corner.endsWith('right')
+
+  const minTranslateY = isBottom
+    ? Math.min(
+        0,
+        FAB_MIN_MARGIN - (viewportHeight - FAB_SIZE - FAB_BASE_OFFSET)
+      )
+    : 0
+
+  const maxTranslateY = isBottom
+    ? 0
+    : Math.max(
+        0,
+        viewportHeight - FAB_SIZE - FAB_BASE_OFFSET - FAB_MIN_MARGIN
+      )
 
   const applyTranslateY = useCallback(
     (nextTranslateY: number, commit = false) => {
-      const clamped = Math.max(minTranslateY, Math.min(0, nextTranslateY))
+      const clamped = Math.max(
+        minTranslateY,
+        Math.min(maxTranslateY, nextTranslateY)
+      )
       translateYRef.current = clamped
       if (buttonRef.current) {
         buttonRef.current.style.transform = `translate3d(0, ${clamped}px, 0)`
@@ -49,7 +72,7 @@ export function AIChatTrigger({ onOpen }: { onOpen: () => void }) {
       }
       return clamped
     },
-    [minTranslateY]
+    [minTranslateY, maxTranslateY]
   )
 
   useEffect(() => {
@@ -144,12 +167,33 @@ export function AIChatTrigger({ onOpen }: { onOpen: () => void }) {
     [onOpen]
   )
 
+  // Build position styles based on corner
+  const positionStyle: React.CSSProperties = {
+    touchAction: 'none',
+    willChange: 'transform',
+    transform: `translate3d(0, ${translateY}px, 0)`,
+  }
+
+  if (isBottom) {
+    positionStyle.bottom = `calc(env(safe-area-inset-bottom, 0px) + ${FAB_BASE_OFFSET}px)`
+  } else {
+    positionStyle.top = `${FAB_BASE_OFFSET}px`
+  }
+
+  if (isRight) {
+    positionStyle.right = 24
+  } else {
+    positionStyle.left = 24
+  }
+
+  const tooltipSide = isRight ? 'left' : 'right'
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
           ref={buttonRef}
-          className={`fixed right-6 z-50 h-12 w-12 rounded-full shadow-lg ${
+          className={`fixed z-50 h-12 w-12 rounded-full shadow-lg ${
             isDragging ? 'cursor-grabbing' : 'cursor-grab'
           } transition-none select-none`}
           size="icon"
@@ -159,17 +203,12 @@ export function AIChatTrigger({ onOpen }: { onOpen: () => void }) {
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerCancel}
           onLostPointerCapture={handleLostPointerCapture}
-          style={{
-            bottom: `calc(env(safe-area-inset-bottom, 0px) + ${FAB_BASE_BOTTOM}px)`,
-            transform: `translate3d(0, ${translateY}px, 0)`,
-            touchAction: 'none',
-            willChange: 'transform',
-          }}
+          style={positionStyle}
         >
           <Bot className="h-5 w-5" />
         </Button>
       </TooltipTrigger>
-      <TooltipContent side="left">AI Assistant</TooltipContent>
+      <TooltipContent side={tooltipSide}>AI Assistant</TooltipContent>
     </Tooltip>
   )
 }
