@@ -360,8 +360,8 @@ export function AIChatbox({
       {/* Drag handle overlay on the title bar */}
       {!isMobile && !standalone && (
         <div
-          className={`absolute top-0 left-0 right-0 z-20 h-11 ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
-          style={{ touchAction: 'none' }}
+          className={`absolute top-0 left-0 z-20 h-11 ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+          style={{ touchAction: 'none', right: 180 }}
           onPointerDown={handleDragStart}
           onPointerMove={handleDragMove}
           onPointerUp={handleDragEnd}
