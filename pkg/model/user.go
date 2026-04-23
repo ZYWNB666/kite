@@ -222,12 +222,15 @@ func GetUserRolesFromDB(username string) ([]common.Role, error) {
 	roles := make([]common.Role, 0, len(results))
 	for _, r := range results {
 		roles = append(roles, common.Role{
-			Name:        r.Name,
-			Description: r.Description,
-			Clusters:    r.Clusters,
-			Resources:   r.Resources,
-			Namespaces:  r.Namespaces,
-			Verbs:       r.Verbs,
+			Name:            r.Name,
+			Description:     r.Description,
+			Clusters:        r.Clusters,
+			Resources:       r.Resources,
+			ResourceNames:   r.ResourceNames,
+			Namespaces:      r.Namespaces,
+			Verbs:           r.Verbs,
+			AllowProxy:      r.AllowProxy,
+			ProxyNamespaces: r.ProxyNamespaces,
 		})
 	}
 

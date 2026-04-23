@@ -17,7 +17,7 @@ func RBACMiddleware() gin.HandlerFunc {
 		cs := c.MustGet("cluster").(*cluster.ClientSet)
 
 		verbs := method2verb(c.Request.Method)
-		ns, resource := url2namespaceresource(c.Request.URL.Path)
+		ns, resource, resourceName := url2namespaceresource(c.Request.URL.Path)
 		if ns == "" || resource == "" {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid resource URL"})
 			return
@@ -30,7 +30,7 @@ func RBACMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		canAccess := rbac.CanAccess(user, resource, verbs, cs.Name, ns)
+		canAccess := rbac.CanAccess(user, resource, verbs, cs.Name, ns, resourceName)
 		if canAccess {
 			c.Next()
 		} else {
@@ -51,14 +51,14 @@ func method2verb(method string) string {
 	}
 }
 
-// url2namespaceresource converts a URL path to a resource type.
+// url2namespaceresource converts a URL path to namespace, resource type, and optional resource name.
 // For example:
 //
-// - /api/v1/pods/default/pods => default, pods
-// - /api/v1/pvs/_all/some-pv => _all, some-pv
-// - /api/v1/pods/default => default, pods
-// - /api/v1/pods => "", pods
-func url2namespaceresource(url string) (namespace string, resource string) {
+// - /api/v1/pods/default/nginx     => default, pods, nginx
+// - /api/v1/pvs/_all/some-pv      => _all, some-pv, ""  (cluster-scoped treated same way)
+// - /api/v1/pods/default           => default, pods, ""
+// - /api/v1/pods                   => "", pods, ""
+func url2namespaceresource(url string) (namespace string, resource string, resourceName string) {
 	if common.Base != "" {
 		url = strings.TrimPrefix(url, common.Base)
 	}
@@ -72,6 +72,17 @@ func url2namespaceresource(url string) (namespace string, resource string) {
 		namespace = parts[4]
 	} else {
 		namespace = common.AllNamespaces // All namespaces
+	}
+	// parts[5] (if present) is the resource name, but skip sub-resources like
+	// "history", "describe", "related", "proxy", etc.
+	if len(parts) > 5 {
+		candidate := parts[5]
+		switch candidate {
+		case "history", "describe", "related", "proxy", "ws", "metrics":
+			// sub-resource path, not a resource name
+		default:
+			resourceName = candidate
+		}
 	}
 	return
 }

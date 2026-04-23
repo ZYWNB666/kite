@@ -416,6 +416,17 @@ func (cm *ClusterManager) syncClustersUntilReady(readyCh chan<- struct{}) error 
 	return syncClusters(cm, readyCh)
 }
 
+// GetAllClusters returns a snapshot of all loaded clusters and any errors.
+func (cm *ClusterManager) GetAllClusters() (map[string]*ClientSet, map[string]string, string) {
+	return cm.snapshotState()
+}
+
+// GetKubeconfig returns the raw kubeconfig YAML stored in the ClientSet.
+// Returns an empty string for in-cluster configurations.
+func (cs *ClientSet) GetKubeconfig() string {
+	return cs.config
+}
+
 func (cm *ClusterManager) snapshotState() (map[string]*ClientSet, map[string]string, string) {
 	cm.mu.RLock()
 	defer cm.mu.RUnlock()

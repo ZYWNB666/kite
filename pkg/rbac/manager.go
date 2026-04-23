@@ -39,12 +39,15 @@ func loadRolesFromDB() error {
 
 	for _, r := range roles {
 		cr := common.Role{
-			Name:        r.Name,
-			Description: r.Description,
-			Clusters:    r.Clusters,
-			Namespaces:  r.Namespaces,
-			Resources:   r.Resources,
-			Verbs:       r.Verbs,
+			Name:            r.Name,
+			Description:     r.Description,
+			Clusters:        r.Clusters,
+			Namespaces:      r.Namespaces,
+			Resources:       r.Resources,
+			ResourceNames:   r.ResourceNames,
+			Verbs:           r.Verbs,
+			AllowProxy:      r.AllowProxy,
+			ProxyNamespaces: r.ProxyNamespaces,
 		}
 		cfg.Roles = append(cfg.Roles, cr)
 
