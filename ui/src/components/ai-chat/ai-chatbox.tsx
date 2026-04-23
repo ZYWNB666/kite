@@ -264,9 +264,7 @@ export function AIChatbox({
   if (!shouldShowAIChatbox) return null
   if (!aiEnabled) return null
 
-  if (!standalone && !isOpen) {
-    return <AIChatTrigger onOpen={openChat} corner={corner} />
-  }
+  // We don't return early for !isOpen because we want to keep the chatbox mounted to preserve its state.
 
   // Calculate position styles based on corner
   const getCornerStyles = (): React.CSSProperties => {
@@ -314,66 +312,71 @@ export function AIChatbox({
     : { left: -4, top: 44, bottom: 0, width: 8, cursor: 'ew-resize' }
 
   return (
-    <div
-      ref={containerRef}
-      className={
-        standalone
-          ? 'fixed inset-0 z-50 flex flex-col bg-background'
-          : `fixed z-50 flex flex-col border bg-background shadow-2xl ${
-              isMobile ? 'left-2 right-2 rounded-lg' : 'rounded-lg'
-            }`
-      }
-      style={
-        standalone
-          ? undefined
-          : isMobile
-            ? {
-                bottom: `calc(env(safe-area-inset-bottom, 0px) + 0.5rem)`,
-                height: `${MOBILE_DEFAULT_HEIGHT_RATIO * 100}%`,
-              }
-            : {
-                width: desktopWidth,
-                height: desktopHeight,
-                ...getCornerStyles(),
-              }
-      }
-    >
-      {!isMobile && !standalone && (
-        <div
-          className="absolute z-10"
-          style={heightResizeStyle}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-        />
+    <>
+      {!standalone && !isOpen && (
+        <AIChatTrigger onOpen={openChat} corner={corner} />
       )}
-      {!isMobile && !standalone && (
-        <div
-          className="absolute z-10"
-          style={widthResizeStyle}
-          onPointerDown={onWidthPointerDown}
-          onPointerMove={onWidthPointerMove}
-          onPointerUp={onWidthPointerUp}
-        />
-      )}
+      <div
+        ref={containerRef}
+        className={
+          standalone
+            ? 'fixed inset-0 z-50 flex flex-col bg-background'
+            : `fixed z-50 flex flex-col border bg-background shadow-2xl ${
+                isMobile ? 'left-2 right-2 rounded-lg' : 'rounded-lg'
+              } ${!standalone && !isOpen ? 'hidden' : ''}`
+        }
+        style={
+          standalone
+            ? undefined
+            : isMobile
+              ? {
+                  bottom: `calc(env(safe-area-inset-bottom, 0px) + 0.5rem)`,
+                  height: `${MOBILE_DEFAULT_HEIGHT_RATIO * 100}%`,
+                }
+              : {
+                  width: desktopWidth,
+                  height: desktopHeight,
+                  ...getCornerStyles(),
+                }
+        }
+      >
+        {!isMobile && !standalone && (
+          <div
+            className="absolute z-10"
+            style={heightResizeStyle}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+          />
+        )}
+        {!isMobile && !standalone && (
+          <div
+            className="absolute z-10"
+            style={widthResizeStyle}
+            onPointerDown={onWidthPointerDown}
+            onPointerMove={onWidthPointerMove}
+            onPointerUp={onWidthPointerUp}
+          />
+        )}
 
-      {/* Drag handle overlay on the title bar */}
-      {!isMobile && !standalone && (
-        <div
-          className={`absolute top-0 left-0 z-20 h-11 ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
-          style={{ touchAction: 'none', right: 180 }}
-          onPointerDown={handleDragStart}
-          onPointerMove={handleDragMove}
-          onPointerUp={handleDragEnd}
-          onPointerCancel={handleDragEnd}
-        />
-      )}
+        {/* Drag handle overlay on the title bar */}
+        {!isMobile && !standalone && (
+          <div
+            className={`absolute top-0 left-0 z-20 h-11 ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+            style={{ touchAction: 'none', right: 180 }}
+            onPointerDown={handleDragStart}
+            onPointerMove={handleDragMove}
+            onPointerUp={handleDragEnd}
+            onPointerCancel={handleDragEnd}
+          />
+        )}
 
-      <AIChatPanel
-        standalone={standalone}
-        sessionId={sessionId}
-        onClose={standalone ? () => window.close() : closeChat}
-      />
-    </div>
+        <AIChatPanel
+          standalone={standalone}
+          sessionId={sessionId}
+          onClose={standalone ? () => window.close() : closeChat}
+        />
+      </div>
+    </>
   )
 }
