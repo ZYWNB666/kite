@@ -1,4 +1,4 @@
-import { useEffect, useState, type RefObject } from 'react'
+import React, { useEffect, useState, type RefObject } from 'react'
 import {
   Bot,
   CheckCircle2,
@@ -510,6 +510,8 @@ export function AIChatMessages({
   onSubmitInput,
   onPromptSelect,
   messagesEndRef,
+  scrollContainerRef,
+  onScroll,
 }: {
   messages: ChatMessage[]
   pageContext: PageContext
@@ -520,9 +522,15 @@ export function AIChatMessages({
   onSubmitInput?: (id: string, values: Record<string, unknown>) => void
   onPromptSelect: (prompt: string) => void
   messagesEndRef: RefObject<HTMLDivElement | null>
+  scrollContainerRef?: RefObject<HTMLDivElement | null>
+  onScroll?: React.UIEventHandler<HTMLDivElement>
 }) {
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
+    <div
+      ref={scrollContainerRef}
+      className="flex-1 min-h-0 overflow-y-auto scrollbar-hide"
+      onScroll={onScroll}
+    >
       {messages.length === 0 ? (
         <SuggestedPrompts pageContext={pageContext} onSelect={onPromptSelect} />
       ) : (

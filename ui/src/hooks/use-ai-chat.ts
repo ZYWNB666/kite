@@ -582,7 +582,15 @@ export function useAIChat() {
         )
       } catch (error) {
         if ((error as Error).name !== 'AbortError') {
-          appendAssistantError((error as Error).message)
+          const errMsg = (error as Error).message || ''
+          const isFetchError =
+            (error as Error).name === 'TypeError' &&
+            /fetch|network/i.test(errMsg)
+          appendAssistantError(
+            isFetchError
+              ? 'Network error: Unable to connect to the server. Please check your connection and try again.'
+              : errMsg
+          )
         }
       } finally {
         commitLoading(false)

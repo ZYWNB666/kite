@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type UIEvent,
 } from 'react'
 import { useAIChatContext } from '@/contexts/ai-chat-context'
 import {
@@ -60,7 +61,9 @@ export function AIChatPanel({
   const [input, setInput] = useState('')
   const [showHistory, setShowHistory] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const userScrolledUpRef = useRef(false)
 
   useEffect(() => {
     if (!standalone || !sessionId) return
@@ -69,7 +72,9 @@ export function AIChatPanel({
     loadSession(sessionId)
   }, [currentSessionId, history, loadSession, sessionId, standalone])
 
+  // Auto-scroll only when user is already near the bottom
   useEffect(() => {
+    if (userScrolledUpRef.current) return
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
@@ -85,6 +90,8 @@ export function AIChatPanel({
     if (!input.trim() || isLoading) return
     const nextInput = input
     setInput('')
+    // Re-enable auto-scroll when the user sends a new message
+    userScrolledUpRef.current = false
     sendMessage(nextInput, pageContext, i18n.resolvedLanguage || i18n.language)
   }, [
     i18n.language,
@@ -156,7 +163,15 @@ export function AIChatPanel({
     newSession()
     setShowHistory(false)
     setInput('')
+    userScrolledUpRef.current = false
   }, [newSession])
+
+  const handleScroll = useCallback((e: UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    // If user scrolled more than 80px from the bottom, pause auto-scroll
+    userScrolledUpRef.current = distFromBottom > 80
+  }, [])
 
   const shouldCloseStandalone = standalone ? onClose : closeChat
 
@@ -268,6 +283,8 @@ export function AIChatPanel({
         onSubmitInput={submitInput}
         onPromptSelect={handlePromptSelect}
         messagesEndRef={messagesEndRef}
+        scrollContainerRef={scrollContainerRef}
+        onScroll={handleScroll}
       />
 
       <AIChatComposer

@@ -411,8 +411,8 @@ export function Terminal({
         clearInterval(pingTimerRef.current)
         pingTimerRef.current = null
       }
-      if (event.code !== 1000) {
-        terminal.writeln('\x1b[31mConnection closed unexpectedly\x1b[0m')
+      if (event.code !== 1000 && event.code !== 1001) {
+        terminal.writeln(`\x1b[31mConnection closed unexpectedly (code: ${event.code})\x1b[0m`)
       } else {
         terminal.writeln('\x1b[32mConnection closed\x1b[0m')
       }
