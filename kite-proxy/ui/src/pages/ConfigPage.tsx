@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { Save, Eye, EyeOff } from 'lucide-react'
-import { saveConfig, getConfig } from '../api/client'
+import { saveConfig, listClusters } from '../api/client'
 import type { Config } from '../types'
 
 interface Props {
@@ -42,9 +42,6 @@ export default function ConfigPage({ config, onSaved }: Props) {
     try {
       // Temporarily save then test by fetching clusters.
       await saveConfig(kiteURL.trim(), apiKey.trim())
-      const { default: api } = await import('../api/client')
-      void api
-      const { listClusters } = await import('../api/client')
       const result = await listClusters()
       toast.success(`Connection successful – ${result.clusters.length} cluster(s) available`)
       onSaved()
@@ -57,7 +54,6 @@ export default function ConfigPage({ config, onSaved }: Props) {
 
   // Reload current config from server on mount.
   // (config prop is already loaded by the parent.)
-  void getConfig
 
   return (
     <div className="max-w-xl mx-auto">

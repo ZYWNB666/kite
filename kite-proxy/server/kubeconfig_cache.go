@@ -41,13 +41,21 @@ func (c *kubeconfigCache) Get(clusterName string) (*rest.Config, error) {
 	}
 	c.mu.RUnlock()
 
-	// Not cached – fetch from kite server.
+	// Not cached – fetch from kite server, then store under write lock.
+	// Multiple goroutines might race here; only the first to acquire the
+	// write lock will insert; subsequent ones will find the value already set.
 	restCfg, err := fetchRestConfig(clusterName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch kubeconfig for cluster %q: %w", clusterName, err)
 	}
 
 	c.mu.Lock()
+	// Double-check: another goroutine may have inserted the entry while we
+	// were fetching (after we released the read lock above).
+	if entry, ok := c.entries[clusterName]; ok {
+		c.mu.Unlock()
+		return entry.restConfig, nil
+	}
 	c.entries[clusterName] = &kubeconfigEntry{restConfig: restCfg}
 	c.mu.Unlock()
 

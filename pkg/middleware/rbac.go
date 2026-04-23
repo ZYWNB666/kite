@@ -51,6 +51,18 @@ func method2verb(method string) string {
 	}
 }
 
+// subResourceSuffixes lists URL path segments that indicate a sub-resource
+// request (e.g. /pods/default/my-pod/history).  These are NOT resource names
+// and must be excluded when extracting the resource name from the URL.
+var subResourceSuffixes = map[string]struct{}{
+	"history":  {},
+	"describe": {},
+	"related":  {},
+	"proxy":    {},
+	"ws":       {},
+	"metrics":  {},
+}
+
 // url2namespaceresource converts a URL path to namespace, resource type, and optional resource name.
 // For example:
 //
@@ -73,14 +85,11 @@ func url2namespaceresource(url string) (namespace string, resource string, resou
 	} else {
 		namespace = common.AllNamespaces // All namespaces
 	}
-	// parts[5] (if present) is the resource name, but skip sub-resources like
-	// "history", "describe", "related", "proxy", etc.
+	// parts[5] (if present) is the resource name, but skip known sub-resource
+	// suffixes like "history", "describe", "related", etc.
 	if len(parts) > 5 {
 		candidate := parts[5]
-		switch candidate {
-		case "history", "describe", "related", "proxy", "ws", "metrics":
-			// sub-resource path, not a resource name
-		default:
+		if _, isSub := subResourceSuffixes[candidate]; !isSub {
 			resourceName = candidate
 		}
 	}
