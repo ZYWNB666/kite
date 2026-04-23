@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/zxh326/kite/pkg/cluster"
@@ -65,7 +66,33 @@ func HandleChat(c *gin.Context) {
 	c.Header("Connection", "keep-alive")
 	c.Header("X-Accel-Buffering", "no")
 
+	// Send SSE keepalive comments periodically to prevent proxy/load-balancer timeouts.
+	// This is the root cause of the "network error" when AI takes a long time to respond.
+	done := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-c.Request.Context().Done():
+				return
+			case <-ticker.C:
+				// SSE comment — kept alive without triggering an event on the client
+				_, _ = fmt.Fprint(c.Writer, ": keepalive\n\n")
+				c.Writer.Flush()
+			}
+		}
+	}()
+
 	sendEvent := func(event SSEEvent) {
+		// Don't write if client already disconnected
+		select {
+		case <-c.Request.Context().Done():
+			return
+		default:
+		}
 		data := MarshalSSEEvent(event)
 		_, _ = fmt.Fprint(c.Writer, data)
 		c.Writer.Flush()
@@ -73,6 +100,7 @@ func HandleChat(c *gin.Context) {
 
 	agent.ProcessChat(c, &req, sendEvent)
 
+	close(done)
 	sendEvent(SSEEvent{Event: "done", Data: map[string]string{}})
 }
 

@@ -109,6 +109,10 @@ func (session *TerminalSession) Read(p []byte) (int, error) {
 		return copy(p, EndOfTransmission), err
 	}
 
+	// Update heartbeat on every received message, not just ping.
+	// This ensures normal typing activity also keeps the session alive.
+	session.lastHeartbeat.Store(time.Now().UnixNano())
+
 	switch msg.Type {
 	case "stdin":
 		data := []byte(msg.Data)
@@ -124,7 +128,6 @@ func (session *TerminalSession) Read(p []byte) (int, error) {
 			}
 		}
 	case "ping":
-		session.lastHeartbeat.Store(time.Now().UnixNano())
 		session.SendMessage("pong", "")
 	default:
 		return copy(p, EndOfTransmission), fmt.Errorf("unknown message type: %s", msg.Type)
@@ -166,7 +169,8 @@ func (session *TerminalSession) SendErrorMessage(errMsg string) {
 
 func (session *TerminalSession) checkHeartbeat(ctx context.Context) {
 	session.lastHeartbeat.Store(time.Now().UnixNano())
-	ticker := time.NewTicker(10 * time.Second)
+	// Check every 30s, matching the frontend's 30s ping interval
+	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -175,7 +179,10 @@ func (session *TerminalSession) checkHeartbeat(ctx context.Context) {
 			return
 		case <-ticker.C:
 			lastBeat := time.Unix(0, session.lastHeartbeat.Load())
-			if time.Since(lastBeat) > 1*time.Minute {
+			// Allow 3 missed pings (3 * 30s = 90s) before disconnecting
+			if time.Since(lastBeat) > 3*time.Minute {
+				klog.Warningf("Terminal session %s/%s heartbeat timeout, closing",
+					session.namespace, session.podName)
 				if err := session.conn.Close(); err != nil {
 					klog.Errorf("WebSocket close error: %v", err)
 				}
