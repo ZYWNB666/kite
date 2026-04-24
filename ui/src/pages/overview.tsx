@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { useAuth } from '@/contexts/auth-context'
 import { useTranslation } from 'react-i18next'
 
-import { useOverview, useResourceUsageHistory } from '@/lib/api'
+import { useOverview, useResourceUsageHistory, useGPUOverview } from '@/lib/api'
 import NetworkUsageChart from '@/components/chart/network-usage-chart'
 import ResourceUtilizationChart from '@/components/chart/resource-utilization'
 import { ClusterStatsCards } from '@/components/cluster-stats-cards'
 import { RecentEvents } from '@/components/recent-events'
 import { ResourceCharts } from '@/components/resources-charts'
 import { SettingsHint } from '@/components/settings-hint'
+import { GPUOverviewCard } from '@/components/gpu-overview-card'
 
 export function Overview() {
   const { t } = useTranslation()
@@ -23,6 +24,7 @@ export function Overview() {
 
   const [timeRange] = useState('30m')
   const { data: overview, isLoading, error, isError } = useOverview()
+  const { data: gpuOverview, isLoading: isLoadingGPU, error: gpuError } = useGPUOverview()
 
   const {
     data: resourceUsage,
@@ -53,6 +55,13 @@ export function Overview() {
       {!isDismissed &&
         user?.provider !== 'Anonymous' &&
         user?.roles?.some((role) => role.name === 'admin') && <SettingsHint />}
+
+      {/* GPU 资源概览 */}
+      <GPUOverviewCard 
+        data={gpuOverview} 
+        isLoading={isLoadingGPU} 
+        error={gpuError} 
+      />
 
       <div className="grid grid-cols-1 gap-4 @5xl/main:grid-cols-2">
         <ResourceCharts

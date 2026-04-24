@@ -48,9 +48,38 @@ export function APIKeyManagement() {
   }, [])
 
   const copyToClipboard = useCallback(
-    (text: string) => {
-      navigator.clipboard.writeText(text)
-      toast.success(t('common.copied', 'Copied to clipboard'))
+    async (text: string) => {
+      try {
+        // Try using the modern Clipboard API
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(text)
+          toast.success(t('common.copied', 'Copied to clipboard'))
+        } else {
+          // Fallback for older browsers or non-HTTPS contexts
+          const textArea = document.createElement('textarea')
+          textArea.value = text
+          textArea.style.position = 'fixed'
+          textArea.style.left = '-999999px'
+          textArea.style.top = '-999999px'
+          document.body.appendChild(textArea)
+          textArea.focus()
+          textArea.select()
+          try {
+            document.execCommand('copy')
+            toast.success(t('common.copied', 'Copied to clipboard'))
+          } catch (err) {
+            console.error('Fallback copy failed:', err)
+            toast.error(
+              t('apikeyManagement.copyError', 'Failed to copy API key')
+            )
+          } finally {
+            textArea.remove()
+          }
+        }
+      } catch (err) {
+        console.error('Copy to clipboard failed:', err)
+        toast.error(t('apikeyManagement.copyError', 'Failed to copy API key'))
+      }
     },
     [t]
   )

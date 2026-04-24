@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
-import { OverviewData, PodMetrics, ResourceUsageHistory } from '@/types/api'
+import {
+  GPUOverview,
+  OverviewData,
+  PodMetrics,
+  ResourceUsageHistory,
+} from '@/types/api'
 
 import { API_BASE_URL } from '../api-client'
 import { appendCurrentClusterParam } from '../current-cluster'
@@ -20,6 +25,21 @@ export const useOverview = (options?: { staleTime?: number }) => {
     queryFn: fetchOverview,
     staleTime: options?.staleTime || 30000, // 30 seconds cache
     refetchInterval: 30000, // Auto refresh every 30 seconds
+  })
+}
+
+// GPU Overview API
+const fetchGPUOverview = (): Promise<GPUOverview> => {
+  return fetchAPI<GPUOverview>('/gpu-overview')
+}
+
+export const useGPUOverview = (options?: { staleTime?: number }) => {
+  return useQuery({
+    queryKey: ['gpu-overview'],
+    queryFn: fetchGPUOverview,
+    staleTime: options?.staleTime || 30000, // 30 seconds cache
+    refetchInterval: 30000, // Auto refresh every 30 seconds
+    retry: 0, // Don't retry on failure (GPU might not be available in cluster)
   })
 }
 

@@ -290,6 +290,42 @@ export interface OverviewData {
   }
 }
 
+// GPU types
+export interface GPUNodeInfo {
+  nodeName: string
+  capacity: number
+  allocatable: number
+  used: number
+  free: number
+  gpuType: string
+  taints?: string[]
+}
+
+export interface GPUNamespaceStat {
+  namespace: string
+  gpuCount: number
+}
+
+export interface GPUModelStat {
+  modelName: string
+  gpuCount: number
+}
+
+export interface GPUOverview {
+  summary: {
+    totalNodes: number
+    totalGPUs: number
+    usedGPUs: number
+    freeGPUs: number
+    usagePercent: number
+  }
+  fullyFreeNodes: GPUNodeInfo[]
+  partialFreeNodes: GPUNodeInfo[]
+  namespaceStats: GPUNamespaceStat[]
+  modelStats: GPUModelStat[]
+  noModelGPUCount: number
+}
+
 // Pagination types
 export interface PaginationInfo {
   hasNextPage: boolean

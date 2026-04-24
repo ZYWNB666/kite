@@ -1,13 +1,15 @@
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useAuth } from '@/contexts/auth-context'
 import { usePageTitle } from '@/hooks/use-page-title'
 import { ResponsiveTabs } from '@/components/ui/responsive-tabs'
 import { createSettingsTabs } from '@/components/settings/settings-sections'
 
 export function SettingsPage() {
   const { t } = useTranslation()
-  const tabs = useMemo(() => createSettingsTabs(t), [t])
+  const { user } = useAuth()
+  const tabs = useMemo(() => createSettingsTabs(t, user), [t, user])
 
   usePageTitle('Settings')
 

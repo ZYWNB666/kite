@@ -127,6 +127,7 @@ func registerProtectedRoutes(r *gin.RouterGroup, authHandler *auth.AuthHandler, 
 	api.Use(authHandler.RequireAuth(), middleware.ClusterMiddleware(cm))
 
 	api.GET("/overview", handlers.GetOverview)
+	api.GET("/gpu-overview", handlers.GetGPUOverview)
 
 	promHandler := handlers.NewPromHandler()
 	api.GET("/prometheus/resource-usage-history", promHandler.GetResourceUsageHistory)
