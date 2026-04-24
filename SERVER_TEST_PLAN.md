@@ -33,7 +33,7 @@
 
 ### 准备工作
 
-```powershell
+```bash
 # 1. 重新构建前端（修改了UI）
 cd ui
 npm install
@@ -43,10 +43,11 @@ cd ..
 # 2. 启动应用
 go run main.go
 # 或使用已编译的二进制
-# .\kite.exe
+# ./kite
 
 # 3. 打开浏览器
-start http://localhost:8080
+xdg-open http://localhost:18088
+# 或 macOS: open http://localhost:18088
 ```
 
 ---
@@ -95,7 +96,7 @@ start http://localhost:8080
    - 尝试访问其他 Pod 应返回 403 错误
 
 **方式 2：通过 API（需要先有测试 Pod）**
-```powershell
+```bash
 # 在集群中创建测试 Pod
 kubectl run nginx --image=nginx
 kubectl run test-pod --image=nginx
@@ -103,19 +104,19 @@ kubectl run app-pod --image=nginx
 
 # 以 testuser 登录获取 token（需要从浏览器开发者工具获取）
 # 或者使用 password login API
-$response = curl -X POST http://localhost:8080/api/auth/login/password `
-  -H "Content-Type: application/json" `
-  -d '{"username":"testuser","password":"Test123456"}' `
-  --silent | ConvertFrom-Json
+response=$(curl -X POST http://localhost:18088/api/auth/login/password \
+  -H "Content-Type: application/json" \
+  -d '{"username":"testuser","password":"Test123456"}' \
+  --silent)
 
-$token = $response.token
+token=$(echo $response | jq -r '.token')
 
 # 测试访问允许的 Pod（应该成功）
-curl "http://localhost:8080/api/v1/pods/default/nginx" `
+curl "http://localhost:18088/api/v1/pods/default/nginx" \
   -H "Authorization: Bearer $token"
 
 # 测试访问不允许的 Pod（应该失败 403）
-curl "http://localhost:8080/api/v1/pods/default/test-pod" `
+curl "http://localhost:18088/api/v1/pods/default/test-pod" \
   -H "Authorization: Bearer $token"
 ```
 
@@ -154,15 +155,15 @@ curl "http://localhost:8080/api/v1/pods/default/test-pod" `
 
 ### 2.3 测试 Kubeconfig API
 
-```powershell
+```bash
 # 设置 API Key 变量
-$apiKey = "kite1-your-actual-api-key-here"
+apiKey="kite2-99nc4ckd94mzplhkjmv9g2rjscjh74k9"
 
 # 测试 1：获取所有集群的 kubeconfig
-Write-Host "Testing Kubeconfig API..." -ForegroundColor Cyan
-curl "http://localhost:8080/api/v1/proxy/kubeconfig" `
-  -H "Authorization: Bearer $apiKey" `
-  --silent | ConvertFrom-Json | ConvertTo-Json -Depth 10
+echo "Testing Kubeconfig API..."
+curl "http://localhost:18088/api/v1/proxy/kubeconfig" \
+  -H "Authorization: Bearer $apiKey" \
+  --silent | jq .
 
 # 预期返回：
 # {
@@ -175,14 +176,14 @@ curl "http://localhost:8080/api/v1/proxy/kubeconfig" `
 # }
 
 # 测试 2：获取特定集群
-curl "http://localhost:8080/api/v1/proxy/kubeconfig?cluster=your-cluster-name" `
-  -H "Authorization: Bearer $apiKey" `
-  --silent | ConvertFrom-Json | ConvertTo-Json -Depth 10
+curl "http://localhost:18088/api/v1/proxy/kubeconfig?cluster=your-cluster-name" \
+  -H "Authorization: Bearer $apiKey" \
+  --silent | jq .
 ```
 
 ### 2.4 测试权限拒绝场景
 
-```powershell
+```bash
 # 场景 1：浏览器 Session 访问（应该失败）
 # 在浏览器控制台执行（登录后）：
 fetch('/api/v1/proxy/kubeconfig', {
@@ -192,7 +193,7 @@ fetch('/api/v1/proxy/kubeconfig', {
 # 预期：{"error":"this endpoint is only available to API-key users"}
 
 # 场景 2：无效 API Key（应该失败）
-curl "http://localhost:8080/api/v1/proxy/kubeconfig" `
+curl "http://localhost:18088/api/v1/proxy/kubeconfig" \
   -H "Authorization: Bearer invalid-key-12345"
 
 # 预期：401 Unauthorized 或 {"error":"unauthorized"}
@@ -201,7 +202,7 @@ curl "http://localhost:8080/api/v1/proxy/kubeconfig" `
 # 创建新角色（不勾选 Allow Proxy）
 # 创建新 API Key 并分配该角色
 # 使用该 API Key 访问
-curl "http://localhost:8080/api/v1/proxy/kubeconfig" `
+curl "http://localhost:18088/api/v1/proxy/kubeconfig" \
   -H "Authorization: Bearer NO_PROXY_PERMISSION_KEY"
 
 # 预期：{"error":"no clusters available for proxy or proxy not permitted"}
@@ -252,27 +253,27 @@ Allow Proxy: ❌（不勾选）
 
 ### 3.2 创建三个 API Key 并测试
 
-```powershell
+```bash
 # 创建三个 API Key，分别分配上述角色
 # API Key 1: proxy-admin-key -> proxy-admin 角色
 # API Key 2: proxy-limited-key -> proxy-limited 角色
 # API Key 3: no-proxy-key -> no-proxy 角色
 
 # 测试全量 Proxy（应该成功）
-$key1 = "kite2-..."
-curl "http://localhost:8080/api/v1/proxy/kubeconfig" `
+key1="kite2-..."
+curl "http://localhost:18088/api/v1/proxy/kubeconfig" \
   -H "Authorization: Bearer $key1"
 # 预期：返回所有集群的 kubeconfig
 
 # 测试受限 Proxy（应该成功但命名空间受限）
-$key2 = "kite3-..."
-curl "http://localhost:8080/api/v1/proxy/kubeconfig" `
+key2="kite3-..."
+curl "http://localhost:18088/api/v1/proxy/kubeconfig" \
   -H "Authorization: Bearer $key2"
 # 预期：返回 kubeconfig，但实际使用时会被限制在 default 命名空间
 
 # 测试无 Proxy（应该失败）
-$key3 = "kite4-..."
-curl "http://localhost:8080/api/v1/proxy/kubeconfig" `
+key3="kite4-..."
+curl "http://localhost:18088/api/v1/proxy/kubeconfig" \
   -H "Authorization: Bearer $key3"
 # 预期：{"error":"no clusters available for proxy or proxy not permitted"}
 ```
@@ -325,7 +326,7 @@ curl "http://localhost:8080/api/v1/proxy/kubeconfig" `
 
 ## 测试 5：数据库验证（可选）
 
-```powershell
+```bash
 # 如果使用 SQLite
 sqlite3 kite.db
 
@@ -342,6 +343,9 @@ SELECT id, name, resource_names, allow_proxy, proxy_namespaces FROM roles;
 
 # 验证 admin 角色的 allow_proxy 为 1（true）
 SELECT name, allow_proxy FROM roles WHERE name='admin';
+
+# 退出
+.quit
 ```
 
 ---
@@ -371,7 +375,7 @@ SELECT name, allow_proxy FROM roles WHERE name='admin';
 **原因**：前端代码未重新编译
 
 **解决**：
-```powershell
+```bash
 cd ui
 npm run build
 cd ..
@@ -408,68 +412,82 @@ cd ..
 **原因**：数据库未迁移或使用旧版本的表结构
 
 **解决**：
-```powershell
+```bash
 # 方式 1：删除数据库重新初始化（测试环境）
-Remove-Item kite.db
+rm kite.db
 go run main.go
 
 # 方式 2：手动添加字段（生产环境）
-sqlite3 kite.db
+sqlite3 kite.db << EOF
 ALTER TABLE roles ADD COLUMN resource_names TEXT;
 ALTER TABLE roles ADD COLUMN allow_proxy BOOLEAN NOT NULL DEFAULT 0;
 ALTER TABLE roles ADD COLUMN proxy_namespaces TEXT;
 .quit
+EOF
 ```
 
 ---
 
 ## 🎯 快速验证脚本
 
-```powershell
+```bash
+#!/bin/bash
+
 # 完整的快速验证脚本
-Write-Host "=== Kite 服务端功能快速验证 ===" -ForegroundColor Green
+echo -e "\033[32m=== Kite 服务端功能快速验证 ===\033[0m"
 
 # 1. 检查应用是否运行
-Write-Host "`n[1/4] 检查应用状态..." -ForegroundColor Cyan
-$health = curl http://localhost:8080/api/v1/healthz --silent 2>$null
-if ($health -match "ok") {
-    Write-Host "✅ 应用正常运行" -ForegroundColor Green
-} else {
-    Write-Host "❌ 应用未启动，请先启动 kite" -ForegroundColor Red
+echo -e "\n\033[36m[1/4] 检查应用状态...\033[0m"
+health=$(curl http://localhost:18088/api/v1/healthz --silent 2>/dev/null)
+if echo "$health" | grep -q "ok"; then
+    echo -e "\033[32m✅ 应用正常运行\033[0m"
+else
+    echo -e "\033[31m❌ 应用未启动，请先启动 kite\033[0m"
     exit 1
-}
+fi
 
-# 2. 测试 Kubeconfig API（需要替换 API Key）
-Write-Host "`n[2/4] 测试 Kubeconfig API..." -ForegroundColor Cyan
-Write-Host "请输入您的 API Key:" -ForegroundColor Yellow
-$apiKey = Read-Host
-if ($apiKey) {
-    $result = curl "http://localhost:8080/api/v1/proxy/kubeconfig" `
-      -H "Authorization: Bearer $apiKey" `
-      --silent 2>$null | ConvertFrom-Json
-    
-    if ($result.clusters) {
-        Write-Host "✅ Kubeconfig API 正常工作" -ForegroundColor Green
-        Write-Host "可访问集群数量: $($result.clusters.Count)" -ForegroundColor Gray
-    } elseif ($result.error) {
-        Write-Host "⚠️  返回错误: $($result.error)" -ForegroundColor Yellow
-    } else {
-        Write-Host "❌ API 返回异常" -ForegroundColor Red
-    }
-}
+# 2. 测试 Kubeconfig API
+echo -e "\n\033[36m[2/4] 测试 Kubeconfig API...\033[0m"
+apiKey="kite2-99nc4ckd94mzplhkjmv9g2rjscjh74k9"
+echo -e "\033[33m使用 API Key: $apiKey\033[0m"
+
+result=$(curl "http://localhost:18088/api/v1/proxy/kubeconfig" \
+  -H "Authorization: Bearer $apiKey" \
+  --silent 2>/dev/null)
+
+if echo "$result" | jq -e '.clusters' >/dev/null 2>&1; then
+    echo -e "\033[32m✅ Kubeconfig API 正常工作\033[0m"
+    cluster_count=$(echo "$result" | jq '.clusters | length')
+    echo -e "\033[90m可访问集群数量: $cluster_count\033[0m"
+    echo "$result" | jq .
+elif echo "$result" | jq -e '.error' >/dev/null 2>&1; then
+    error_msg=$(echo "$result" | jq -r '.error')
+    echo -e "\033[33m⚠️  返回错误: $error_msg\033[0m"
+else
+    echo -e "\033[31m❌ API 返回异常\033[0m"
+    echo "$result"
+fi
 
 # 3. 检查前端界面
-Write-Host "`n[3/4] 打开前端界面..." -ForegroundColor Cyan
-Write-Host "请手动验证:" -ForegroundColor Yellow
-Write-Host "  1. Settings → RBAC Management → Add Role" -ForegroundColor Gray
-Write-Host "  2. 检查是否有 'Resource Names' 输入框" -ForegroundColor Gray
-Write-Host "  3. 检查是否有 'Proxy Permissions' 部分" -ForegroundColor Gray
-start http://localhost:8080
+echo -e "\n\033[36m[3/4] 打开前端界面...\033[0m"
+echo -e "\033[33m请手动验证:\033[0m"
+echo -e "\033[90m  1. Settings → RBAC Management → Add Role\033[0m"
+echo -e "\033[90m  2. 检查是否有 'Resource Names' 输入框\033[0m"
+echo -e "\033[90m  3. 检查是否有 'Proxy Permissions' 部分\033[0m"
+
+# 根据操作系统打开浏览器
+if command -v xdg-open &> /dev/null; then
+    xdg-open http://localhost:18088
+elif command -v open &> /dev/null; then
+    open http://localhost:18088
+else
+    echo "请手动打开: http://localhost:18088"
+fi
 
 # 4. 总结
-Write-Host "`n[4/4] 验证完成" -ForegroundColor Cyan
-Write-Host "请查看上述结果并手动测试 UI 功能" -ForegroundColor Yellow
-Write-Host "`n详细测试步骤请参考 SERVER_TEST_PLAN.md" -ForegroundColor Gray
+echo -e "\n\033[36m[4/4] 验证完成\033[0m"
+echo -e "\033[33m请查看上述结果并手动测试 UI 功能\033[0m"
+echo -e "\n\033[90m详细测试步骤请参考 SERVER_TEST_PLAN.md\033[0m"
 ```
 
 ---

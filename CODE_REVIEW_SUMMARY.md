@@ -207,9 +207,9 @@ cd ..
 
 ### 2. 数据库迁移
 如果是从旧版本升级，数据库应该会自动迁移。如果遇到问题：
-```powershell
+```bash
 # 测试环境：删除数据库重新初始化
-Remove-Item kite.db
+rm kite.db
 go run main.go
 
 # 生产环境：联系我处理迁移

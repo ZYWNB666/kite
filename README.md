@@ -60,11 +60,17 @@ Kite is a lightweight, modern Kubernetes dashboard that unifies real-time observ
 - Built-in kubectl console.
 - AI assistant.
 
-### Security
+### Security & Access Control
 
-- OAuth integration
-- Role-based access control
-- User management and role allocation
+- **OAuth Integration**: Single Sign-On with multiple providers
+- **Role-Based Access Control (RBAC)**: Fine-grained permission management
+  - Resource-level permissions (cluster, namespace, resource type, verbs)
+  - **Resource name filtering**: Restrict access to specific resources by name (e.g., only allow access to certain pods)
+  - **Proxy permissions**: Control kubeconfig API access for kite-proxy clients
+  - **Namespace restrictions**: Limit proxy access to specific namespaces
+- **User Management**: Create and manage users with role assignments
+- **API Key Authentication**: Programmatic access with API keys
+- **Audit Logging**: Track all user actions and changes
 
 ---
 
