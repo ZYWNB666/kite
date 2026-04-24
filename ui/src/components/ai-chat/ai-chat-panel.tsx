@@ -12,7 +12,6 @@ import {
   Clock,
   ExternalLink,
   MessageSquarePlus,
-  Minus,
   X,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -230,21 +229,7 @@ export function AIChatPanel({
 
           <Separator orientation="vertical" className="mx-0.5 h-4" />
 
-          {!standalone && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={closeChat}
-                >
-                  <Minus className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top">Minimize</TooltipContent>
-            </Tooltip>
-          )}
+
 
           <Tooltip>
             <TooltipTrigger asChild>
