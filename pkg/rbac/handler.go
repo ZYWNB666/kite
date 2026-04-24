@@ -78,7 +78,10 @@ func UpdateRole(c *gin.Context) {
 	role.Clusters = req.Clusters
 	role.Namespaces = req.Namespaces
 	role.Resources = req.Resources
+	role.ResourceNames = req.ResourceNames
 	role.Verbs = req.Verbs
+	role.AllowProxy = req.AllowProxy
+	role.ProxyNamespaces = req.ProxyNamespaces
 
 	if err := model.DB.Save(&role).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update role: " + err.Error()})

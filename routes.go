@@ -113,6 +113,12 @@ func registerAdminRoutes(r *gin.RouterGroup, authHandler *auth.AuthHandler, cm *
 	templateAPI.POST("/", handlers.CreateTemplate)
 	templateAPI.PUT("/:id", handlers.UpdateTemplate)
 	templateAPI.DELETE("/:id", handlers.DeleteTemplate)
+
+	// Proxy kubeconfig endpoint – auth required, no admin required (API-key users with
+	// proxy permission can call this to retrieve kubeconfigs for kite-proxy).
+	proxyAPI := r.Group("/api/v1/proxy")
+	proxyAPI.Use(authHandler.RequireAuth())
+	proxyAPI.GET("/kubeconfig", handlers.ProxyKubeconfigHandler(cm))
 }
 
 func registerProtectedRoutes(r *gin.RouterGroup, authHandler *auth.AuthHandler, cm *cluster.ClusterManager) {

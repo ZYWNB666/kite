@@ -8,10 +8,15 @@ type Role struct {
 	IsSystem    bool   `json:"isSystem" gorm:"type:boolean;not null;default:false"`
 
 	// Rules
-	Clusters   SliceString `json:"clusters" gorm:"type:text"`
-	Resources  SliceString `json:"resources" gorm:"type:text"`
-	Namespaces SliceString `json:"namespaces" gorm:"type:text"`
-	Verbs      SliceString `json:"verbs" gorm:"type:text"`
+	Clusters      SliceString `json:"clusters" gorm:"type:text"`
+	Resources     SliceString `json:"resources" gorm:"type:text"`
+	ResourceNames SliceString `json:"resourceNames" gorm:"type:text"`
+	Namespaces    SliceString `json:"namespaces" gorm:"type:text"`
+	Verbs         SliceString `json:"verbs" gorm:"type:text"`
+
+	// Proxy permissions
+	AllowProxy      bool        `json:"allowProxy" gorm:"type:boolean;not null;default:false"`
+	ProxyNamespaces SliceString `json:"proxyNamespaces" gorm:"type:text"`
 
 	Assignments []RoleAssignment `json:"assignments" gorm:"foreignKey:RoleID;constraint:OnDelete:CASCADE"`
 }
