@@ -47,9 +47,11 @@ type GPUOverview struct {
 		FreeGPUs     int64   `json:"freeGPUs"`
 		UsagePercent float64 `json:"usagePercent"`
 	} `json:"summary"`
-	FullyFreeNodes   []GPUNodeInfo      `json:"fullyFreeNodes"`
-	PartialFreeNodes []GPUNodeInfo      `json:"partialFreeNodes"`
-	NamespaceStats   []GPUNamespaceStat `json:"namespaceStats"`
+	FullyFreeNodes     []GPUNodeInfo      `json:"fullyFreeNodes"`
+	UntaintedFreeNodes []GPUNodeInfo      `json:"untaintedFreeNodes"`
+	TaintedFreeNodes   []GPUNodeInfo      `json:"taintedFreeNodes"`
+	PartialFreeNodes   []GPUNodeInfo      `json:"partialFreeNodes"`
+	NamespaceStats     []GPUNamespaceStat `json:"namespaceStats"`
 	ModelStats       []GPUModelStat     `json:"modelStats"`
 	NoModelGPUCount  int64              `json:"noModelGPUCount"`
 }
@@ -78,9 +80,11 @@ func GetGPUOverview(c *gin.Context) {
 				FreeGPUs     int64   `json:"freeGPUs"`
 				UsagePercent float64 `json:"usagePercent"`
 			}{},
-			FullyFreeNodes:   []GPUNodeInfo{},
-			PartialFreeNodes: []GPUNodeInfo{},
-			NamespaceStats:   []GPUNamespaceStat{},
+			FullyFreeNodes:     []GPUNodeInfo{},
+			UntaintedFreeNodes: []GPUNodeInfo{},
+			TaintedFreeNodes:   []GPUNodeInfo{},
+			PartialFreeNodes:   []GPUNodeInfo{},
+			NamespaceStats:     []GPUNamespaceStat{},
 			ModelStats:       []GPUModelStat{},
 		})
 		return
@@ -332,7 +336,7 @@ func buildGPUOverview(nodes []GPUNodeInfo, namespaceStats, modelStats map[string
 
 	// 统计信息
 	var totalGPUs, usedGPUs, freeGPUs int64
-	var fullyFreeNodes, partialFreeNodes []GPUNodeInfo
+	var fullyFreeNodes, untaintedFreeNodes, taintedFreeNodes, partialFreeNodes []GPUNodeInfo
 
 	for _, node := range nodes {
 		totalGPUs += node.Capacity
@@ -342,6 +346,11 @@ func buildGPUOverview(nodes []GPUNodeInfo, namespaceStats, modelStats map[string
 		if node.Free > 0 {
 			if node.Used == 0 {
 				fullyFreeNodes = append(fullyFreeNodes, node)
+				if len(node.Taints) > 0 {
+					taintedFreeNodes = append(taintedFreeNodes, node)
+				} else {
+					untaintedFreeNodes = append(untaintedFreeNodes, node)
+				}
 			} else {
 				partialFreeNodes = append(partialFreeNodes, node)
 			}
@@ -359,6 +368,16 @@ func buildGPUOverview(nodes []GPUNodeInfo, namespaceStats, modelStats map[string
 	overview.FullyFreeNodes = fullyFreeNodes
 	if overview.FullyFreeNodes == nil {
 		overview.FullyFreeNodes = []GPUNodeInfo{}
+	}
+
+	overview.UntaintedFreeNodes = untaintedFreeNodes
+	if overview.UntaintedFreeNodes == nil {
+		overview.UntaintedFreeNodes = []GPUNodeInfo{}
+	}
+
+	overview.TaintedFreeNodes = taintedFreeNodes
+	if overview.TaintedFreeNodes == nil {
+		overview.TaintedFreeNodes = []GPUNodeInfo{}
 	}
 
 	overview.PartialFreeNodes = partialFreeNodes

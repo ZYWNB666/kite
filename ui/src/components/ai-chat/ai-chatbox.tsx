@@ -13,7 +13,7 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { AIChatPanel } from '@/components/ai-chat/ai-chat-panel'
 import { AIChatTrigger } from '@/components/ai-chat/ai-chat-trigger'
 
-const MIN_HEIGHT = 200
+const MIN_HEIGHT = 400
 const DESKTOP_DEFAULT_HEIGHT_RATIO = 0.62
 const MIN_WIDTH = 320
 const DEFAULT_WIDTH = 420
@@ -320,8 +320,8 @@ export function AIChatbox({
         ref={containerRef}
         className={
           standalone
-            ? 'fixed inset-0 z-50 flex flex-col bg-background'
-            : `fixed z-50 flex flex-col border bg-background shadow-2xl ${
+            ? 'fixed inset-0 z-50 flex flex-col bg-background overflow-hidden'
+            : `fixed z-50 flex flex-col border bg-background shadow-2xl overflow-hidden ${
                 isMobile ? 'left-2 right-2 rounded-lg' : 'rounded-lg'
               } ${!standalone && !isOpen ? 'hidden' : ''}`
         }

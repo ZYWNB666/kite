@@ -320,6 +320,8 @@ export interface GPUOverview {
     usagePercent: number
   }
   fullyFreeNodes: GPUNodeInfo[]
+  untaintedFreeNodes: GPUNodeInfo[]
+  taintedFreeNodes: GPUNodeInfo[]
   partialFreeNodes: GPUNodeInfo[]
   namespaceStats: GPUNamespaceStat[]
   modelStats: GPUModelStat[]

@@ -175,7 +175,7 @@ export function AIChatPanel({
   const shouldCloseStandalone = standalone ? onClose : closeChat
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col">
+    <div className="relative flex flex-1 w-full min-h-0 flex-col overflow-hidden bg-background">
       <div className="flex h-11 shrink-0 items-center justify-between border-b bg-muted/50 px-3">
         <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
           <Bot className="h-4 w-4" />

@@ -86,7 +86,7 @@ export function GPUOverviewCard({
     )
   }
 
-  const { summary, fullyFreeNodes, partialFreeNodes, namespaceStats, modelStats, noModelGPUCount } = data
+  const { summary, fullyFreeNodes, untaintedFreeNodes, taintedFreeNodes, partialFreeNodes, namespaceStats, modelStats, noModelGPUCount } = data
 
   return (
     <Card className="@container/gpu">
@@ -145,25 +145,44 @@ export function GPUOverviewCard({
         <div className="grid grid-cols-1 gap-4 @lg/gpu:grid-cols-2">
           {/* 完全空闲的节点 */}
           <div>
-            <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-              <IconCheck className="size-4 text-green-600" />
-              完全空闲节点 ({fullyFreeNodes.length})
-            </h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <IconCheck className="size-4 text-green-600" />
+                完全空闲节点 ({fullyFreeNodes.length})
+              </h3>
+              {fullyFreeNodes.length > 0 && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1"><IconCircleFilled className="size-2 text-green-600" />无污点 {untaintedFreeNodes.length}</span>
+                  <span className="flex items-center gap-1"><IconCircleFilled className="size-2 text-yellow-500" />有污点 {taintedFreeNodes.length}</span>
+                </div>
+              )}
+            </div>
             <div className="h-40 rounded-md border p-3 overflow-y-auto">
               {fullyFreeNodes.length > 0 ? (
                 <div className="space-y-2">
                   {fullyFreeNodes.map((node) => (
                     <div
                       key={node.nodeName}
-                      className="flex items-center justify-between text-sm p-2 rounded hover:bg-muted/50"
+                      className="flex flex-col gap-1 p-2 rounded border border-transparent hover:border-border hover:bg-muted/50 transition-colors"
                     >
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <IconCircleFilled className="size-2 text-green-600 flex-shrink-0" />
-                        <span className="font-mono text-xs truncate">{node.nodeName}</span>
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <IconCircleFilled className={`size-2 flex-shrink-0 ${node.taints && node.taints.length > 0 ? 'text-yellow-500' : 'text-green-600'}`} />
+                          <span className="font-mono text-xs truncate">{node.nodeName}</span>
+                        </div>
+                        <Badge variant="secondary" className="ml-2 flex-shrink-0">
+                          {node.capacity} GPU
+                        </Badge>
                       </div>
-                      <Badge variant="secondary" className="ml-2 flex-shrink-0">
-                        {node.capacity} GPU
-                      </Badge>
+                      {node.taints && node.taints.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pl-6">
+                          {node.taints.map((taint, i) => (
+                            <Badge key={i} variant="outline" className="text-[10px] h-4 px-1 text-muted-foreground border-yellow-500/30 bg-yellow-500/10">
+                              {taint}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

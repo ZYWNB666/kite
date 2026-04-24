@@ -127,8 +127,8 @@ func (c *Client) GetResourceUsageHistory(ctx context.Context, instance string, d
 		return nil, fmt.Errorf("error querying CPU usage: %w", err)
 	}
 
-	// Query Memory usage percentage - using container memory usage
-	memoryQuery := fmt.Sprintf(`sum(container_memory_usage_bytes{%s}) / sum(kube_node_status_allocatable{%s}) * 100`, strings.Join(conditions, ","), strings.Join(memoryConditions, ","))
+	// Query Memory usage percentage - using container memory working set
+	memoryQuery := fmt.Sprintf(`sum(container_memory_working_set_bytes{%s}) / sum(kube_node_status_allocatable{%s}) * 100`, strings.Join(conditions, ","), strings.Join(memoryConditions, ","))
 	memoryData, err := c.queryRange(ctx, memoryQuery, start, now, step)
 	if err != nil {
 		return nil, fmt.Errorf("error querying Memory usage: %w", err)
@@ -257,7 +257,7 @@ func (c *Client) GetMemoryUsage(ctx context.Context, namespace, podNamePrefix, c
 	if namespace != "" {
 		conditions = append(conditions, fmt.Sprintf(`namespace="%s"`, namespace))
 	}
-	query := fmt.Sprintf(`sum(container_memory_usage_bytes{%s}) / 1024 / 1024`, strings.Join(conditions, ","))
+	query := fmt.Sprintf(`sum(container_memory_working_set_bytes{%s}) / 1024 / 1024`, strings.Join(conditions, ","))
 	return c.queryRange(ctx, query, start, now, step)
 }
 

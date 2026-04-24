@@ -85,9 +85,9 @@ const MemoryUsageChart = React.memo((prop: MemoryUsageChartProps) => {
             axisLine={false}
             tickMargin={8}
             tickFormatter={(value) =>
-              `${value.toFixed(useGB ? 2 : 1)}${useGB ? 'GB' : 'MB'}`
+              value === 0 ? '0' : `${value.toFixed(useGB ? 2 : 1)}${useGB ? 'GB' : 'MB'}`
             }
-            domain={[0, (dataMax: number) => dataMax * 1.1]}
+            domain={[0, (dataMax: number) => Math.max(dataMax * 1.1, 1)]}
           />
           <ChartTooltip
             content={

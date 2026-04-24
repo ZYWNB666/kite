@@ -59,7 +59,8 @@ const CPUUsageChart = React.memo((prop: CpuUsageChartProps) => {
             tickLine={false}
             axisLine={false}
             tickMargin={8}
-            tickFormatter={(value) => `${value.toFixed(3)}`}
+            tickFormatter={(value) => value === 0 ? '0' : `${value.toFixed(3)}`}
+            domain={[0, (dataMax: number) => Math.max(dataMax * 1.1, 0.01)]}
           />
           <ChartTooltip
             content={
