@@ -1,6 +1,6 @@
 import type { ComponentType, ReactNode } from 'react'
 import type { TFunction } from 'i18next'
-import type { User } from '@/types/api'
+import type { AuthUser } from '@/lib/api'
 
 import { APIKeyManagement } from './apikey-management'
 import { AuditLog } from './audit-log'
@@ -93,8 +93,8 @@ export const settingsSectionRegistry: SettingsSectionDefinition[] = [
   ),
 ]
 
-export function createSettingsTabs(t: TFunction, user?: User | null) {
-  const isAdmin = user?.roles?.some((role) => role.name === 'admin') ?? false
+export function createSettingsTabs(t: TFunction, user?: AuthUser | null) {
+  const isAdmin = user?.roles?.some((role: { name: string }) => role.name === 'admin') ?? false
 
   return settingsSectionRegistry
     .filter((section) => !section.requiresAdmin || isAdmin)

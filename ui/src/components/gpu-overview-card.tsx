@@ -2,11 +2,10 @@ import {
   IconAlertCircle,
   IconCheck,
   IconCircleFilled,
-  IconFlash,
-  IconGpu,
+  IconBolt,
+  IconCpu,
   IconServer,
 } from '@tabler/icons-react'
-import { useTranslation } from 'react-i18next'
 
 import { GPUOverview } from '@/types/api'
 import {
@@ -16,10 +15,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
 
 interface GPUOverviewCardProps {
   data?: GPUOverview
@@ -32,14 +29,12 @@ export function GPUOverviewCard({
   isLoading,
   error,
 }: GPUOverviewCardProps) {
-  const { t } = useTranslation()
-
   if (isLoading) {
     return (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <IconGpu className="size-5" />
+            <IconCpu className="size-5" />
             GPU 资源概览
           </CardTitle>
         </CardHeader>
@@ -58,7 +53,7 @@ export function GPUOverviewCard({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <IconGpu className="size-5" />
+            <IconCpu className="size-5" />
             GPU 资源概览
           </CardTitle>
         </CardHeader>
@@ -77,7 +72,7 @@ export function GPUOverviewCard({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <IconGpu className="size-5" />
+            <IconCpu className="size-5" />
             GPU 资源概览
           </CardTitle>
         </CardHeader>
@@ -97,7 +92,7 @@ export function GPUOverviewCard({
     <Card className="@container/gpu">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <IconGpu className="size-5" />
+          <IconCpu className="size-5" />
           GPU 资源概览
         </CardTitle>
         <CardDescription>
@@ -135,7 +130,12 @@ export function GPUOverviewCard({
               <span className="text-muted-foreground">使用率</span>
               <span className="font-semibold tabular-nums">{summary.usagePercent.toFixed(2)}%</span>
             </div>
-            <Progress value={summary.usagePercent} className="h-2" />
+            <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-primary transition-all duration-300"
+                style={{ width: `${Math.min(summary.usagePercent, 100)}%` }}
+              />
+            </div>
           </div>
         </div>
 
@@ -149,7 +149,7 @@ export function GPUOverviewCard({
               <IconCheck className="size-4 text-green-600" />
               完全空闲节点 ({fullyFreeNodes.length})
             </h3>
-            <ScrollArea className="h-40 rounded-md border p-3">
+            <div className="h-40 rounded-md border p-3 overflow-y-auto">
               {fullyFreeNodes.length > 0 ? (
                 <div className="space-y-2">
                   {fullyFreeNodes.map((node) => (
@@ -172,16 +172,16 @@ export function GPUOverviewCard({
                   无完全空闲节点
                 </div>
               )}
-            </ScrollArea>
+            </div>
           </div>
 
           {/* 部分空闲的节点 */}
           <div>
             <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-              <IconFlash className="size-4 text-orange-600" />
+              <IconBolt className="size-4 text-orange-600" />
               部分空闲节点 ({partialFreeNodes.length})
             </h3>
-            <ScrollArea className="h-40 rounded-md border p-3">
+            <div className="h-40 rounded-md border p-3 overflow-y-auto">
               {partialFreeNodes.length > 0 ? (
                 <div className="space-y-2">
                   {partialFreeNodes.map((node) => (
@@ -204,7 +204,7 @@ export function GPUOverviewCard({
                   无部分空闲节点
                 </div>
               )}
-            </ScrollArea>
+            </div>
           </div>
         </div>
 
@@ -213,7 +213,7 @@ export function GPUOverviewCard({
         {/* 按 Namespace 统计 */}
         <div>
           <h3 className="text-sm font-semibold mb-3">按 Namespace 使用统计 (基于 LWS)</h3>
-          <ScrollArea className="h-48 rounded-md border">
+          <div className="h-48 rounded-md border overflow-y-auto">
             {namespaceStats.length > 0 ? (
               <div className="p-3 space-y-2">
                 {namespaceStats.map((stat) => {
@@ -242,7 +242,7 @@ export function GPUOverviewCard({
                 无 GPU 使用
               </div>
             )}
-          </ScrollArea>
+          </div>
         </div>
 
         <Separator />
@@ -250,7 +250,7 @@ export function GPUOverviewCard({
         {/* 按模型统计 */}
         <div>
           <h3 className="text-sm font-semibold mb-3">按模型使用统计 (基于 LWS)</h3>
-          <ScrollArea className="h-48 rounded-md border">
+          <div className="h-48 rounded-md border overflow-y-auto">
             {modelStats.length > 0 || noModelGPUCount > 0 ? (
               <div className="p-3 space-y-2">
                 {modelStats.map((stat) => {
@@ -295,7 +295,7 @@ export function GPUOverviewCard({
                 无 GPU 使用
               </div>
             )}
-          </ScrollArea>
+          </div>
         </div>
       </CardContent>
     </Card>
