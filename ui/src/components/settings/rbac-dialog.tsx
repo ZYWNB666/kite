@@ -40,7 +40,10 @@ export function RBACDialog({
     clusters: [],
     namespaces: [],
     resources: [],
+    resourceNames: [],
     verbs: [],
+    allowProxy: false,
+    proxyNamespaces: [],
   })
 
   useEffect(() => {
@@ -53,7 +56,7 @@ export function RBACDialog({
     setForm((prev) => ({ ...(prev || {}), [field]: value }))
 
   const setArrayField = (
-    field: 'clusters' | 'namespaces' | 'resources' | 'verbs',
+    field: 'clusters' | 'namespaces' | 'resources' | 'resourceNames' | 'verbs' | 'proxyNamespaces',
     items: string[]
   ) => {
     setForm((prev) => ({ ...(prev || {}), [field]: items }))
@@ -256,6 +259,45 @@ export function RBACDialog({
                   'exec',
                 ]}
               />
+
+              <ListEditor
+                label={t('rbac.form.resourceNames.label', 'Resource Names (Optional)')}
+                items={form.resourceNames || []}
+                onChange={(items) => setArrayField('resourceNames', items)}
+                placeholder="Leave empty for all, or specify: pod-name"
+              />
+            </div>
+
+            <Separator />
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-medium">
+                  {t('rbac.form.proxy.label', 'Proxy Permissions')}
+                </h3>
+              </div>
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="allowProxy"
+                    checked={form.allowProxy || false}
+                    onChange={(e) => setForm((prev) => ({ ...(prev || {}), allowProxy: e.target.checked }))}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <Label htmlFor="allowProxy" className="cursor-pointer">
+                    {t('rbac.form.allowProxy.label', 'Allow proxy access via kite-proxy')}
+                  </Label>
+                </div>
+
+                {form.allowProxy && (
+                  <ListEditor
+                    label={t('rbac.form.proxyNamespaces.label', 'Proxy Namespaces (Optional)')}
+                    items={form.proxyNamespaces || []}
+                    onChange={(items) => setArrayField('proxyNamespaces', items)}
+                    placeholder="Leave empty to use role namespaces, or * for all"
+                  />
+                )}
+              </div>
             </div>
           </div>
           <DialogFooter>

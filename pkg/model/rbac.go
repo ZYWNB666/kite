@@ -47,6 +47,7 @@ var (
 		Resources:   []string{"*"},
 		Namespaces:  []string{"*"},
 		Verbs:       []string{"*"},
+		AllowProxy:  true,
 	}
 	DefaultViewerRole = Role{
 		Name:        "viewer",

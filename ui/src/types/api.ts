@@ -372,7 +372,10 @@ export interface Role {
   clusters: string[]
   namespaces: string[]
   resources: string[]
+  resourceNames?: string[]
   verbs: string[]
+  allowProxy?: boolean
+  proxyNamespaces?: string[]
   assignments?: RoleAssignment[]
   createdAt: string
   updatedAt: string
