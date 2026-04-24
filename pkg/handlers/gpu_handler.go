@@ -213,13 +213,6 @@ func getLWSStats(ctx context.Context, cs *cluster.ClientSet) (map[string]int64, 
 	modelStats := make(map[string]int64)
 	var noModelCount int64
 
-	// LWS 的 GVR
-	lwsGVR := schema.GroupVersionResource{
-		Group:    "leaderworkerset.x-k8s.io",
-		Version:  "v1",
-		Resource: "leaderworkersets",
-	}
-
 	var lwsList unstructured.UnstructuredList
 	lwsList.SetGroupVersionKind(schema.GroupVersionKind{
 		Group:   "leaderworkerset.x-k8s.io",
