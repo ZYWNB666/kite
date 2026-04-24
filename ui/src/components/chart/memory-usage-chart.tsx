@@ -81,6 +81,7 @@ const MemoryUsageChart = React.memo((prop: MemoryUsageChartProps) => {
             tickFormatter={(value) => formatChartXTicks(value, sameDay)}
           />
           <YAxis
+            width={85}
             tickLine={false}
             axisLine={false}
             tickMargin={8}
