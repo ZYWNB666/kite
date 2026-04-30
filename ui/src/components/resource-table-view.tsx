@@ -77,6 +77,10 @@ export function ResourceTableView<T>({
           <TableCell
             key={cell.id}
             className={`align-middle ${index <= 1 ? 'text-left' : 'text-center'}`}
+            style={
+              (cell.column.columnDef.meta as { style?: React.CSSProperties } | undefined)
+                ?.style
+            }
           >
             {cell.column.columnDef.cell
               ? flexRender(cell.column.columnDef.cell, cell.getContext())
@@ -173,6 +177,10 @@ export function ResourceTableView<T>({
                         <TableHead
                           key={header.id}
                           className={index <= 1 ? 'text-left' : 'text-center'}
+                          style={
+                            (header.column.columnDef.meta as { style?: React.CSSProperties } | undefined)
+                              ?.style
+                          }
                         >
                           {header.isPlaceholder ? null : header.column.getCanSort() ? (
                             <Button

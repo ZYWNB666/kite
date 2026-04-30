@@ -15,6 +15,7 @@ import (
 	"github.com/zxh326/kite/pkg/kube"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 	"k8s.io/kubectl/pkg/drain"
@@ -277,7 +278,6 @@ func (h *NodeHandler) UntaintNode(c *gin.Context) {
 
 func (h *NodeHandler) List(c *gin.Context) {
 	cs := c.MustGet("cluster").(*cluster.ClientSet)
-	var nodeMetrics metricsv1.NodeMetricsList
 
 	var nodes corev1.NodeList
 	if err := cs.K8sClient.List(c.Request.Context(), &nodes); err != nil {
@@ -285,19 +285,18 @@ func (h *NodeHandler) List(c *gin.Context) {
 		return
 	}
 
-	if err := cs.K8sClient.List(c.Request.Context(), &nodeMetrics); err != nil {
-		klog.Warningf("Failed to list node metrics: %v", err)
+	var nodeMetricsItems []metricsv1.NodeMetrics
+	if cs.K8sClient.MetricsClient != nil {
+		metricsList, err := cs.K8sClient.MetricsClient.MetricsV1beta1().NodeMetricses().List(c.Request.Context(), metav1.ListOptions{})
+		if err != nil {
+			klog.Warningf("Failed to list node metrics: %v", err)
+		} else {
+			nodeMetricsItems = metricsList.Items
+		}
 	}
 
-	nodeMetricsMap := buildNodeMetricsMap(nodeMetrics.Items)
+	nodeMetricsMap := buildNodeMetricsMap(nodeMetricsItems)
 	nodeResourceRequests := listNodeResourceRequests(c.Request.Context(), cs.K8sClient, nodes.Items)
-
-	// Collect node names for disk stats fetch
-	nodeNames := make([]string, len(nodes.Items))
-	for i, node := range nodes.Items {
-		nodeNames[i] = node.Name
-	}
-	diskStatsMap := fetchNodeDiskStats(c.Request.Context(), cs, nodeNames)
 
 	result := &common.NodeListWithMetrics{
 		TypeMeta: nodes.TypeMeta,
@@ -324,10 +323,6 @@ func (h *NodeHandler) List(c *gin.Context) {
 			metricsCell.MemoryRequest = requests.MemoryRequest
 			metricsCell.Pods = requests.Pods
 		}
-		if ds, ok := diskStatsMap[node.Name]; ok {
-			metricsCell.DiskUsage = ds[0]
-			metricsCell.DiskCapacity = ds[1]
-		}
 		result.Items[i] = &common.NodeWithMetrics{
 			Node:    &node,
 			Metrics: metricsCell,
@@ -340,11 +335,42 @@ func (h *NodeHandler) List(c *gin.Context) {
 }
 
 func (h *NodeHandler) registerCustomRoutes(group *gin.RouterGroup) {
+	group.GET("/_all/disk-stats", h.DiskStats)
 	group.POST("/_all/:name/drain", h.DrainNode)
 	group.POST("/_all/:name/cordon", h.CordonNode)
 	group.POST("/_all/:name/uncordon", h.UncordonNode)
 	group.POST("/_all/:name/taint", h.TaintNode)
 	group.POST("/_all/:name/untaint", h.UntaintNode)
+}
+
+type diskStat struct {
+	DiskUsage    int64 `json:"diskUsage"`
+	DiskCapacity int64 `json:"diskCapacity"`
+}
+
+// DiskStats fetches disk usage stats for all nodes via kubelet proxy.
+func (h *NodeHandler) DiskStats(c *gin.Context) {
+	cs := c.MustGet("cluster").(*cluster.ClientSet)
+	ctx := c.Request.Context()
+
+	var nodes corev1.NodeList
+	if err := cs.K8sClient.List(ctx, &nodes); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list nodes: " + err.Error()})
+		return
+	}
+
+	nodeNames := make([]string, len(nodes.Items))
+	for i, node := range nodes.Items {
+		nodeNames[i] = node.Name
+	}
+
+	rawStats := fetchNodeDiskStats(ctx, cs, nodeNames)
+	result := make(map[string]diskStat, len(rawStats))
+	for k, v := range rawStats {
+		result[k] = diskStat{DiskUsage: v[0], DiskCapacity: v[1]}
+	}
+
+	c.JSON(http.StatusOK, result)
 }
 
 // nodeStatsSummary is a minimal representation of the kubelet /stats/summary response.

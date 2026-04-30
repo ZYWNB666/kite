@@ -1,10 +1,13 @@
 import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { createColumnHelper } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 
 import { NodeWithMetrics } from '@/types/api'
+import { useCluster } from '@/hooks/use-cluster'
 import { createSearchFilter } from '@/lib/k8s'
+import { fetchAPI } from '@/lib/api/shared'
 import { formatDate } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { MetricCell } from '@/components/metrics-cell'
@@ -123,6 +126,18 @@ const nodeSearchFilter = createSearchFilter<NodeWithMetrics>(
 
 export function NodeListPage() {
   const { t } = useTranslation()
+  const { currentCluster } = useCluster()
+
+  const { data: diskStats } = useQuery({
+    queryKey: ['node-disk-stats', currentCluster],
+    queryFn: () =>
+      fetchAPI<Record<string, { diskUsage: number; diskCapacity: number }>>(
+        '/nodes/_all/disk-stats'
+      ),
+    staleTime: 30_000,
+    retry: false,
+    enabled: !!currentCluster,
+  })
 
   // Define column helper outside of any hooks
   const columnHelper = createColumnHelper<NodeWithMetrics>()
@@ -189,6 +204,7 @@ export function NodeListPage() {
       columnHelper.accessor((row) => row.metrics?.cpuUsage || 0, {
         id: 'cpu',
         header: 'CPU',
+        meta: { style: { minWidth: '160px' } },
         cell: ({ row }) => (
           <MetricCell
             metrics={row.original.metrics}
@@ -201,6 +217,7 @@ export function NodeListPage() {
       columnHelper.accessor((row) => row.metrics?.memoryUsage || 0, {
         id: 'memory',
         header: 'Memory',
+        meta: { style: { minWidth: '160px' } },
         cell: ({ row }) => (
           <MetricCell
             metrics={row.original.metrics}
@@ -213,14 +230,26 @@ export function NodeListPage() {
       columnHelper.accessor((row) => row.metrics?.diskUsage || 0, {
         id: 'disk',
         header: 'Disk',
-        cell: ({ row }) => (
-          <MetricCell
-            metrics={row.original.metrics}
-            type="disk"
-            limitLabel="Capacity"
-            showPercentage={true}
-          />
-        ),
+        meta: { style: { minWidth: '160px' } },
+        cell: ({ row }) => {
+          const nodeName = row.original.metadata?.name ?? ''
+          const stat = diskStats?.[nodeName]
+          const diskMetrics = stat
+            ? {
+                ...row.original.metrics,
+                diskUsage: stat.diskUsage,
+                diskCapacity: stat.diskCapacity,
+              }
+            : row.original.metrics
+          return (
+            <MetricCell
+              metrics={diskMetrics}
+              type="disk"
+              limitLabel="Capacity"
+              showPercentage={true}
+            />
+          )
+        },
       }),
       columnHelper.accessor((row) => getNodeIP(row), {
         id: 'ip',
@@ -277,7 +306,7 @@ export function NodeListPage() {
         },
       }),
     ],
-    [columnHelper, t]
+    [columnHelper, t, diskStats]
   )
 
   return (
