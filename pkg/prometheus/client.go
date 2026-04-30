@@ -421,3 +421,165 @@ func (c *Client) GetPodMetrics(ctx context.Context, namespace, podName, containe
 		Fallback:   false,
 	}, nil
 }
+
+// NodeDiskMetric contains current disk usage for a single node.
+type NodeDiskMetric struct {
+	DiskUsed  int64
+	DiskTotal int64
+}
+
+// GetNodeDiskMetrics fetches current filesystem usage for all nodes in a single Prometheus
+// instant query. nodeIPToName maps InternalIP → nodeName for clusters where node-exporter
+// uses the "instance" label instead of the "node" label.
+//
+// It queries the root filesystem (/), excluding virtual fs types.
+// Label resolution order: "node" label → strip port from "instance" → IP lookup.
+func (c *Client) GetNodeDiskMetrics(ctx context.Context, nodeIPToName map[string]string) (map[string]*NodeDiskMetric, error) {
+	now := time.Now()
+
+	// node-exporter root filesystem metrics; exclude virtual/overlay filesystems.
+	const fsFilter = `mountpoint="/",fstype!~"tmpfs|overlay|squashfs|ramfs|devtmpfs"`
+
+	usedQuery := fmt.Sprintf(
+		`sum by (node,instance) (node_filesystem_size_bytes{%s} - node_filesystem_avail_bytes{%s})`,
+		fsFilter, fsFilter,
+	)
+	totalQuery := fmt.Sprintf(
+		`sum by (node,instance) (node_filesystem_size_bytes{%s})`,
+		fsFilter,
+	)
+
+	usedVal, _, err := c.client.Query(ctx, usedQuery, now)
+	if err != nil {
+		return nil, fmt.Errorf("query node disk used: %w", err)
+	}
+	totalVal, _, err := c.client.Query(ctx, totalQuery, now)
+	if err != nil {
+		return nil, fmt.Errorf("query node disk total: %w", err)
+	}
+
+	result := map[string]*NodeDiskMetric{}
+
+	parseVector := func(val model.Value, setter func(*NodeDiskMetric, int64)) {
+		v, ok := val.(model.Vector)
+		if !ok {
+			return
+		}
+		for _, s := range v {
+			name := resolveNodeLabel(s.Metric, nodeIPToName)
+			if name == "" {
+				continue
+			}
+			if _, exists := result[name]; !exists {
+				result[name] = &NodeDiskMetric{}
+			}
+			setter(result[name], int64(s.Value))
+		}
+	}
+
+	parseVector(usedVal, func(m *NodeDiskMetric, v int64) { m.DiskUsed = v })
+	parseVector(totalVal, func(m *NodeDiskMetric, v int64) { m.DiskTotal = v })
+
+	if len(result) == 0 {
+		return nil, fmt.Errorf("no node disk metrics returned from Prometheus")
+	}
+	return result, nil
+}
+
+// resolveNodeLabel maps a Prometheus metric's labels to a K8s node name.
+// It prefers the "node" label, then resolves "instance" (ip:port) via nodeIPToName.
+func resolveNodeLabel(metric model.Metric, nodeIPToName map[string]string) string {
+	if node, ok := metric["node"]; ok && string(node) != "" {
+		return string(node)
+	}
+	if instance, ok := metric["instance"]; ok {
+		ip := string(instance)
+		if colon := strings.LastIndex(ip, ":"); colon != -1 {
+			ip = ip[:colon]
+		}
+		if name, ok := nodeIPToName[ip]; ok {
+			return name
+		}
+	}
+	return ""
+}
+
+// NodeInstantMetric contains current CPU and memory usage for a single node.
+type NodeInstantMetric struct {
+	// CPUUsageMillicores is CPU usage in millicores (cores × 1000).
+	// Derived from rate(node_cpu_seconds_total{mode!="idle"}[2m]) — same source as Lens.
+	CPUUsageMillicores int64
+	// MemoryUsageBytes is resident memory usage in bytes.
+	// Derived from node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes.
+	MemoryUsageBytes int64
+}
+
+// GetNodeInstantMetrics fetches current CPU and memory usage for all nodes via two
+// Prometheus instant queries (node-exporter metrics, same as Lens/OpenLens).
+// It runs both queries concurrently and returns a map keyed by K8s node name.
+func (c *Client) GetNodeInstantMetrics(ctx context.Context, nodeIPToName map[string]string) (map[string]*NodeInstantMetric, error) {
+	now := time.Now()
+
+	type queryResult struct {
+		val model.Value
+		err error
+	}
+
+	cpuCh := make(chan queryResult, 1)
+	memCh := make(chan queryResult, 1)
+
+	// CPU: rate of non-idle cpu seconds → cores → ×1000 = millicores
+	go func() {
+		val, _, err := c.client.Query(ctx,
+			`sum by (node,instance) (rate(node_cpu_seconds_total{mode!="idle"}[2m]))`,
+			now,
+		)
+		cpuCh <- queryResult{val, err}
+	}()
+
+	// Memory: total - available = used (same formula as Lens)
+	go func() {
+		val, _, err := c.client.Query(ctx,
+			`sum by (node,instance) (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes)`,
+			now,
+		)
+		memCh <- queryResult{val, err}
+	}()
+
+	cpuRes := <-cpuCh
+	memRes := <-memCh
+
+	if cpuRes.err != nil {
+		return nil, fmt.Errorf("query node cpu: %w", cpuRes.err)
+	}
+	if memRes.err != nil {
+		return nil, fmt.Errorf("query node memory: %w", memRes.err)
+	}
+
+	result := map[string]*NodeInstantMetric{}
+
+	parseVector := func(val model.Value, setter func(*NodeInstantMetric, float64)) {
+		v, ok := val.(model.Vector)
+		if !ok {
+			return
+		}
+		for _, s := range v {
+			name := resolveNodeLabel(s.Metric, nodeIPToName)
+			if name == "" {
+				continue
+			}
+			if _, exists := result[name]; !exists {
+				result[name] = &NodeInstantMetric{}
+			}
+			setter(result[name], float64(s.Value))
+		}
+	}
+
+	parseVector(cpuRes.val, func(m *NodeInstantMetric, v float64) { m.CPUUsageMillicores = int64(v * 1000) })
+	parseVector(memRes.val, func(m *NodeInstantMetric, v float64) { m.MemoryUsageBytes = int64(v) })
+
+	if len(result) == 0 {
+		return nil, fmt.Errorf("no node instant metrics returned from Prometheus")
+	}
+	return result, nil
+}

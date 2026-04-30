@@ -14,6 +14,7 @@ import (
 	"github.com/zxh326/kite/pkg/cluster"
 	"github.com/zxh326/kite/pkg/common"
 	"github.com/zxh326/kite/pkg/kube"
+	promclient "github.com/zxh326/kite/pkg/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -305,16 +306,31 @@ func (h *NodeHandler) UntaintNode(c *gin.Context) {
 
 func (h *NodeHandler) List(c *gin.Context) {
 	cs := c.MustGet("cluster").(*cluster.ClientSet)
+	ctx := c.Request.Context()
 
 	var nodes corev1.NodeList
-	if err := cs.K8sClient.List(c.Request.Context(), &nodes); err != nil {
+	if err := cs.K8sClient.List(ctx, &nodes); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list nodes: " + err.Error()})
 		return
 	}
 
+	// --- CPU/Memory: Prometheus (node-exporter) preferred over metrics-server ---
+	// Same queries as Lens/OpenLens: node_cpu_seconds_total + node_memory_MemAvailable_bytes.
+	var promMetrics map[string]*promclient.NodeInstantMetric
+	if cs.PromClient != nil {
+		nodeIPToName := buildNodeIPToNameMap(nodes.Items)
+		m, err := cs.PromClient.GetNodeInstantMetrics(ctx, nodeIPToName)
+		if err != nil {
+			klog.V(4).Infof("Prometheus node metrics unavailable for cluster %s, falling back to metrics-server: %v", cs.Name, err)
+		} else {
+			promMetrics = m
+		}
+	}
+
+	// Fallback: metrics-server (used only when Prometheus not available)
 	var nodeMetricsItems []metricsv1.NodeMetrics
-	if cs.K8sClient.MetricsClient != nil {
-		metricsList, err := cs.K8sClient.MetricsClient.MetricsV1beta1().NodeMetricses().List(c.Request.Context(), metav1.ListOptions{})
+	if promMetrics == nil && cs.K8sClient.MetricsClient != nil {
+		metricsList, err := cs.K8sClient.MetricsClient.MetricsV1beta1().NodeMetricses().List(ctx, metav1.ListOptions{})
 		if err != nil {
 			klog.Warningf("Failed to list node metrics: %v", err)
 		} else {
@@ -323,21 +339,24 @@ func (h *NodeHandler) List(c *gin.Context) {
 	}
 
 	nodeMetricsMap := buildNodeMetricsMap(nodeMetricsItems)
-	nodeResourceRequests := listNodeResourceRequests(c.Request.Context(), cs.K8sClient, nodes.Items)
+	nodeResourceRequests := listNodeResourceRequests(ctx, cs.K8sClient, nodes.Items)
 
 	result := &common.NodeListWithMetrics{
 		TypeMeta: nodes.TypeMeta,
 		ListMeta: nodes.ListMeta,
-		Items:    []*common.NodeWithMetrics{},
+		Items:    make([]*common.NodeWithMetrics, len(nodes.Items)),
 	}
-	result.Items = make([]*common.NodeWithMetrics, len(nodes.Items))
 	for i, node := range nodes.Items {
 		metricsCell := &common.MetricsCell{}
 		metricsCell.CPULimit = node.Status.Allocatable.Cpu().MilliValue()
 		metricsCell.MemoryLimit = node.Status.Allocatable.Memory().Value()
 		metricsCell.PodsLimit = node.Status.Allocatable.Pods().Value()
 
-		if nm, ok := nodeMetricsMap[node.Name]; ok {
+		// Prefer Prometheus, fall back to metrics-server
+		if pm, ok := promMetrics[node.Name]; ok {
+			metricsCell.CPUUsage = pm.CPUUsageMillicores
+			metricsCell.MemoryUsage = pm.MemoryUsageBytes
+		} else if nm, ok := nodeMetricsMap[node.Name]; ok {
 			if cpuQuantity, ok := nm.Usage["cpu"]; ok {
 				metricsCell.CPUUsage = cpuQuantity.MilliValue()
 			}
@@ -345,6 +364,7 @@ func (h *NodeHandler) List(c *gin.Context) {
 				metricsCell.MemoryUsage = memQuantity.Value()
 			}
 		}
+
 		if requests, exists := nodeResourceRequests[node.Name]; exists {
 			metricsCell.CPURequest = requests.CPURequest
 			metricsCell.MemoryRequest = requests.MemoryRequest
@@ -375,9 +395,32 @@ type diskStat struct {
 	DiskCapacity int64 `json:"diskCapacity"`
 }
 
-// DiskStats returns cached disk stats immediately and triggers a background refresh when stale.
+// DiskStats returns disk usage for all nodes.
+// It queries Prometheus (instant query, sub-second) when available, and falls back
+// to a background-cached kubelet stats/summary otherwise.
 func (h *NodeHandler) DiskStats(c *gin.Context) {
 	cs := c.MustGet("cluster").(*cluster.ClientSet)
+	ctx := c.Request.Context()
+
+	// --- Fast path: Prometheus instant query ---
+	if cs.PromClient != nil {
+		var nodes corev1.NodeList
+		if err := cs.K8sClient.List(ctx, &nodes); err == nil {
+			nodeIPToName := buildNodeIPToNameMap(nodes.Items)
+			metrics, err := cs.PromClient.GetNodeDiskMetrics(ctx, nodeIPToName)
+			if err == nil && len(metrics) > 0 {
+				result := make(map[string]diskStat, len(metrics))
+				for nodeName, m := range metrics {
+					result[nodeName] = diskStat{DiskUsage: m.DiskUsed, DiskCapacity: m.DiskTotal}
+				}
+				c.JSON(http.StatusOK, result)
+				return
+			}
+			klog.V(4).Infof("Prometheus disk metrics unavailable for cluster %s, using kubelet fallback: %v", cs.Name, err)
+		}
+	}
+
+	// --- Slow path: background-cached kubelet stats/summary ---
 	cache := getDiskStatCache(cs.Name)
 
 	cache.mu.RLock()
@@ -400,7 +443,6 @@ func (h *NodeHandler) DiskStats(c *gin.Context) {
 					cache.refreshing = false
 					cache.mu.Unlock()
 				}()
-				// Use a fresh context with generous timeout (not tied to HTTP request)
 				bgCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 				defer cancel()
 
@@ -430,7 +472,7 @@ func (h *NodeHandler) DiskStats(c *gin.Context) {
 		cache.mu.Unlock()
 	}
 
-	// If cache is empty, wait for the first refresh to complete
+	// If cache is empty, wait briefly for the first refresh to complete
 	if len(cachedData) == 0 {
 		for i := 0; i < 120; i++ {
 			time.Sleep(500 * time.Millisecond)
@@ -447,6 +489,20 @@ func (h *NodeHandler) DiskStats(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, cachedData)
+}
+
+// buildNodeIPToNameMap builds a map of InternalIP → nodeName from the node list.
+// Used to resolve node-exporter "instance" labels (ip:port) to node names.
+func buildNodeIPToNameMap(nodes []corev1.Node) map[string]string {
+	m := make(map[string]string, len(nodes))
+	for _, node := range nodes {
+		for _, addr := range node.Status.Addresses {
+			if addr.Type == corev1.NodeInternalIP {
+				m[addr.Address] = node.Name
+			}
+		}
+	}
+	return m
 }
 
 // nodeStatsSummary is a minimal representation of the kubelet /stats/summary response.
