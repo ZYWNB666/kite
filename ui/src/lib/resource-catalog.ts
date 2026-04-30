@@ -179,6 +179,14 @@ export const resourceCatalog = [
     sidebar: { groupKey: 'sidebar.groups.traffic', order: 2 },
   },
   {
+    type: 'endpointslices',
+    singular: 'endpointslice',
+    singularLabel: 'EndpointSlice',
+    pluralLabel: 'Endpoint Slices',
+    clusterScope: false,
+    icon: 'IconNetwork',
+  },
+  {
     type: 'gateways',
     singular: 'gateway',
     singularLabel: 'Gateway',

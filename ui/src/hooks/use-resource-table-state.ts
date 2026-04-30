@@ -147,6 +147,7 @@ export function useResourceTableState({
     setSelectedNamespace(value)
     setPagination((prev) => ({ ...prev, pageIndex: 0 }))
     setSearchQuery('')
+    window.dispatchEvent(new CustomEvent('kite:namespace-change', { detail: { namespace: value } }))
   }, [])
 
   const handleUseSSEChange = useCallback((pressed: boolean) => {

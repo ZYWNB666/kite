@@ -12,17 +12,26 @@ export function MetricCell({
   showPercentage = false,
 }: {
   metrics?: MetricsData
-  type: 'cpu' | 'memory'
+  type: 'cpu' | 'memory' | 'disk'
   limitLabel?: string // e.g., "Limit" or "Capacity"
   showPercentage?: boolean // Whether to show percentage in the display
 }) {
   const metricValue =
-    type === 'cpu' ? metrics?.cpuUsage || 0 : metrics?.memoryUsage || 0
+    type === 'cpu'
+      ? metrics?.cpuUsage || 0
+      : type === 'memory'
+        ? metrics?.memoryUsage || 0
+        : metrics?.diskUsage || 0
 
-  const metricLimit = type === 'cpu' ? metrics?.cpuLimit : metrics?.memoryLimit
+  const metricLimit =
+    type === 'cpu'
+      ? metrics?.cpuLimit
+      : type === 'memory'
+        ? metrics?.memoryLimit
+        : metrics?.diskCapacity
 
   const metricRequest =
-    type === 'cpu' ? metrics?.cpuRequest : metrics?.memoryRequest
+    type === 'cpu' ? metrics?.cpuRequest : type === 'memory' ? metrics?.memoryRequest : undefined
 
   const formatValue = useCallback(
     (val?: number) => {
@@ -84,7 +93,7 @@ export function MetricCell({
           </TooltipContent>
         </Tooltip>
         <span
-          className={`${type === 'cpu' ? 'w-[4ch]' : 'w-[10ch]'} text-right inline-block text-xs text-muted-foreground whitespace-nowrap tabular-nums`}
+          className={`${type === 'cpu' ? 'w-[4ch]' : 'w-[10ch]'} text-right inline-block text-xs text-muted-foreground whitespace-nowrap tabular-nums overflow-hidden text-ellipsis`}
         >
           {formatValue(metricValue)}
           {showPercentage && metricLimit && metricValue > 0 && (

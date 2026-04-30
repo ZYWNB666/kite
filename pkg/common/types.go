@@ -55,6 +55,8 @@ type MetricsCell struct {
 	MemoryUsage   int64 `json:"memoryUsage,omitempty"`
 	MemoryLimit   int64 `json:"memoryLimit,omitempty"`
 	MemoryRequest int64 `json:"memoryRequest,omitempty"`
+	DiskUsage     int64 `json:"diskUsage,omitempty"`
+	DiskCapacity  int64 `json:"diskCapacity,omitempty"`
 	Pods          int64 `json:"pods,omitempty"`
 	PodsLimit     int64 `json:"podsLimit,omitempty"`
 }

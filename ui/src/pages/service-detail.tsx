@@ -1,11 +1,13 @@
 import { useMemo } from 'react'
 import { IconExternalLink } from '@tabler/icons-react'
+import { EndpointSlice } from 'kubernetes-types/discovery/v1'
 import { Service } from 'kubernetes-types/core/v1'
 import { toast } from 'sonner'
 
-import { updateResource, useResource } from '@/lib/api'
+import { updateResource, useResource, useResources } from '@/lib/api'
 import { withSubPath } from '@/lib/subpath'
 import { formatDate } from '@/lib/utils'
+import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { EventTable } from '@/components/event-table'
@@ -13,11 +15,89 @@ import { LabelsAnno } from '@/components/lables-anno'
 import { OwnerInfoDisplay } from '@/components/owner-info-display'
 import { RelatedResourcesTable } from '@/components/related-resource-table'
 import { ResourceHistoryTable } from '@/components/resource-history-table'
+import { SimpleTable } from '@/components/simple-table'
 
 import {
   ResourceDetailShell,
   type ResourceDetailShellTab,
 } from './resource-detail-shell'
+
+function EndpointSlicesTab({
+  endpointSlices,
+}: {
+  endpointSlices: EndpointSlice[]
+}) {
+  const columns = useMemo(
+    () => [
+      {
+        header: 'Name',
+        accessor: (s: EndpointSlice) => s.metadata?.name,
+        cell: (v: unknown) => (
+          <span className="font-mono text-sm">{String(v ?? '-')}</span>
+        ),
+      },
+      {
+        header: 'Address Type',
+        accessor: (s: EndpointSlice) => s.addressType,
+        cell: (v: unknown) => <Badge variant="outline">{String(v ?? '-')}</Badge>,
+      },
+      {
+        header: 'Endpoints',
+        accessor: (s: EndpointSlice) => s.endpoints,
+        cell: (v: unknown) => {
+          const endpoints = v as EndpointSlice['endpoints']
+          const ready = endpoints?.filter((e) => e.conditions?.ready !== false) ?? []
+          const addresses = ready
+            .flatMap((e) => e.addresses)
+            .slice(0, 8)
+            .join(', ')
+          const extra = ready.flatMap((e) => e.addresses).length - 8
+          return (
+            <span className="font-mono text-sm text-muted-foreground">
+              {addresses || '-'}
+              {extra > 0 && ` +${extra} more`}
+            </span>
+          )
+        },
+      },
+      {
+        header: 'Ports',
+        accessor: (s: EndpointSlice) => s.ports,
+        cell: (v: unknown) => {
+          const ports = v as EndpointSlice['ports']
+          if (!ports?.length) return <span className="text-muted-foreground">-</span>
+          return (
+            <span className="font-mono text-sm text-muted-foreground">
+              {ports.map((p) => `${p.port}/${p.protocol ?? 'TCP'}`).join(', ')}
+            </span>
+          )
+        },
+      },
+      {
+        header: 'Ready',
+        accessor: (s: EndpointSlice) =>
+          s.endpoints?.filter((e) => e.conditions?.ready !== false).length ?? 0,
+        cell: (v: unknown) => {
+          const count = Number(v)
+          return (
+            <Badge variant={count > 0 ? 'default' : 'destructive'}>
+              {count}
+            </Badge>
+          )
+        },
+      },
+    ],
+    []
+  )
+
+  return (
+    <SimpleTable<EndpointSlice>
+      data={endpointSlices}
+      columns={columns}
+      emptyMessage="No endpoint slices found"
+    />
+  )
+}
 
 export function ServiceDetail(props: { name: string; namespace?: string }) {
   const { namespace, name } = props
@@ -28,6 +108,11 @@ export function ServiceDetail(props: { name: string; namespace?: string }) {
     namespace
   )
 
+  const { data: endpointSlices = [] } = useResources('endpointslices', namespace, {
+    labelSelector: `kubernetes.io/service-name=${name}`,
+    staleTime: 5000,
+  })
+
   const handleSaveYaml = async (content: Service) => {
     await updateResource('services', name, namespace, content)
     toast.success('YAML saved successfully')
@@ -36,6 +121,15 @@ export function ServiceDetail(props: { name: string; namespace?: string }) {
 
   const tabs = useMemo<ResourceDetailShellTab<Service>[]>(
     () => [
+      {
+        value: 'endpoint-slices',
+        label: 'Endpoint Slices',
+        content: (
+          <EndpointSlicesTab
+            endpointSlices={endpointSlices as EndpointSlice[]}
+          />
+        ),
+      },
       {
         value: 'related',
         label: 'Related',

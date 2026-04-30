@@ -50,6 +50,7 @@ export function YamlEditor<T extends ResourceType>({
   className,
 }: YamlEditorProps<T>) {
   const [isEditing, setIsEditing] = useState(true)
+  const [isDirty, setIsDirty] = useState(false)
   const [editorValue, setEditorValue] = useState(value)
   const [isValidYaml, setIsValidYaml] = useState(true)
   const [validationError, setValidationError] = useState<string>('')
@@ -63,10 +64,13 @@ export function YamlEditor<T extends ResourceType>({
     colorTheme
   )
 
-  // Update editor value when value prop changes
+  // Update editor value when value prop changes, but only if user hasn't made unsaved edits.
+  // This prevents background data refetches from silently overwriting in-progress edits.
   useEffect(() => {
-    setEditorValue(value)
-  }, [value])
+    if (!isDirty) {
+      setEditorValue(value)
+    }
+  }, [value, isDirty])
 
   // Validate YAML on content change with debounce for error display
   useEffect(() => {
@@ -102,6 +106,7 @@ export function YamlEditor<T extends ResourceType>({
   const handleEditorChange = (value: string | undefined) => {
     const newValue = value || ''
     setEditorValue(newValue)
+    setIsDirty(true)
     onChange?.(newValue)
   }
 
@@ -118,6 +123,7 @@ export function YamlEditor<T extends ResourceType>({
   const handleSave = () => {
     if (isValidYaml) {
       onSave?.(yaml.load(editorValue) as ResourceTypeMap[T])
+      setIsDirty(false)
       if (!readOnly) {
         setIsEditing(false)
       }
@@ -126,6 +132,8 @@ export function YamlEditor<T extends ResourceType>({
 
   const handleCancel = () => {
     setIsEditing(false)
+    setIsDirty(false)
+    setEditorValue(value)
     onCancel?.()
   }
 

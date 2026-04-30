@@ -2,10 +2,12 @@ package resources
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"sort"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	"github.com/zxh326/kite/pkg/cluster"
@@ -290,6 +292,13 @@ func (h *NodeHandler) List(c *gin.Context) {
 	nodeMetricsMap := buildNodeMetricsMap(nodeMetrics.Items)
 	nodeResourceRequests := listNodeResourceRequests(c.Request.Context(), cs.K8sClient, nodes.Items)
 
+	// Collect node names for disk stats fetch
+	nodeNames := make([]string, len(nodes.Items))
+	for i, node := range nodes.Items {
+		nodeNames[i] = node.Name
+	}
+	diskStatsMap := fetchNodeDiskStats(c.Request.Context(), cs, nodeNames)
+
 	result := &common.NodeListWithMetrics{
 		TypeMeta: nodes.TypeMeta,
 		ListMeta: nodes.ListMeta,
@@ -315,6 +324,10 @@ func (h *NodeHandler) List(c *gin.Context) {
 			metricsCell.MemoryRequest = requests.MemoryRequest
 			metricsCell.Pods = requests.Pods
 		}
+		if ds, ok := diskStatsMap[node.Name]; ok {
+			metricsCell.DiskUsage = ds[0]
+			metricsCell.DiskCapacity = ds[1]
+		}
 		result.Items[i] = &common.NodeWithMetrics{
 			Node:    &node,
 			Metrics: metricsCell,
@@ -332,6 +345,58 @@ func (h *NodeHandler) registerCustomRoutes(group *gin.RouterGroup) {
 	group.POST("/_all/:name/uncordon", h.UncordonNode)
 	group.POST("/_all/:name/taint", h.TaintNode)
 	group.POST("/_all/:name/untaint", h.UntaintNode)
+}
+
+// nodeStatsSummary is a minimal representation of the kubelet /stats/summary response.
+type nodeStatsSummary struct {
+	Node struct {
+		Fs *struct {
+			UsedBytes     *uint64 `json:"usedBytes"`
+			CapacityBytes *uint64 `json:"capacityBytes"`
+		} `json:"fs"`
+	} `json:"node"`
+}
+
+// fetchNodeDiskStats concurrently fetches kubelet stats/summary for each node.
+func fetchNodeDiskStats(ctx context.Context, cs *cluster.ClientSet, nodeNames []string) map[string][2]int64 {
+	result := make(map[string][2]int64, len(nodeNames))
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	for _, name := range nodeNames {
+		wg.Add(1)
+		go func(nodeName string) {
+			defer wg.Done()
+			data, err := cs.K8sClient.ClientSet.CoreV1().RESTClient().
+				Get().
+				Resource("nodes").
+				Name(nodeName).
+				SubResource("proxy").
+				Suffix("stats/summary").
+				DoRaw(ctx)
+			if err != nil {
+				klog.V(4).Infof("Failed to get stats/summary for node %s: %v", nodeName, err)
+				return
+			}
+			var summary nodeStatsSummary
+			if err := json.Unmarshal(data, &summary); err != nil {
+				klog.V(4).Infof("Failed to unmarshal stats/summary for node %s: %v", nodeName, err)
+				return
+			}
+			if summary.Node.Fs != nil &&
+				summary.Node.Fs.UsedBytes != nil &&
+				summary.Node.Fs.CapacityBytes != nil {
+				mu.Lock()
+				result[nodeName] = [2]int64{
+					int64(*summary.Node.Fs.UsedBytes),
+					int64(*summary.Node.Fs.CapacityBytes),
+				}
+				mu.Unlock()
+			}
+		}(name)
+	}
+	wg.Wait()
+	return result
 }
 
 func buildNodeMetricsMap(nodeMetrics []metricsv1.NodeMetrics) map[string]metricsv1.NodeMetrics {

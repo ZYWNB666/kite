@@ -1,5 +1,6 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createColumnHelper } from '@tanstack/react-table'
+import { EndpointSlice } from 'kubernetes-types/discovery/v1'
 import { Service } from 'kubernetes-types/core/v1'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
@@ -10,6 +11,8 @@ import {
   getServicePortSearchValues,
 } from '@/lib/k8s'
 import { formatDate } from '@/lib/utils'
+import { getClusterScopedStorageKey } from '@/lib/current-cluster'
+import { useResources } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
 import { ResourceTable } from '@/components/resource-table'
 
@@ -24,6 +27,38 @@ export function ServiceListPage() {
   const { t } = useTranslation()
   // Define column helper outside of any hooks
   const columnHelper = createColumnHelper<Service>()
+
+  const [namespace, setNamespace] = useState<string | undefined>(() => {
+    const stored = localStorage.getItem(
+      getClusterScopedStorageKey('selectedNamespace')
+    )
+    return stored || 'default'
+  })
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ namespace: string }>).detail
+      setNamespace(detail.namespace === '_all' ? undefined : detail.namespace)
+    }
+    window.addEventListener('kite:namespace-change', handler)
+    return () => window.removeEventListener('kite:namespace-change', handler)
+  }, [])
+
+  const { data: endpointSlices = [] } = useResources('endpointslices', namespace, {
+    staleTime: 5000,
+  })
+
+  const endpointSliceMap = useMemo(() => {
+    const map = new Map<string, EndpointSlice[]>()
+    for (const es of endpointSlices) {
+      const svcName = es.metadata?.labels?.['kubernetes.io/service-name']
+      if (svcName) {
+        if (!map.has(svcName)) map.set(svcName, [])
+        map.get(svcName)!.push(es as EndpointSlice)
+      }
+    }
+    return map
+  }, [endpointSlices])
 
   // Define columns for the service table
   const columns = useMemo(
@@ -103,8 +138,33 @@ export function ServiceListPage() {
           )
         },
       }),
+      columnHelper.accessor('metadata.name', {
+        id: 'endpoints',
+        header: 'Endpoints',
+        cell: ({ row }) => {
+          const svcName = row.original.metadata?.name
+          const slices = svcName ? (endpointSliceMap.get(svcName) ?? []) : []
+          const readyAddresses = slices
+            .flatMap((s) => s.endpoints ?? [])
+            .filter((e) => e.conditions?.ready !== false)
+            .flatMap((e) => e.addresses)
+          if (readyAddresses.length === 0) {
+            return <span className="text-muted-foreground text-sm">-</span>
+          }
+          const display = readyAddresses.slice(0, 3).join(', ')
+          const extra = readyAddresses.length - 3
+          return (
+            <span className="font-mono text-sm text-muted-foreground">
+              {display}
+              {extra > 0 && (
+                <span className="text-xs opacity-70"> +{extra}</span>
+              )}
+            </span>
+          )
+        },
+      }),
     ],
-    [columnHelper, t]
+    [columnHelper, t, endpointSliceMap]
   )
 
   return (

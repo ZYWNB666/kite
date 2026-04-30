@@ -136,6 +136,11 @@ export function AuditLog() {
         cell: ({ row }) => (
           <div className="font-medium">
             {row.original.operator?.username || '-'}
+            {row.original.operator?.name && (
+              <span className="ml-1 text-xs text-muted-foreground">
+                ({row.original.operator.name})
+              </span>
+            )}
             {row.original.operator?.provider === 'api_key' && (
               <span className="ml-2 text-xs text-muted-foreground italic">
                 apikey

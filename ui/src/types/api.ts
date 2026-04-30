@@ -60,6 +60,10 @@ import {
   RoleList,
 } from 'kubernetes-types/rbac/v1'
 import { StorageClass, StorageClassList } from 'kubernetes-types/storage/v1'
+import {
+  EndpointSlice,
+  EndpointSliceList,
+} from 'kubernetes-types/discovery/v1'
 
 import type { ResourceType } from '@/lib/resource-metadata'
 
@@ -120,6 +124,7 @@ export interface ResourcesTypeMap {
   jobs: JobList
   cronjobs: CronJobList
   services: ServiceList
+  endpointslices: EndpointSliceList
   gateways: {
     items: Gateway[]
     metadata?: listMetadataType
@@ -187,6 +192,8 @@ export type MetricsData = {
   cpuRequest?: number
   memoryRequest?: number
   gpuLimit?: number
+  diskUsage?: number
+  diskCapacity?: number
   pods?: number
   podsLimit?: number
 }
@@ -208,6 +215,7 @@ export interface ResourceTypeMap {
   jobs: Job
   cronjobs: CronJob
   services: Service
+  endpointslices: EndpointSlice
   gateways: Gateway
   httproutes: HTTPRoute
   configmaps: ConfigMap
@@ -465,6 +473,7 @@ export interface ResourceHistory {
   operator: {
     username: string
     provider: string
+    name?: string
   }
   createdAt: string
   updatedAt: string

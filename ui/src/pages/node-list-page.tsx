@@ -210,6 +210,18 @@ export function NodeListPage() {
           />
         ),
       }),
+      columnHelper.accessor((row) => row.metrics?.diskUsage || 0, {
+        id: 'disk',
+        header: 'Disk',
+        cell: ({ row }) => (
+          <MetricCell
+            metrics={row.original.metrics}
+            type="disk"
+            limitLabel="Capacity"
+            showPercentage={true}
+          />
+        ),
+      }),
       columnHelper.accessor((row) => getNodeIP(row), {
         id: 'ip',
         header: 'IP Address',
