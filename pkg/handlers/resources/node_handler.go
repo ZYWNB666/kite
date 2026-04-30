@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/zxh326/kite/pkg/cluster"
@@ -22,6 +23,32 @@ import (
 	metricsv1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+type diskStatCache struct {
+	mu         sync.RWMutex
+	data       map[string]diskStat // keyed by node name
+	fetchedAt  time.Time
+	refreshing bool
+}
+
+const diskStatsTTL = 60 * time.Second
+
+// global per-cluster cache so concurrent requests share one fetch
+var (
+	diskStatsCacheMu sync.Mutex
+	diskStatsCaches  = map[string]*diskStatCache{} // keyed by cluster name
+)
+
+func getDiskStatCache(clusterName string) *diskStatCache {
+	diskStatsCacheMu.Lock()
+	defer diskStatsCacheMu.Unlock()
+	if c, ok := diskStatsCaches[clusterName]; ok {
+		return c
+	}
+	c := &diskStatCache{data: map[string]diskStat{}}
+	diskStatsCaches[clusterName] = c
+	return c
+}
 
 type NodeHandler struct {
 	*GenericResourceHandler[*corev1.Node, *corev1.NodeList]
@@ -348,29 +375,78 @@ type diskStat struct {
 	DiskCapacity int64 `json:"diskCapacity"`
 }
 
-// DiskStats fetches disk usage stats for all nodes via kubelet proxy.
+// DiskStats returns cached disk stats immediately and triggers a background refresh when stale.
 func (h *NodeHandler) DiskStats(c *gin.Context) {
 	cs := c.MustGet("cluster").(*cluster.ClientSet)
-	ctx := c.Request.Context()
+	cache := getDiskStatCache(cs.Name)
 
-	var nodes corev1.NodeList
-	if err := cs.K8sClient.List(ctx, &nodes); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list nodes: " + err.Error()})
-		return
+	cache.mu.RLock()
+	cachedData := make(map[string]diskStat, len(cache.data))
+	for k, v := range cache.data {
+		cachedData[k] = v
+	}
+	age := time.Since(cache.fetchedAt)
+	refreshing := cache.refreshing
+	cache.mu.RUnlock()
+
+	// Trigger background refresh if cache is stale or empty
+	if (age > diskStatsTTL || len(cachedData) == 0) && !refreshing {
+		cache.mu.Lock()
+		if !cache.refreshing {
+			cache.refreshing = true
+			go func() {
+				defer func() {
+					cache.mu.Lock()
+					cache.refreshing = false
+					cache.mu.Unlock()
+				}()
+				// Use a fresh context with generous timeout (not tied to HTTP request)
+				bgCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+				defer cancel()
+
+				var nodes corev1.NodeList
+				if err := cs.K8sClient.List(bgCtx, &nodes); err != nil {
+					klog.Warningf("disk-stats refresh: failed to list nodes for cluster %s: %v", cs.Name, err)
+					return
+				}
+				nodeNames := make([]string, len(nodes.Items))
+				for i, node := range nodes.Items {
+					nodeNames[i] = node.Name
+				}
+
+				raw := fetchNodeDiskStats(bgCtx, cs, nodeNames)
+				newData := make(map[string]diskStat, len(raw))
+				for k, v := range raw {
+					newData[k] = diskStat{DiskUsage: v[0], DiskCapacity: v[1]}
+				}
+
+				cache.mu.Lock()
+				cache.data = newData
+				cache.fetchedAt = time.Now()
+				cache.mu.Unlock()
+				klog.V(4).Infof("disk-stats cache refreshed for cluster %s: %d nodes", cs.Name, len(newData))
+			}()
+		}
+		cache.mu.Unlock()
 	}
 
-	nodeNames := make([]string, len(nodes.Items))
-	for i, node := range nodes.Items {
-		nodeNames[i] = node.Name
+	// If cache is empty, wait for the first refresh to complete
+	if len(cachedData) == 0 {
+		for i := 0; i < 120; i++ {
+			time.Sleep(500 * time.Millisecond)
+			cache.mu.RLock()
+			if len(cache.data) > 0 || !cache.refreshing {
+				for k, v := range cache.data {
+					cachedData[k] = v
+				}
+				cache.mu.RUnlock()
+				break
+			}
+			cache.mu.RUnlock()
+		}
 	}
 
-	rawStats := fetchNodeDiskStats(ctx, cs, nodeNames)
-	result := make(map[string]diskStat, len(rawStats))
-	for k, v := range rawStats {
-		result[k] = diskStat{DiskUsage: v[0], DiskCapacity: v[1]}
-	}
-
-	c.JSON(http.StatusOK, result)
+	c.JSON(http.StatusOK, cachedData)
 }
 
 // nodeStatsSummary is a minimal representation of the kubelet /stats/summary response.

@@ -134,7 +134,8 @@ export function NodeListPage() {
       fetchAPI<Record<string, { diskUsage: number; diskCapacity: number }>>(
         '/nodes/_all/disk-stats'
       ),
-    staleTime: 30_000,
+    staleTime: 55_000,
+    refetchInterval: 60_000,
     retry: false,
     enabled: !!currentCluster,
   })
