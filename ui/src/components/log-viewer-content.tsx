@@ -383,6 +383,19 @@ export function LogViewer({
     }
   }, [])
 
+  // When filterTerm changes, debounce and reconnect so all log lines are re-filtered
+  const refetchRef = useRef(refetch)
+  refetchRef.current = refetch
+  const isFirstFilterEffect = useRef(true)
+  useEffect(() => {
+    if (isFirstFilterEffect.current) {
+      isFirstFilterEffect.current = false
+      return
+    }
+    const timer = setTimeout(() => refetchRef.current(), 500)
+    return () => clearTimeout(timer)
+  }, [filterTerm])
+
   // Stop previous stream when critical parameters change
   useEffect(() => {
     // Show reconnecting state when parameters change

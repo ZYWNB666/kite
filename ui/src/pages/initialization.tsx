@@ -23,7 +23,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Footer } from '@/components/footer'
 import { LanguageToggle } from '@/components/language-toggle'
 
 interface InitStepProps {
@@ -467,8 +466,6 @@ export function InitializationPage() {
         </div>
       </div>
 
-      {/* Footer */}
-      <Footer />
     </div>
   )
 }

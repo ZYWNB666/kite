@@ -205,7 +205,7 @@ export function NodeListPage() {
       columnHelper.accessor((row) => row.metrics?.cpuUsage || 0, {
         id: 'cpu',
         header: 'CPU',
-        meta: { style: { minWidth: '160px' } },
+        meta: { style: { minWidth: '100px' } },
         cell: ({ row }) => (
           <MetricCell
             metrics={row.original.metrics}
@@ -218,7 +218,7 @@ export function NodeListPage() {
       columnHelper.accessor((row) => row.metrics?.memoryUsage || 0, {
         id: 'memory',
         header: 'Memory',
-        meta: { style: { minWidth: '160px' } },
+        meta: { style: { minWidth: '100px' } },
         cell: ({ row }) => (
           <MetricCell
             metrics={row.original.metrics}
@@ -231,7 +231,7 @@ export function NodeListPage() {
       columnHelper.accessor((row) => row.metrics?.diskUsage || 0, {
         id: 'disk',
         header: 'Disk',
-        meta: { style: { minWidth: '160px' } },
+        meta: { style: { minWidth: '100px' } },
         cell: ({ row }) => {
           const nodeName = row.original.metadata?.name ?? ''
           const stat = diskStats?.[nodeName]

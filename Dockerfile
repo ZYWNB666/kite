@@ -23,8 +23,17 @@ RUN go mod download
 
 COPY . .
 
+ARG VERSION=dev
+ARG BUILD_DATE=unknown
+ARG COMMIT_ID=unknown
+
 COPY --from=frontend-builder /app/static ./static
-RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o kite .
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath \
+    -ldflags="-s -w \
+      -X 'github.com/zxh326/kite/pkg/version.Version=${VERSION}' \
+      -X 'github.com/zxh326/kite/pkg/version.BuildDate=${BUILD_DATE}' \
+      -X 'github.com/zxh326/kite/pkg/version.CommitID=${COMMIT_ID}'" \
+    -o kite .
 
 FROM gcr.io/distroless/static
 

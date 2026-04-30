@@ -92,15 +92,10 @@ export function MetricCell({
             </div>
           </TooltipContent>
         </Tooltip>
-        <span
-          className={`${type === 'cpu' ? 'w-[4ch]' : 'w-[10ch]'} text-right inline-block text-xs text-muted-foreground whitespace-nowrap tabular-nums overflow-hidden text-ellipsis`}
-        >
-          {formatValue(metricValue)}
-          {showPercentage && metricLimit && metricValue > 0 && (
-            <span className="hidden 2xl:inline text-[10px] opacity-70">
-              ({percentage.toFixed(0)}%)
-            </span>
-          )}
+        <span className="w-[4ch] text-right inline-block text-xs text-muted-foreground whitespace-nowrap tabular-nums">
+          {showPercentage && metricLimit
+            ? `${percentage.toFixed(0)}%`
+            : formatValue(metricValue)}
         </span>
       </div>
     )

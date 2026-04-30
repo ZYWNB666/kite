@@ -18,7 +18,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Footer } from '@/components/footer'
 import { LanguageToggle } from '@/components/language-toggle'
 
 export function LoginPage() {
@@ -376,8 +375,6 @@ export function LoginPage() {
         </div>
       </div>
 
-      {/* Footer */}
-      <Footer />
     </div>
   )
 }
