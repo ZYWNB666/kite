@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -40,9 +41,9 @@ type GPUModelStat struct {
 
 // GPUModelRoleStat 按模型的 Prefill/Decode 角色统计
 type GPUModelRoleStat struct {
-	ModelName   string `json:"modelName"`
-	PrefillGPUs int64  `json:"prefillGPUs"`
-	DecodeGPUs  int64  `json:"decodeGPUs"`
+	ModelName    string `json:"modelName"`
+	PrefillNodes int64  `json:"prefillNodes"`
+	DecodeNodes  int64  `json:"decodeNodes"`
 }
 
 // GPUOverview GPU 资源概览
@@ -282,28 +283,33 @@ func getLWSStats(ctx context.Context, cs *cluster.ClientSet) (map[string]int64, 
 			}
 
 			// 统计 Prefill/Decode 角色（仅当 role label 存在时）
-			// 优先从 LWS 自身 metadata.labels 读取，其次从 leaderTemplate.metadata.labels 读取
+			// role 在 leaderTemplate.metadata.labels 中，值如 Prefill/Decode（不区分大小写）
 			role := ""
-			lwsLabels := item.GetLabels()
-			if lwsLabels != nil {
-				if val, ok := lwsLabels["model.magikcompute.ai/role"]; ok {
-					role = val
-				}
-			}
-			if role == "" && leaderLabels != nil {
+			if leaderLabels != nil {
 				if val, ok := leaderLabels["model.magikcompute.ai/role"]; ok {
-					role = val
+					role = strings.ToLower(val)
 				}
 			}
-			if role != "" && modelName != "" {
+			// 也检查 LWS 自身 metadata.labels 作为 fallback
+			if role == "" {
+				lwsLabels := item.GetLabels()
+				if lwsLabels != nil {
+					if val, ok := lwsLabels["model.magikcompute.ai/role"]; ok {
+						role = strings.ToLower(val)
+					}
+				}
+			}
+			// 机器数 = size × replicas
+			machines := size * replicas
+			if role != "" && modelName != "" && machines > 0 {
 				if _, exists := roleStatsMap[modelName]; !exists {
 					roleStatsMap[modelName] = &GPUModelRoleStat{ModelName: modelName}
 				}
 				switch role {
 				case "prefill":
-					roleStatsMap[modelName].PrefillGPUs += totalGPU
+					roleStatsMap[modelName].PrefillNodes += machines
 				case "decode":
-					roleStatsMap[modelName].DecodeGPUs += totalGPU
+					roleStatsMap[modelName].DecodeNodes += machines
 				}
 			}
 		}

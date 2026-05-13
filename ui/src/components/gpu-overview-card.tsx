@@ -285,9 +285,9 @@ export function GPUOverviewCard({
                       <div className="flex items-center gap-2 ml-2 flex-shrink-0">
                         {roleStat && (
                           <span className="text-xs text-muted-foreground tabular-nums">
-                            <span className="text-blue-500">P:{roleStat.prefillGPUs}</span>
+                            <span className="text-blue-500">P:{roleStat.prefillNodes}机</span>
                             {' / '}
-                            <span className="text-orange-500">D:{roleStat.decodeGPUs}</span>
+                            <span className="text-orange-500">D:{roleStat.decodeNodes}机</span>
                           </span>
                         )}
                         <span className="text-xs text-muted-foreground tabular-nums">

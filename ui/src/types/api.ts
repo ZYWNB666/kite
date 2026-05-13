@@ -321,8 +321,8 @@ export interface GPUModelStat {
 
 export interface GPUModelRoleStat {
   modelName: string
-  prefillGPUs: number
-  decodeGPUs: number
+  prefillNodes: number
+  decodeNodes: number
 }
 
 export interface GPUOverview {
