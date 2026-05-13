@@ -282,8 +282,15 @@ func getLWSStats(ctx context.Context, cs *cluster.ClientSet) (map[string]int64, 
 			}
 
 			// 统计 Prefill/Decode 角色（仅当 role label 存在时）
+			// 优先从 LWS 自身 metadata.labels 读取，其次从 leaderTemplate.metadata.labels 读取
 			role := ""
-			if leaderLabels != nil {
+			lwsLabels := item.GetLabels()
+			if lwsLabels != nil {
+				if val, ok := lwsLabels["model.magikcompute.ai/role"]; ok {
+					role = val
+				}
+			}
+			if role == "" && leaderLabels != nil {
 				if val, ok := leaderLabels["model.magikcompute.ai/role"]; ok {
 					role = val
 				}
