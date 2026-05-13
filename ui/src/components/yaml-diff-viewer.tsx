@@ -100,7 +100,7 @@ export function YamlDiffViewer({
         }
 
         const cleaned = removeStatus(parsed)
-        return yaml.dump(cleaned, { indent: 2, sortKeys: true })
+        return yaml.dump(cleaned, { indent: 2, sortKeys: true, lineWidth: -1 })
       }
     } catch (error) {
       console.error('Failed to remove status field from YAML:', error)

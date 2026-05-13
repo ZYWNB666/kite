@@ -319,6 +319,12 @@ export interface GPUModelStat {
   gpuCount: number
 }
 
+export interface GPUModelRoleStat {
+  modelName: string
+  prefillGPUs: number
+  decodeGPUs: number
+}
+
 export interface GPUOverview {
   summary: {
     totalNodes: number
@@ -334,6 +340,7 @@ export interface GPUOverview {
   namespaceStats: GPUNamespaceStat[]
   modelStats: GPUModelStat[]
   noModelGPUCount: number
+  modelRoleStats: GPUModelRoleStat[]
 }
 
 // Pagination types

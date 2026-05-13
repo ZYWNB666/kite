@@ -38,6 +38,13 @@ type GPUModelStat struct {
 	GPUCount  int64  `json:"gpuCount"`
 }
 
+// GPUModelRoleStat 按模型的 Prefill/Decode 角色统计
+type GPUModelRoleStat struct {
+	ModelName   string `json:"modelName"`
+	PrefillGPUs int64  `json:"prefillGPUs"`
+	DecodeGPUs  int64  `json:"decodeGPUs"`
+}
+
 // GPUOverview GPU 资源概览
 type GPUOverview struct {
 	Summary struct {
@@ -52,8 +59,9 @@ type GPUOverview struct {
 	TaintedFreeNodes   []GPUNodeInfo      `json:"taintedFreeNodes"`
 	PartialFreeNodes   []GPUNodeInfo      `json:"partialFreeNodes"`
 	NamespaceStats     []GPUNamespaceStat `json:"namespaceStats"`
-	ModelStats       []GPUModelStat     `json:"modelStats"`
-	NoModelGPUCount  int64              `json:"noModelGPUCount"`
+	ModelStats         []GPUModelStat     `json:"modelStats"`
+	NoModelGPUCount    int64              `json:"noModelGPUCount"`
+	ModelRoleStats     []GPUModelRoleStat `json:"modelRoleStats"`
 }
 
 // GetGPUOverview 获取 GPU 资源概览
@@ -85,7 +93,8 @@ func GetGPUOverview(c *gin.Context) {
 			TaintedFreeNodes:   []GPUNodeInfo{},
 			PartialFreeNodes:   []GPUNodeInfo{},
 			NamespaceStats:     []GPUNamespaceStat{},
-			ModelStats:       []GPUModelStat{},
+			ModelStats:         []GPUModelStat{},
+			ModelRoleStats:     []GPUModelRoleStat{},
 		})
 		return
 	}
@@ -104,10 +113,10 @@ func GetGPUOverview(c *gin.Context) {
 	}
 
 	// 获取 LWS 统计信息
-	namespaceStats, modelStats, noModelCount := getLWSStats(ctx, cs)
+	namespaceStats, modelStats, noModelCount, roleStatsMap := getLWSStats(ctx, cs)
 
 	// 生成概览数据
-	overview := buildGPUOverview(nodes, namespaceStats, modelStats, noModelCount)
+	overview := buildGPUOverview(nodes, namespaceStats, modelStats, noModelCount, roleStatsMap)
 
 	c.JSON(http.StatusOK, overview)
 }
@@ -212,9 +221,10 @@ func getGPUUsageFromPods(ctx context.Context, cs *cluster.ClientSet) (map[string
 }
 
 // getLWSStats 从 LWS (LeaderWorkerSet) 获取统计信息
-func getLWSStats(ctx context.Context, cs *cluster.ClientSet) (map[string]int64, map[string]int64, int64) {
+func getLWSStats(ctx context.Context, cs *cluster.ClientSet) (map[string]int64, map[string]int64, int64, map[string]*GPUModelRoleStat) {
 	namespaceStats := make(map[string]int64)
 	modelStats := make(map[string]int64)
+	roleStatsMap := make(map[string]*GPUModelRoleStat)
 	var noModelCount int64
 
 	var lwsList unstructured.UnstructuredList
@@ -226,7 +236,7 @@ func getLWSStats(ctx context.Context, cs *cluster.ClientSet) (map[string]int64, 
 
 	if err := cs.K8sClient.List(ctx, &lwsList, &client.ListOptions{}); err != nil {
 		// LWS 可能不存在，不返回错误
-		return namespaceStats, modelStats, noModelCount
+		return namespaceStats, modelStats, noModelCount, roleStatsMap
 	}
 
 	gpuKeys := []string{"nvidia.com/gpu", "amd.com/gpu", "gpu"}
@@ -270,10 +280,29 @@ func getLWSStats(ctx context.Context, cs *cluster.ClientSet) (map[string]int64, 
 			} else {
 				noModelCount += totalGPU
 			}
+
+			// 统计 Prefill/Decode 角色（仅当 role label 存在时）
+			role := ""
+			if leaderLabels != nil {
+				if val, ok := leaderLabels["model.magikcompute.ai/role"]; ok {
+					role = val
+				}
+			}
+			if role != "" && modelName != "" {
+				if _, exists := roleStatsMap[modelName]; !exists {
+					roleStatsMap[modelName] = &GPUModelRoleStat{ModelName: modelName}
+				}
+				switch role {
+				case "prefill":
+					roleStatsMap[modelName].PrefillGPUs += totalGPU
+				case "decode":
+					roleStatsMap[modelName].DecodeGPUs += totalGPU
+				}
+			}
 		}
 	}
 
-	return namespaceStats, modelStats, noModelCount
+	return namespaceStats, modelStats, noModelCount, roleStatsMap
 }
 
 // extractGPUFromContainers 从容器配置中提取 GPU 数量
@@ -326,7 +355,7 @@ func extractGPUFromContainers(obj map[string]interface{}, path []string, gpuKeys
 }
 
 // buildGPUOverview 构建 GPU 概览数据
-func buildGPUOverview(nodes []GPUNodeInfo, namespaceStats, modelStats map[string]int64, noModelCount int64) GPUOverview {
+func buildGPUOverview(nodes []GPUNodeInfo, namespaceStats, modelStats map[string]int64, noModelCount int64, roleStatsMap map[string]*GPUModelRoleStat) GPUOverview {
 	var overview GPUOverview
 
 	// 排序节点
@@ -418,6 +447,19 @@ func buildGPUOverview(nodes []GPUNodeInfo, namespaceStats, modelStats map[string
 	}
 
 	overview.NoModelGPUCount = noModelCount
+
+	// 转换并排序 PD 角色统计
+	var roleStats []GPUModelRoleStat
+	for _, stat := range roleStatsMap {
+		roleStats = append(roleStats, *stat)
+	}
+	sort.Slice(roleStats, func(i, j int) bool {
+		return roleStats[i].ModelName < roleStats[j].ModelName
+	})
+	overview.ModelRoleStats = roleStats
+	if overview.ModelRoleStats == nil {
+		overview.ModelRoleStats = []GPUModelRoleStat{}
+	}
 
 	return overview
 }

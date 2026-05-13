@@ -86,7 +86,7 @@ export function GPUOverviewCard({
     )
   }
 
-  const { summary, fullyFreeNodes, untaintedFreeNodes, taintedFreeNodes, partialFreeNodes, namespaceStats, modelStats, noModelGPUCount } = data
+  const { summary, fullyFreeNodes, untaintedFreeNodes, taintedFreeNodes, partialFreeNodes, namespaceStats, modelStats, noModelGPUCount, modelRoleStats } = data
 
   return (
     <Card className="@container/gpu">
@@ -275,6 +275,7 @@ export function GPUOverviewCard({
                 {modelStats.map((stat) => {
                   const machines = Math.floor(stat.gpuCount / 8)
                   const remaining = stat.gpuCount % 8
+                  const roleStat = modelRoleStats?.find((r) => r.modelName === stat.modelName)
                   return (
                     <div
                       key={stat.modelName}
@@ -282,6 +283,13 @@ export function GPUOverviewCard({
                     >
                       <span className="font-mono text-xs flex-1 truncate">{stat.modelName}</span>
                       <div className="flex items-center gap-2 ml-2 flex-shrink-0">
+                        {roleStat && (
+                          <span className="text-xs text-muted-foreground tabular-nums">
+                            <span className="text-blue-500">P:{roleStat.prefillGPUs}</span>
+                            {' / '}
+                            <span className="text-orange-500">D:{roleStat.decodeGPUs}</span>
+                          </span>
+                        )}
                         <span className="text-xs text-muted-foreground tabular-nums">
                           {stat.gpuCount} GPU
                         </span>
