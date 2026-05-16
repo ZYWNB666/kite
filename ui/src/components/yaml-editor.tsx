@@ -54,6 +54,7 @@ export function YamlEditor<T extends ResourceType>({
   const { t } = useTranslation()
   const [isEditing, setIsEditing] = useState(true)
   const [isDirty, setIsDirty] = useState(false)
+  const [initialValue, setInitialValue] = useState(value)
   const [editorValue, setEditorValue] = useState(value)
   const [isValidYaml, setIsValidYaml] = useState(true)
   const [validationError, setValidationError] = useState<string>('')
@@ -72,6 +73,7 @@ export function YamlEditor<T extends ResourceType>({
   // This prevents background data refetches from silently overwriting in-progress edits.
   useEffect(() => {
     if (!isDirty) {
+      setInitialValue(value)
       setEditorValue(value)
     }
   }, [value, isDirty])
@@ -269,7 +271,7 @@ export function YamlEditor<T extends ResourceType>({
         </div>
       </CardContent>
       <YamlDiffViewer
-        original={value}
+        original={initialValue}
         modified={editorValue}
         open={isDiffDialogOpen}
         onOpenChange={setIsDiffDialogOpen}

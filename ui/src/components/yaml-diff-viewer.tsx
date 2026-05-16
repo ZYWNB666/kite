@@ -44,7 +44,7 @@ interface YamlDiffViewerProps {
   /** Dialog title */
   title?: string
   /** Height of the diff editor */
-  height?: number
+  height?: number | string
   /** Callback when user confirms the save (used in save confirmation mode) */
   onConfirm?: () => void
   /** Whether confirm operation is in progress */
@@ -64,7 +64,7 @@ export function YamlDiffViewer({
   onRollback,
   isRollingBack = false,
   title = 'YAML Diff',
-  height = 600,
+  height = '100%',
   onConfirm,
   isConfirming = false,
   confirmLabel,
@@ -79,7 +79,7 @@ export function YamlDiffViewer({
   )
   const editorRef = useRef<monacoEditor.IStandaloneDiffEditor | null>(null)
   const [diffMode, setDiffMode] = useState<DiffMode>('previous-vs-modified')
-  const [wordWrap, setWordWrap] = useState<'on' | 'off'>('on')
+  const [wordWrap, setWordWrap] = useState<'on' | 'off'>('off')
 
   const handleEditorDidMount = (editor: monacoEditor.IStandaloneDiffEditor) => {
     editorRef.current = editor
@@ -87,7 +87,8 @@ export function YamlDiffViewer({
 
   useEffect(() => {
     if (editorRef.current) {
-      editorRef.current.updateOptions({ wordWrap })
+      editorRef.current.getOriginalEditor().updateOptions({ wordWrap })
+      editorRef.current.getModifiedEditor().updateOptions({ wordWrap })
     }
   }, [wordWrap])
 
@@ -151,7 +152,7 @@ export function YamlDiffViewer({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="!max-w-6xl sm:!max-w-6xl max-h-[80vh] flex flex-col">
+      <DialogContent className="!max-w-6xl sm:!max-w-6xl h-[85vh] max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
             <span className="text-lg font-bold">{title}</span>
