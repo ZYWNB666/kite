@@ -753,5 +753,10 @@
     "accessModes": "访问模式",
     "reclaimPolicy": "回收策略",
     "claim": "声明"
+  },
+  "yamlEditor": {
+    "wordWrap": "自动换行",
+    "confirmChangesTitle": "确认修改",
+    "confirmSave": "确认保存"
   }
 }

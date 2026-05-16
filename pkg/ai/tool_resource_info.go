@@ -183,6 +183,21 @@ func (r resourceInfo) ListGVK() schema.GroupVersionKind {
 	return schema.GroupVersionKind{Group: r.Group, Version: r.Version, Kind: r.Kind + "List"}
 }
 
+// HistoryResourceType returns the resource type string used for DB history records.
+// For built-in Kite-registered resources (e.g. "deployments", "services") it returns
+// the short plural name so it matches the GenericResourceHandler's h.name.
+// For CRDs (not in the known registry) it returns "plural.group" (e.g.
+// "leaderworkersets.leaderworkerset.x-k8s.io") to match what CRHandler stores.
+func (r resourceInfo) HistoryResourceType() string {
+	if common.LookupResource(r.Resource) != nil {
+		return r.Resource
+	}
+	if r.Group != "" {
+		return r.Resource + "." + r.Group
+	}
+	return r.Resource
+}
+
 func normalizeNamespace(r resourceInfo, namespace string) string {
 	if r.ClusterScoped {
 		return ""

@@ -761,5 +761,10 @@
     "forceDelete": "Force delete (set grace period to 0)",
     "finalizerNote": "If finalizers exist and resource is not deleted after 3 seconds, finalizers will be removed automatically",
     "deleting": "Deleting..."
+  },
+  "yamlEditor": {
+    "wordWrap": "Word Wrap",
+    "confirmChangesTitle": "Confirm Changes",
+    "confirmSave": "Confirm Save"
   }
 }

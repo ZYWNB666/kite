@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { IconLoader, IconTextWrap, IconTextWrapDisabled } from '@tabler/icons-react'
 import * as yaml from 'js-yaml'
 import type { editor as monacoEditor } from 'monaco-editor'
 import { useTranslation } from 'react-i18next'
@@ -44,6 +45,12 @@ interface YamlDiffViewerProps {
   title?: string
   /** Height of the diff editor */
   height?: number
+  /** Callback when user confirms the save (used in save confirmation mode) */
+  onConfirm?: () => void
+  /** Whether confirm operation is in progress */
+  isConfirming?: boolean
+  /** Label for the confirm button */
+  confirmLabel?: string
 }
 
 type DiffMode = 'previous-vs-modified' | 'current-vs-modified'
@@ -58,6 +65,9 @@ export function YamlDiffViewer({
   isRollingBack = false,
   title = 'YAML Diff',
   height = 600,
+  onConfirm,
+  isConfirming = false,
+  confirmLabel,
 }: YamlDiffViewerProps) {
   const { t } = useTranslation()
   const { actualTheme, colorTheme } = useAppearance()
@@ -69,10 +79,17 @@ export function YamlDiffViewer({
   )
   const editorRef = useRef<monacoEditor.IStandaloneDiffEditor | null>(null)
   const [diffMode, setDiffMode] = useState<DiffMode>('previous-vs-modified')
+  const [wordWrap, setWordWrap] = useState<'on' | 'off'>('on')
 
   const handleEditorDidMount = (editor: monacoEditor.IStandaloneDiffEditor) => {
     editorRef.current = editor
   }
+
+  useEffect(() => {
+    if (editorRef.current) {
+      editorRef.current.updateOptions({ wordWrap })
+    }
+  }, [wordWrap])
 
   // Remove status field from YAML content
   const removeStatusField = (yamlContent: string): string => {
@@ -139,6 +156,49 @@ export function YamlDiffViewer({
           <DialogTitle className="flex items-center justify-between">
             <span className="text-lg font-bold">{title}</span>
             <div className="flex items-center gap-2 mr-4">
+              {/* Word wrap toggle button */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setWordWrap(wordWrap === 'on' ? 'off' : 'on')}
+                title={t('yamlEditor.wordWrap')}
+              >
+                {wordWrap === 'on' ? (
+                  <IconTextWrap className="w-4 h-4" />
+                ) : (
+                  <IconTextWrapDisabled className="w-4 h-4" />
+                )}
+                <span className="ml-1 hidden sm:inline">{t('yamlEditor.wordWrap')}</span>
+              </Button>
+
+              {/* Confirm/Cancel buttons (save confirmation mode) */}
+              {onConfirm && (
+                <>
+                  <Button
+                    onClick={onConfirm}
+                    disabled={isConfirming}
+                    size="sm"
+                  >
+                    {isConfirming ? (
+                      <>
+                        <IconLoader className="w-4 h-4 mr-1 animate-spin" />
+                        {t('common.saving', 'Saving...')}
+                      </>
+                    ) : (
+                      confirmLabel ?? t('common.confirm')
+                    )}
+                  </Button>
+                  <Button
+                    onClick={() => onOpenChange(false)}
+                    disabled={isConfirming}
+                    variant="outline"
+                    size="sm"
+                  >
+                    {t('common.cancel')}
+                  </Button>
+                </>
+              )}
+
               {current && (
                 <>
                   {diffMode === 'current-vs-modified' && (
@@ -229,7 +289,7 @@ export function YamlDiffViewer({
               readOnly: true,
               minimap: { enabled: true },
               scrollBeyondLastLine: false,
-              wordWrap: 'on',
+              wordWrap: wordWrap,
               folding: true,
               lineNumbers: 'relative',
               fontSize: 14,

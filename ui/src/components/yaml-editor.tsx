@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { IconCheck, IconEdit, IconLoader, IconX } from '@tabler/icons-react'
 import * as yaml from 'js-yaml'
 import type { editor as monacoEditor } from 'monaco-editor'
+import { useTranslation } from 'react-i18next'
 
 import { ResourceType, ResourceTypeMap } from '@/types/api'
 import { MonacoEditor } from '@/lib/monaco-loader'
@@ -14,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 import { useAppearance } from './appearance-provider'
 import { ErrorBoundary } from './error-boundary'
+import { YamlDiffViewer } from './yaml-diff-viewer'
 
 interface YamlEditorProps<T extends ResourceType> {
   /** The YAML content to edit */
@@ -49,11 +51,13 @@ export function YamlEditor<T extends ResourceType>({
   isSaving = false,
   className,
 }: YamlEditorProps<T>) {
+  const { t } = useTranslation()
   const [isEditing, setIsEditing] = useState(true)
   const [isDirty, setIsDirty] = useState(false)
   const [editorValue, setEditorValue] = useState(value)
   const [isValidYaml, setIsValidYaml] = useState(true)
   const [validationError, setValidationError] = useState<string>('')
+  const [isDiffDialogOpen, setIsDiffDialogOpen] = useState(false)
   const { actualTheme, colorTheme } = useAppearance()
   const editorRef = useRef<monacoEditor.IStandaloneCodeEditor | null>(null)
   const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -122,11 +126,17 @@ export function YamlEditor<T extends ResourceType>({
 
   const handleSave = () => {
     if (isValidYaml) {
-      onSave?.(yaml.load(editorValue) as ResourceTypeMap[T])
-      setIsDirty(false)
-      if (!readOnly) {
-        setIsEditing(false)
-      }
+      // Open diff dialog for confirmation before saving
+      setIsDiffDialogOpen(true)
+    }
+  }
+
+  const handleConfirmSave = () => {
+    setIsDiffDialogOpen(false)
+    onSave?.(yaml.load(editorValue) as ResourceTypeMap[T])
+    setIsDirty(false)
+    if (!readOnly) {
+      setIsEditing(false)
     }
   }
 
@@ -258,6 +268,16 @@ export function YamlEditor<T extends ResourceType>({
           </div>
         </div>
       </CardContent>
+      <YamlDiffViewer
+        original={value}
+        modified={editorValue}
+        open={isDiffDialogOpen}
+        onOpenChange={setIsDiffDialogOpen}
+        onConfirm={handleConfirmSave}
+        isConfirming={isSaving}
+        confirmLabel={t('yamlEditor.confirmSave')}
+        title={t('yamlEditor.confirmChangesTitle')}
+      />
     </Card>
   )
 }

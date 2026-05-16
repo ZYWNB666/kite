@@ -161,7 +161,7 @@ export function ServiceDetail(props: { name: string; namespace?: string }) {
         ) : null,
       },
     ],
-    [data, name, namespace]
+    [data, name, namespace, endpointSlices]
   )
 
   return (
