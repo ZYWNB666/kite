@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/zxh326/kite/pkg/cluster"
 	"github.com/zxh326/kite/pkg/model"
 	"github.com/zxh326/kite/pkg/rbac"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -55,10 +57,9 @@ func ProxyKubeconfigHandler(cm *cluster.ClusterManager) gin.HandlerFunc {
 			if clusterFilter != "" && name != clusterFilter {
 				continue
 			}
-			// Check that user has proxy permission for this cluster.
-			// We use AllNamespaces ("*") for the namespace check – cluster-level
-			// proxy access is sufficient here; namespace filtering is kite-proxy's job.
-			if !rbac.CanProxy(user, name, "*") && !rbac.CanProxy(user, name, "_all") {
+			// Check that user has proxy access for this cluster (namespace filtering
+			// is kite-proxy's responsibility; see /proxy/namespaces for the allowed list).
+			if !rbac.CanProxyCluster(user, name) {
 				noPermissionClusters = append(noPermissionClusters, name)
 				klog.V(2).Infof("ProxyKubeconfig: User %s has no proxy permission for cluster %s", user.Key(), name)
 				continue
@@ -105,6 +106,94 @@ func ProxyKubeconfigHandler(cm *cluster.ClusterManager) gin.HandlerFunc {
 		}
 
 		klog.V(1).Infof("ProxyKubeconfig: Returning %d cluster(s) for user %s", len(results), user.Key())
+		c.JSON(http.StatusOK, gin.H{"clusters": results})
+	}
+}
+
+// ProxyNamespacesHandler returns the namespaces each cluster allows the
+// authenticated API-key user to proxy through kite-proxy.
+//
+// The cluster to query can be supplied as:
+//   - query param:  ?cluster=yunqiao
+//   - JSON body:    {"cluster": "yunqiao"}
+//
+// If the role allows "*" namespaces, the handler fetches the live namespace list
+// from the cluster so the caller always receives concrete names.
+func ProxyNamespacesHandler(cm *cluster.ClusterManager) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		user, ok := c.MustGet("user").(model.User)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+			return
+		}
+		if user.Provider != "api_key" {
+			c.JSON(http.StatusForbidden, gin.H{"error": "this endpoint is only available to API-key users"})
+			return
+		}
+
+		// Accept cluster filter from query param or JSON body.
+		clusterFilter := c.Query("cluster")
+		if clusterFilter == "" {
+			var body struct {
+				Cluster string `json:"cluster"`
+			}
+			_ = c.ShouldBindJSON(&body)
+			clusterFilter = body.Cluster
+		}
+
+		type clusterNamespaces struct {
+			Name       string   `json:"name"`
+			Namespaces []string `json:"namespaces"`
+		}
+
+		var results []clusterNamespaces
+		clusters, _, _ := cm.GetAllClusters()
+
+		for name, cs := range clusters {
+			if clusterFilter != "" && name != clusterFilter {
+				continue
+			}
+
+			allowed := rbac.GetProxyNamespaces(user, name)
+			if allowed == nil {
+				// User has no proxy access for this cluster.
+				continue
+			}
+
+			// If wildcard, expand to actual namespace list from the cluster.
+			if len(allowed) == 1 && allowed[0] == "*" {
+				if cs.K8sClient != nil && cs.K8sClient.ClientSet != nil {
+					nsList, err := cs.K8sClient.ClientSet.CoreV1().Namespaces().List(
+						context.Background(), metav1.ListOptions{},
+					)
+					if err != nil {
+						klog.Warningf("ProxyNamespaces: failed to list namespaces for cluster %s: %v", name, err)
+						// Fall back to ["*"] rather than hard-failing.
+					} else {
+						expanded := make([]string, 0, len(nsList.Items))
+						for _, ns := range nsList.Items {
+							expanded = append(expanded, ns.Name)
+						}
+						allowed = expanded
+					}
+				}
+			}
+
+			results = append(results, clusterNamespaces{
+				Name:       name,
+				Namespaces: allowed,
+			})
+			klog.V(2).Infof("ProxyNamespaces: cluster %s namespaces %v for user %s", name, allowed, user.Key())
+		}
+
+		if len(results) == 0 {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error": "no clusters available for proxy or proxy not permitted",
+				"code":  "proxy_forbidden",
+			})
+			return
+		}
+
 		c.JSON(http.StatusOK, gin.H{"clusters": results})
 	}
 }

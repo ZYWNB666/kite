@@ -119,6 +119,7 @@ func registerAdminRoutes(r *gin.RouterGroup, authHandler *auth.AuthHandler, cm *
 	proxyAPI := r.Group("/api/v1/proxy")
 	proxyAPI.Use(authHandler.RequireAuth())
 	proxyAPI.GET("/kubeconfig", handlers.ProxyKubeconfigHandler(cm))
+	proxyAPI.GET("/namespaces", handlers.ProxyNamespacesHandler(cm))
 }
 
 func registerProtectedRoutes(r *gin.RouterGroup, authHandler *auth.AuthHandler, cm *cluster.ClusterManager) {

@@ -63,6 +63,62 @@ func CanProxy(user model.User, cluster, namespace string) bool {
 	return false
 }
 
+// CanProxyCluster reports whether the user has proxy access for the given cluster,
+// regardless of namespace restrictions. Used by the kubeconfig endpoint to decide
+// whether to include a cluster's kubeconfig in the response.
+func CanProxyCluster(user model.User, clusterName string) bool {
+	roles := GetUserRoles(user)
+	for _, role := range roles {
+		if role.AllowProxy && match(role.Clusters, clusterName) {
+			klog.V(1).Infof("ProxyCluster Check - User: %s, Cluster: %s, Hit Role: %v",
+				user.Key(), clusterName, role.Name)
+			return true
+		}
+	}
+	klog.V(1).Infof("ProxyCluster Check - User: %s, Cluster: %s, No Access",
+		user.Key(), clusterName)
+	return false
+}
+
+// GetProxyNamespaces returns the namespaces the user is allowed to proxy through
+// kite-proxy for the given cluster. Returns ["*"] if unrestricted, a deduplicated
+// list of allowed namespaces otherwise, or nil if no proxy access at all.
+func GetProxyNamespaces(user model.User, clusterName string) []string {
+	roles := GetUserRoles(user)
+	nsSet := make(map[string]struct{})
+	hasAccess := false
+
+	for _, role := range roles {
+		if !role.AllowProxy {
+			continue
+		}
+		if !match(role.Clusters, clusterName) {
+			continue
+		}
+		hasAccess = true
+		proxyNS := role.ProxyNamespaces
+		if len(proxyNS) == 0 {
+			proxyNS = role.Namespaces
+		}
+		for _, ns := range proxyNS {
+			if ns == "*" {
+				return []string{"*"}
+			}
+			nsSet[ns] = struct{}{}
+		}
+	}
+
+	if !hasAccess {
+		return nil
+	}
+
+	nsList := make([]string, 0, len(nsSet))
+	for ns := range nsSet {
+		nsList = append(nsList, ns)
+	}
+	return nsList
+}
+
 // CanAccessCluster reports whether the user has any role granting access to the cluster.
 func CanAccessCluster(user model.User, name string) bool {
 	roles := GetUserRoles(user)
