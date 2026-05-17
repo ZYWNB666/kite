@@ -156,7 +156,6 @@ export function ResourceHistoryTable<T extends ResourceType>({
                 </span>
               )}
             </div>
-            </div>
           )
         },
       },
