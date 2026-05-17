@@ -144,8 +144,8 @@ export function ResourceHistoryTable<T extends ResourceType>({
           const item = value as ResourceHistory
           return (
             <div className="font-medium">
-              {item.operator.username}
-              {item.operator.provider === 'api_key' && (
+              {item.operator?.name || item.operator?.username}
+              {item.operator?.provider === 'api_key' && (
                 <span className="ml-2 text-xs text-muted-foreground italic">
                   apikey
                 </span>
@@ -155,6 +155,7 @@ export function ResourceHistoryTable<T extends ResourceType>({
                   AI
                 </span>
               )}
+            </div>
             </div>
           )
         },

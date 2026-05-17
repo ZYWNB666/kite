@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { KeyValueDataViewer } from '@/components/key-value-data-viewer'
 import { LabelsAnno } from '@/components/lables-anno'
 import { OwnerInfoDisplay } from '@/components/owner-info-display'
+import { ResourceHistoryTable } from '@/components/resource-history-table'
 
 import {
   ResourceDetailShell,
@@ -72,8 +73,20 @@ export function ConfigMapDetail(props: { namespace: string; name: string }) {
           </div>
         ) : null,
       },
+      {
+        value: 'history',
+        label: 'History',
+        content: data ? (
+          <ResourceHistoryTable
+            resourceType="configmaps"
+            name={name}
+            namespace={namespace}
+            currentResource={data}
+          />
+        ) : null,
+      },
     ],
-    [binaryDataCount, data, dataCount, totalCount]
+    [binaryDataCount, data, dataCount, name, namespace, totalCount]
   )
 
   return (
