@@ -37,8 +37,25 @@ func (a *Agent) processChatOpenAI(c *gin.Context, req *ChatRequest, sendEvent fu
 		language = "en"
 	}
 	sysPrompt := buildContextualSystemPrompt(req.PageContext, runtimeCtx, language)
-	messages := toOpenAIMessages(sysPrompt, req.Messages)
-	a.runOpenAIConversation(ctx, c, messages, sendEvent)
+
+	var messages []openai.ChatCompletionMessageParamUnion
+
+	if stored, ok := agentConversationStore.load(req.SessionID); ok {
+		// Resume from server-side state: full untruncated history.
+		// Refresh the system message (it contains current time/context).
+		messages = append([]openai.ChatCompletionMessageParamUnion(nil), stored.OpenAIMessages...)
+		if len(messages) > 0 {
+			messages[0] = openai.SystemMessage(sysPrompt)
+		}
+		if newMsg := lastUserMessage(req.Messages); newMsg != "" {
+			messages = append(messages, openai.UserMessage(newMsg))
+		}
+	} else {
+		// Bootstrap from frontend history (first turn, or after server restart).
+		messages = toOpenAIMessages(sysPrompt, req.Messages)
+	}
+
+	a.runOpenAIConversation(ctx, c, req.SessionID, messages, sendEvent)
 }
 
 func (a *Agent) continueChatOpenAI(c *gin.Context, session pendingSession, sendEvent func(SSEEvent)) error {
@@ -59,17 +76,25 @@ func (a *Agent) continueChatOpenAIWithToolResult(c *gin.Context, session pending
 	}
 
 	session.OpenAIMessages = append(session.OpenAIMessages, openai.ToolMessage(result, session.ToolCall.ID))
-	a.runOpenAIConversation(ctx, c, session.OpenAIMessages, sendEvent)
+	a.runOpenAIConversation(ctx, c, session.ConversationSessionID, session.OpenAIMessages, sendEvent)
 	return nil
 }
 
 func (a *Agent) runOpenAIConversation(
 	ctx context.Context,
 	c *gin.Context,
+	conversationSessionID string,
 	messages []openai.ChatCompletionMessageParamUnion,
 	sendEvent func(SSEEvent),
 ) {
 	tools := OpenAIToolDefs(a.cs)
+
+	saveConversation := func() {
+		agentConversationStore.save(conversationSessionID, conversationSession{
+			Provider:       a.provider,
+			OpenAIMessages: append([]openai.ChatCompletionMessageParamUnion(nil), messages...),
+		})
+	}
 
 	maxIterations := 100
 	for i := 0; i < maxIterations; i++ {
@@ -101,6 +126,12 @@ func (a *Agent) runOpenAIConversation(
 				sendEvent(SSEEvent{Event: "error", Data: map[string]string{"message": "AI returned no content"}})
 				return
 			}
+			// Append the final assistant response before saving so the next turn
+			// sees a complete and valid conversation history.
+			if messageContent != "" {
+				messages = append(messages, openai.AssistantMessage(messageContent))
+			}
+			saveConversation()
 			return
 		}
 
@@ -134,8 +165,9 @@ func (a *Agent) runOpenAIConversation(
 				}
 
 				sessionID := agentPendingSessions.save(pendingSession{
-					Provider:       a.provider,
-					OpenAIMessages: append([]openai.ChatCompletionMessageParamUnion(nil), messages...),
+					Provider:              a.provider,
+					ConversationSessionID: conversationSessionID,
+					OpenAIMessages:        append([]openai.ChatCompletionMessageParamUnion(nil), messages...),
 					ToolCall: pendingToolCall{
 						ID:   tc.ID,
 						Name: toolName,
@@ -165,8 +197,9 @@ func (a *Agent) runOpenAIConversation(
 					continue
 				}
 				sessionID := agentPendingSessions.save(pendingSession{
-					Provider:       a.provider,
-					OpenAIMessages: append([]openai.ChatCompletionMessageParamUnion(nil), messages...),
+					Provider:              a.provider,
+					ConversationSessionID: conversationSessionID,
+					OpenAIMessages:        append([]openai.ChatCompletionMessageParamUnion(nil), messages...),
 					ToolCall: pendingToolCall{
 						ID:   tc.ID,
 						Name: toolName,
@@ -199,6 +232,7 @@ func (a *Agent) runOpenAIConversation(
 		}
 	}
 
+	saveConversation()
 	sendEvent(SSEEvent{Event: "error", Data: map[string]string{"message": "Too many tool calling iterations"}})
 }
 

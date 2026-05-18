@@ -34,8 +34,21 @@ func (a *Agent) processChatAnthropic(c *gin.Context, req *ChatRequest, sendEvent
 		language = "en"
 	}
 	sysPrompt := buildContextualSystemPrompt(req.PageContext, runtimeCtx, language)
-	messages := toAnthropicMessages(req.Messages)
-	a.runAnthropicConversation(ctx, c, sysPrompt, messages, sendEvent)
+
+	var messages []anthropic.MessageParam
+
+	if stored, ok := agentConversationStore.load(req.SessionID); ok {
+		// Resume from server-side state: full untruncated history.
+		messages = append([]anthropic.MessageParam(nil), stored.AnthropicMessages...)
+		if newMsg := lastUserMessage(req.Messages); newMsg != "" {
+			messages = append(messages, anthropic.NewUserMessage(anthropic.NewTextBlock(newMsg)))
+		}
+	} else {
+		// Bootstrap from frontend history (first turn, or after server restart).
+		messages = toAnthropicMessages(req.Messages)
+	}
+
+	a.runAnthropicConversation(ctx, c, req.SessionID, sysPrompt, messages, sendEvent)
 }
 
 func (a *Agent) continueChatAnthropic(c *gin.Context, session pendingSession, sendEvent func(SSEEvent)) error {
@@ -62,18 +75,27 @@ func (a *Agent) continueChatAnthropicWithToolResult(c *gin.Context, session pend
 			anthropic.NewToolResultBlock(session.ToolCall.ID, toolResult, isError),
 		),
 	)
-	a.runAnthropicConversation(ctx, c, session.SystemPrompt, session.AnthropicMessages, sendEvent)
+	a.runAnthropicConversation(ctx, c, session.ConversationSessionID, session.SystemPrompt, session.AnthropicMessages, sendEvent)
 	return nil
 }
 
 func (a *Agent) runAnthropicConversation(
 	ctx context.Context,
 	c *gin.Context,
+	conversationSessionID string,
 	sysPrompt string,
 	messages []anthropic.MessageParam,
 	sendEvent func(SSEEvent),
 ) {
 	tools := AnthropicToolDefs(a.cs)
+
+	saveConversation := func() {
+		agentConversationStore.save(conversationSessionID, conversationSession{
+			Provider:          a.provider,
+			SystemPrompt:      sysPrompt,
+			AnthropicMessages: append([]anthropic.MessageParam(nil), messages...),
+		})
+	}
 
 	maxIterations := 100
 	for i := 0; i < maxIterations; i++ {
@@ -101,6 +123,13 @@ func (a *Agent) runAnthropicConversation(
 				sendEvent(SSEEvent{Event: "error", Data: map[string]string{"message": "AI returned no content"}})
 				return
 			}
+			// Append the final assistant text before saving — Anthropic requires
+			// strict alternating human/assistant turns, so this prevents consecutive
+			// user messages on the next conversation turn.
+			if content != "" {
+				messages = append(messages, anthropic.NewAssistantMessage(anthropic.NewTextBlock(content)))
+			}
+			saveConversation()
 			return
 		}
 
@@ -139,9 +168,10 @@ func (a *Agent) runAnthropicConversation(
 					toolResults = nil
 				}
 				sessionID := agentPendingSessions.save(pendingSession{
-					Provider:          a.provider,
-					SystemPrompt:      sysPrompt,
-					AnthropicMessages: append([]anthropic.MessageParam(nil), messages...),
+					Provider:              a.provider,
+					ConversationSessionID: conversationSessionID,
+					SystemPrompt:          sysPrompt,
+					AnthropicMessages:     append([]anthropic.MessageParam(nil), messages...),
 					ToolCall: pendingToolCall{
 						ID:   tc.ID,
 						Name: toolName,
@@ -174,9 +204,10 @@ func (a *Agent) runAnthropicConversation(
 					messages = append(messages, anthropic.NewUserMessage(toolResults...))
 				}
 				sessionID := agentPendingSessions.save(pendingSession{
-					Provider:          a.provider,
-					SystemPrompt:      sysPrompt,
-					AnthropicMessages: append([]anthropic.MessageParam(nil), messages...),
+					Provider:              a.provider,
+					ConversationSessionID: conversationSessionID,
+					SystemPrompt:          sysPrompt,
+					AnthropicMessages:     append([]anthropic.MessageParam(nil), messages...),
 					ToolCall: pendingToolCall{
 						ID:   tc.ID,
 						Name: toolName,
@@ -213,6 +244,7 @@ func (a *Agent) runAnthropicConversation(
 		}
 	}
 
+	saveConversation()
 	sendEvent(SSEEvent{Event: "error", Data: map[string]string{"message": "Too many tool calling iterations"}})
 }
 

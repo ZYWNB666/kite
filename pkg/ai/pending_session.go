@@ -21,12 +21,13 @@ type pendingToolCall struct {
 }
 
 type pendingSession struct {
-	Provider          string
-	SystemPrompt      string
-	OpenAIMessages    []openai.ChatCompletionMessageParamUnion
-	AnthropicMessages []anthropic.MessageParam
-	ToolCall          pendingToolCall
-	ExpiresAt         time.Time
+	Provider              string
+	ConversationSessionID string
+	SystemPrompt          string
+	OpenAIMessages        []openai.ChatCompletionMessageParamUnion
+	AnthropicMessages     []anthropic.MessageParam
+	ToolCall              pendingToolCall
+	ExpiresAt             time.Time
 }
 
 type pendingSessionStore struct{}
@@ -38,12 +39,13 @@ func (s *pendingSessionStore) save(session pendingSession) string {
 	session.ExpiresAt = time.Now().Add(pendingSessionTTL)
 
 	dbSession := &model.PendingSession{
-		SessionID:    sessionID,
-		Provider:     session.Provider,
-		SystemPrompt: session.SystemPrompt,
-		ToolCallID:   session.ToolCall.ID,
-		ToolCallName: session.ToolCall.Name,
-		ExpiresAt:    session.ExpiresAt,
+		SessionID:             sessionID,
+		Provider:              session.Provider,
+		ConversationSessionID: session.ConversationSessionID,
+		SystemPrompt:          session.SystemPrompt,
+		ToolCallID:            session.ToolCall.ID,
+		ToolCallName:          session.ToolCall.Name,
+		ExpiresAt:             session.ExpiresAt,
 	}
 
 	// Marshal messages and args
@@ -101,9 +103,10 @@ func (s *pendingSessionStore) take(sessionID string) (pendingSession, error) {
 
 func pendingSessionFromModel(dbSession *model.PendingSession) (pendingSession, error) {
 	session := pendingSession{
-		Provider:     dbSession.Provider,
-		SystemPrompt: dbSession.SystemPrompt,
-		ExpiresAt:    dbSession.ExpiresAt,
+		Provider:              dbSession.Provider,
+		ConversationSessionID: dbSession.ConversationSessionID,
+		SystemPrompt:          dbSession.SystemPrompt,
+		ExpiresAt:             dbSession.ExpiresAt,
 		ToolCall: pendingToolCall{
 			ID:   dbSession.ToolCallID,
 			Name: dbSession.ToolCallName,

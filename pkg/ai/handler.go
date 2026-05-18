@@ -363,3 +363,10 @@ func getClusterClientSet(c *gin.Context) (*cluster.ClientSet, bool) {
 	clientSet, ok := cs.(*cluster.ClientSet)
 	return clientSet, ok
 }
+
+// HandleDeleteConversationSession removes a conversation session from the server-side store.
+func HandleDeleteConversationSession(c *gin.Context) {
+	sessionID := c.Param("id")
+	agentConversationStore.delete(sessionID)
+	c.Status(http.StatusNoContent)
+}
