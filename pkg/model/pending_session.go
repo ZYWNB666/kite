@@ -6,15 +6,16 @@ import (
 
 type PendingSession struct {
 	Model
-	SessionID         string    `json:"session_id" gorm:"type:varchar(64);uniqueIndex;not null"`
-	Provider          string    `json:"provider" gorm:"type:varchar(32);not null"`
-	SystemPrompt      string    `json:"system_prompt" gorm:"type:text"`
-	OpenAIMessages    JSONField `json:"openai_messages" gorm:"type:text"`
-	AnthropicMessages JSONField `json:"anthropic_messages" gorm:"type:text"`
-	ToolCallID        string    `json:"tool_call_id" gorm:"type:varchar(255)"`
-	ToolCallName      string    `json:"tool_call_name" gorm:"type:varchar(255)"`
-	ToolCallArgs      JSONField `json:"tool_call_args" gorm:"type:text"`
-	ExpiresAt         time.Time `json:"expires_at" gorm:"index;not null"`
+	SessionID             string    `json:"session_id" gorm:"type:varchar(64);uniqueIndex;not null"`
+	Provider              string    `json:"provider" gorm:"type:varchar(32);not null"`
+	ConversationSessionID string    `json:"conversation_session_id" gorm:"type:varchar(64)"`
+	SystemPrompt          string    `json:"system_prompt" gorm:"type:text"`
+	OpenAIMessages        JSONField `json:"openai_messages" gorm:"type:text"`
+	AnthropicMessages     JSONField `json:"anthropic_messages" gorm:"type:text"`
+	ToolCallID            string    `json:"tool_call_id" gorm:"type:varchar(255)"`
+	ToolCallName          string    `json:"tool_call_name" gorm:"type:varchar(255)"`
+	ToolCallArgs          JSONField `json:"tool_call_args" gorm:"type:text"`
+	ExpiresAt             time.Time `json:"expires_at" gorm:"index;not null"`
 }
 
 func SavePendingSession(session *PendingSession) error {

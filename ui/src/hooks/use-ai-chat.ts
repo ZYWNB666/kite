@@ -68,6 +68,7 @@ export function useAIChat() {
   }, [username])
 
   useEffect(() => {
+    if (state.isLoading) return
     if (!state.currentSessionId || state.messages.length === 0) return
 
     const nextHistory = upsertChatSession(
@@ -82,7 +83,7 @@ export function useAIChat() {
       dispatch({ type: 'history/set', history: nextHistory })
       saveHistoryToStorage(username, nextHistory)
     }
-  }, [state.currentSessionId, state.messages, username])
+  }, [state.currentSessionId, state.isLoading, state.messages, username])
 
   const commitMessages = useCallback(
     (updater: (prev: ChatMessage[]) => ChatMessage[]) => {
@@ -253,12 +254,15 @@ export function useAIChat() {
             result: unknown
             is_error?: boolean
           }
-          const toolResult =
+          const rawResult =
             typeof result === 'string' ? result : JSON.stringify(result ?? '')
+          // Truncate for display only; full result is stored server-side for LLM context
+          const toolResult =
+            rawResult.length > 20000 ? rawResult.slice(0, 20000) + '…' : rawResult
           const inferredError =
             typeof is_error === 'boolean'
               ? is_error
-              : /^(error:|forbidden:|tool error:)/i.test(toolResult.trim())
+              : /^(error:|forbidden:|tool error:)/i.test(rawResult.trim())
           updateToolMessage(tool_call_id, tool, (message) => ({
             ...message,
             content: `${tool} ${inferredError ? 'failed' : 'completed'}`,
@@ -449,6 +453,7 @@ export function useAIChat() {
 
   const streamChat = useCallback(
     async (
+      sessionId: string,
       apiMessages: APIChatMessage[],
       pageContext: PageContext,
       language: string,
@@ -466,6 +471,7 @@ export function useAIChat() {
         credentials: 'include',
         headers,
         body: JSON.stringify({
+          session_id: sessionId,
           messages: apiMessages,
           language: requestLanguage,
           page_context: {
@@ -575,6 +581,7 @@ export function useAIChat() {
       try {
         abortControllerRef.current = new AbortController()
         await streamChat(
+          sessionId,
           apiMessages,
           pageContext,
           requestLanguage,
@@ -808,7 +815,17 @@ export function useAIChat() {
   )
 
   const newSession = useCallback(() => {
+    const oldSessionId = currentSessionIdRef.current
     clearMessages()
+    if (oldSessionId) {
+      const headers: Record<string, string> = {}
+      appendCurrentClusterHeader(headers)
+      fetch(withSubPath(`/api/v1/ai/session/${encodeURIComponent(oldSessionId)}`), {
+        method: 'DELETE',
+        credentials: 'include',
+        headers,
+      }).catch(() => {/* best-effort */})
+    }
   }, [clearMessages])
 
   return {

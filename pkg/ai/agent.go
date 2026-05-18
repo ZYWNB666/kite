@@ -93,6 +93,7 @@ type PageContext struct {
 
 // ChatRequest is the incoming chat request.
 type ChatRequest struct {
+	SessionID   string        `json:"session_id,omitempty"`
 	Messages    []ChatMessage `json:"messages"`
 	Language    string        `json:"language,omitempty"`
 	PageContext *PageContext  `json:"page_context"`
@@ -190,6 +191,16 @@ func normalizeChatMessages(chatMessages []ChatMessage) []ChatMessage {
 		})
 	}
 	return normalized
+}
+
+// lastUserMessage returns the content of the last user message in the list.
+func lastUserMessage(messages []ChatMessage) string {
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role == "user" {
+			return strings.TrimSpace(messages[i].Content)
+		}
+	}
+	return ""
 }
 
 func summarizeScope(items []string) string {
