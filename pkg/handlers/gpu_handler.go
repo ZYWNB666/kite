@@ -299,8 +299,13 @@ func getLWSStats(ctx context.Context, cs *cluster.ClientSet) (map[string]int64, 
 					}
 				}
 			}
-			// 机器数 = size × replicas
-			machines := size * replicas
+			// 机器数：若 workerTemplate 无容器（即 worker 实际不存在），有效 size 为 1（仅 leader）
+			workerContainers, _, _ := unstructured.NestedSlice(item.Object, "spec", "leaderWorkerTemplate", "workerTemplate", "spec", "containers")
+			effectiveSize := size
+			if len(workerContainers) == 0 {
+				effectiveSize = 1
+			}
+			machines := effectiveSize * replicas
 			if role != "" && modelName != "" && machines > 0 {
 				if _, exists := roleStatsMap[modelName]; !exists {
 					roleStatsMap[modelName] = &GPUModelRoleStat{ModelName: modelName}
