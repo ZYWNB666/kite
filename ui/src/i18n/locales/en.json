@@ -41,16 +41,22 @@
   },
   "sidebar": {
     "groups": {
-      "traffic": "traffic",
-      "storage": "storage",
-      "config": "config",
-      "other": "other",
-      "security": "Security",
-      "workloads": "Workloads"
+      "traffic": "Network",
+      "network": "Network",
+      "storage": "Storage",
+      "config": "Config",
+      "other": "Other",
+      "security": "Access Control",
+      "workloads": "Workloads",
+      "namespace": "Namespace",
+      "cluster": "Cluster"
     },
     "short": {
       "pvcs": "PVCs",
       "pvs": "PVs"
+    },
+    "crd": {
+      "definitions": "Definitions"
     },
     "layout": "Layout",
     "layout.default": "Default",

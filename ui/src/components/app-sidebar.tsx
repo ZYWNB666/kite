@@ -3,12 +3,13 @@ import { useMemo } from 'react'
 import Icon from '@/assets/icon.svg'
 import { useSidebarConfig } from '@/contexts/sidebar-config-context'
 import { CollapsibleContent } from '@radix-ui/react-collapsible'
-import { IconLayoutDashboard } from '@tabler/icons-react'
+import { IconBoxMultiple, IconCode, IconLayoutDashboard } from '@tabler/icons-react'
 import { ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Link, useLocation } from 'react-router-dom'
+import { CustomResourceDefinition } from 'kubernetes-types/apiextensions/v1'
 
-import { useVersionInfo } from '@/lib/api'
+import { useVersionInfo, useResources } from '@/lib/api'
 import { useAuth } from '@/contexts/auth-context'
 import {
   Sidebar,
@@ -48,6 +49,36 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { config, isLoading, getIconComponent } = useSidebarConfig()
   const { data: versionInfo } = useVersionInfo()
   const isAdmin = user?.isAdmin() ?? false
+
+  // Fetch CRDs for auto-classification sidebar section
+  const { data: crdItems } = useResources('crds', undefined, {
+    staleTime: 30000,
+    disable: isLoading || !config,
+  })
+
+  // Group CRDs by spec.group
+  const crdsByGroup = useMemo(() => {
+    if (!crdItems) return new Map<string, CustomResourceDefinition[]>()
+    const map = new Map<string, CustomResourceDefinition[]>()
+    for (const crd of crdItems) {
+      const group = crd.spec?.group ?? 'other'
+      if (!map.has(group)) map.set(group, [])
+      map.get(group)!.push(crd)
+    }
+    // Sort each group's CRDs by kind
+    map.forEach((crds) =>
+      crds.sort((a, b) =>
+        (a.spec?.names?.kind ?? '').localeCompare(b.spec?.names?.kind ?? '')
+      )
+    )
+    return map
+  }, [crdItems])
+
+  // Sorted group names
+  const crdGroupNames = useMemo(
+    () => Array.from(crdsByGroup.keys()).sort(),
+    [crdsByGroup]
+  )
 
   const securityGroupIds = useMemo(() => {
     if (!config) return new Set<string>()
@@ -107,6 +138,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       .filter((group) => group.items.length > 0)
   }, [config, isAdmin, securityGroupIds, securityItemIds])
 
+  // Split namespace group from regular groups for standalone rendering
+  const namespaceGroups = useMemo(
+    () => visibleGroups.filter((g) => g.nameKey === 'sidebar.groups.namespace'),
+    [visibleGroups]
+  )
+  const regularGroups = useMemo(
+    () => visibleGroups.filter((g) => g.nameKey !== 'sidebar.groups.namespace'),
+    [visibleGroups]
+  )
+
   const isActive = (url: string) => {
     if (url === '/') {
       return location.pathname === '/'
@@ -130,7 +171,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarHeader>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton asChild>
+              <SidebarMenuButton
+                asChild
+                className="data-[slot=sidebar-menu-button]:!p-1.5 hover:bg-accent/50 transition-colors"
+               >
                 <Link to="/" onClick={handleMenuItemClick}>
                   <img src={Icon} alt="Kite Logo" className="ml-1 h-8 w-8" />
                   <span className="text-base font-semibold">Kite</span>
@@ -231,6 +275,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         tooltip={title}
                         asChild
                         isActive={isActive(item.url)}
+                        className="transition-all duration-200 hover:bg-accent/60 active:scale-95 data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:shadow-sm"
                       >
                         <Link to={item.url} onClick={handleMenuItemClick}>
                           <IconComponent className="text-sidebar-primary" />
@@ -245,7 +290,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarGroup>
         )}
 
-        {visibleGroups.map((group) => (
+        {regularGroups.map((group) => (
           <Collapsible
             key={group.id}
             defaultOpen={!group.collapsed}
@@ -276,6 +321,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                             tooltip={title}
                             asChild
                             isActive={isActive(item.url)}
+                            className="transition-all duration-200 hover:bg-accent/60 active:scale-95 data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:shadow-sm"
                           >
                             <Link to={item.url} onClick={handleMenuItemClick}>
                               <IconComponent className="text-sidebar-primary" />
@@ -291,6 +337,122 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </SidebarGroup>
           </Collapsible>
         ))}
+
+        {/* Namespace - standalone row without group header */}
+        {namespaceGroups.map((group) =>
+          group.items.map((item) => {
+            const IconComponent = getIconComponent(item.icon)
+            const title = item.titleKey
+              ? t(item.titleKey, { defaultValue: item.titleKey })
+              : ''
+            return (
+              <SidebarGroup key={item.id} className="py-0">
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      tooltip={title}
+                      asChild
+                      isActive={isActive(item.url)}
+                      className="transition-all duration-200 hover:bg-accent/60 active:scale-95 data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:shadow-sm"
+                    >
+                      <Link to={item.url} onClick={handleMenuItemClick}>
+                        <IconComponent className="text-sidebar-primary" />
+                        <span className="font-medium">{title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroup>
+            )
+          })
+        )}
+
+        {/* Custom Resources - auto-classified by API group */}
+        {crdGroupNames.length > 0 && (
+          <Collapsible defaultOpen={false} className="group/collapsible">
+            <SidebarGroup>
+              <SidebarGroupLabel asChild>
+                <CollapsibleTrigger className="flex items-center justify-between w-full text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors group-data-[state=open]:text-foreground">
+                  <span className="uppercase tracking-wide text-xs font-bold">
+                    {t('nav.customResources', 'Custom Resources')}
+                  </span>
+                  <ChevronDown className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-180" />
+                </CollapsibleTrigger>
+              </SidebarGroupLabel>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  <SidebarMenu>
+                    {/* Link to CRD definitions page */}
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        tooltip={t('nav.crds', 'CRDs')}
+                        asChild
+                        isActive={location.pathname === '/crds'}
+                        className="transition-all duration-200 hover:bg-accent/60 data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
+                      >
+                        <Link to="/crds" onClick={handleMenuItemClick}>
+                          <IconCode className="text-sidebar-primary" />
+                          <span>{t('sidebar.crd.definitions', 'Definitions')}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+
+                  {/* API group collapsibles */}
+                  {crdGroupNames.map((groupName) => {
+                    const crds = crdsByGroup.get(groupName) ?? []
+                    return (
+                      <Collapsible
+                        key={groupName}
+                        defaultOpen={false}
+                        className="group/crd-group"
+                      >
+                        <SidebarMenu>
+                          <SidebarMenuItem>
+                            <CollapsibleTrigger asChild>
+                              <SidebarMenuButton
+                                tooltip={groupName}
+                                className="hover:bg-accent/60 transition-colors"
+                              >
+                                <IconBoxMultiple className="text-sidebar-primary shrink-0" />
+                                <span className="truncate text-xs font-mono">{groupName}</span>
+                                <ChevronDown className="ml-auto shrink-0 transition-transform duration-200 group-data-[state=open]/crd-group:rotate-180" />
+                              </SidebarMenuButton>
+                            </CollapsibleTrigger>
+                          </SidebarMenuItem>
+                        </SidebarMenu>
+                        <CollapsibleContent>
+                          <SidebarMenu className="ml-3 border-l border-border/50 pl-2">
+                            {crds.map((crd) => {
+                              const crdName = crd.metadata?.name ?? ''
+                              const kind = crd.spec?.names?.kind ?? crdName
+                              const url = `/crds/${crdName}`
+                              return (
+                                <SidebarMenuItem key={crdName}>
+                                  <SidebarMenuButton
+                                    tooltip={kind}
+                                    asChild
+                                    isActive={location.pathname.startsWith(url)}
+                                    className="transition-all duration-200 hover:bg-accent/60 data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
+                                  >
+                                    <Link to={url} onClick={handleMenuItemClick}>
+                                      <IconCode className="text-sidebar-primary shrink-0" />
+                                      <span className="truncate">{kind}</span>
+                                    </Link>
+                                  </SidebarMenuButton>
+                                </SidebarMenuItem>
+                              )
+                            })}
+                          </SidebarMenu>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    )
+                  })}
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </SidebarGroup>
+          </Collapsible>
+        )}
       </SidebarContent>
 
       <SidebarFooter>

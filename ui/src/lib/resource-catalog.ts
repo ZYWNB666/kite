@@ -27,11 +27,12 @@ import {
 
 type SidebarGroupKey =
   | 'sidebar.groups.workloads'
-  | 'sidebar.groups.traffic'
+  | 'sidebar.groups.network'
   | 'sidebar.groups.storage'
   | 'sidebar.groups.config'
   | 'sidebar.groups.security'
-  | 'sidebar.groups.other'
+  | 'sidebar.groups.namespace'
+  | 'sidebar.groups.cluster'
 
 export const resourceIconMap = {
   IconBox,
@@ -81,11 +82,12 @@ interface ResourceCatalogEntryBase {
 
 export const sidebarGroupOrder = [
   'sidebar.groups.workloads',
-  'sidebar.groups.traffic',
+  'sidebar.groups.network',
   'sidebar.groups.storage',
   'sidebar.groups.config',
   'sidebar.groups.security',
-  'sidebar.groups.other',
+  'sidebar.groups.namespace',
+  'sidebar.groups.cluster',
 ] as const satisfies readonly SidebarGroupKey[]
 
 export const resourceCatalog = [
@@ -176,7 +178,7 @@ export const resourceCatalog = [
     clusterScope: false,
     titleKey: 'nav.services',
     icon: 'IconNetwork',
-    sidebar: { groupKey: 'sidebar.groups.traffic', order: 2 },
+    sidebar: { groupKey: 'sidebar.groups.network', order: 2 },
   },
   {
     type: 'endpointslices',
@@ -194,7 +196,7 @@ export const resourceCatalog = [
     clusterScope: false,
     titleKey: 'nav.gateways',
     icon: 'IconLoadBalancer',
-    sidebar: { groupKey: 'sidebar.groups.traffic', order: 3 },
+    sidebar: { groupKey: 'sidebar.groups.network', order: 3 },
   },
   {
     type: 'httproutes',
@@ -204,7 +206,7 @@ export const resourceCatalog = [
     clusterScope: false,
     titleKey: 'nav.httproutes',
     icon: 'IconRoute',
-    sidebar: { groupKey: 'sidebar.groups.traffic', order: 4 },
+    sidebar: { groupKey: 'sidebar.groups.network', order: 4 },
   },
   {
     type: 'configmaps',
@@ -234,7 +236,7 @@ export const resourceCatalog = [
     clusterScope: false,
     titleKey: 'nav.ingresses',
     icon: 'IconRouter',
-    sidebar: { groupKey: 'sidebar.groups.traffic', order: 0 },
+    sidebar: { groupKey: 'sidebar.groups.network', order: 0 },
   },
   {
     type: 'networkpolicies',
@@ -244,7 +246,7 @@ export const resourceCatalog = [
     clusterScope: false,
     titleKey: 'nav.networkpolicies',
     icon: 'IconShield',
-    sidebar: { groupKey: 'sidebar.groups.traffic', order: 1 },
+    sidebar: { groupKey: 'sidebar.groups.network', order: 1 },
   },
   {
     type: 'namespaces',
@@ -254,7 +256,7 @@ export const resourceCatalog = [
     clusterScope: true,
     titleKey: 'nav.namespaces',
     icon: 'IconBoxMultiple',
-    sidebar: { groupKey: 'sidebar.groups.other', order: 0 },
+    sidebar: { groupKey: 'sidebar.groups.namespace', order: 0 },
   },
   {
     type: 'crds',
@@ -264,7 +266,6 @@ export const resourceCatalog = [
     clusterScope: true,
     titleKey: 'nav.crds',
     icon: 'IconCode',
-    sidebar: { groupKey: 'sidebar.groups.other', order: 3 },
   },
   {
     type: 'crs',
@@ -283,7 +284,7 @@ export const resourceCatalog = [
     clusterScope: true,
     titleKey: 'nav.nodes',
     icon: 'IconServer2',
-    sidebar: { groupKey: 'sidebar.groups.other', order: 1 },
+    sidebar: { groupKey: 'sidebar.groups.cluster', order: 0 },
   },
   {
     type: 'events',
@@ -293,7 +294,7 @@ export const resourceCatalog = [
     clusterScope: false,
     titleKey: 'nav.events',
     icon: 'IconBell',
-    sidebar: { groupKey: 'sidebar.groups.other', order: 2 },
+    sidebar: { groupKey: 'sidebar.groups.cluster', order: 1 },
   },
   {
     type: 'persistentvolumes',

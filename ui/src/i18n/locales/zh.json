@@ -91,15 +91,22 @@
   },
   "sidebar": {
     "groups": {
-      "traffic": "流量",
+      "traffic": "网络",
+      "network": "网络",
       "storage": "存储",
       "config": "配置",
       "other": "其他",
-      "security": "安全"
+      "security": "访问控制",
+      "workloads": "工作负载",
+      "namespace": "命名空间",
+      "cluster": "集群"
     },
     "short": {
       "pvcs": "PVCs",
       "pvs": "PVs"
+    },
+    "crd": {
+      "definitions": "定义列表"
     },
     "customize": "自定义侧边栏",
     "customizeTitle": "自定义侧边栏",
