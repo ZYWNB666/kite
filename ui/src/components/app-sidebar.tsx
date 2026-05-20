@@ -214,10 +214,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       ) as HTMLElement | null
       if (!wrapper) return
 
-      const gapEl = wrapper.querySelector(
-        '[data-slot="sidebar-gap"]'
-      ) as HTMLElement | null
-      const startWidth = gapEl ? gapEl.offsetWidth : 256
+      const startWidth = parseFloat(
+        wrapper.style.getPropertyValue('--sidebar-width') ||
+          getComputedStyle(wrapper).getPropertyValue('--sidebar-width') ||
+          '300'
+      )
       const startX = e.clientX
 
       const onMouseMove = (ev: MouseEvent) => {
