@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { useMemo } from 'react'
+import { useMemo, useRef, useEffect, useCallback } from 'react'
 import Icon from '@/assets/icon.svg'
 import { useSidebarConfig } from '@/contexts/sidebar-config-context'
 import { CollapsibleContent } from '@radix-ui/react-collapsible'
@@ -138,13 +138,39 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       .filter((group) => group.items.length > 0)
   }, [config, isAdmin, securityGroupIds, securityItemIds])
 
-  // Split namespace group from regular groups for standalone rendering
-  const namespaceGroups = useMemo(
-    () => visibleGroups.filter((g) => g.nameKey === 'sidebar.groups.namespace'),
-    [visibleGroups]
-  )
+  // All namespace items extracted from any group (handles legacy "other" config)
+  const allNamespaceItems = useMemo(() => {
+    if (!config) return []
+    const seen = new Set<string>()
+    return config.groups
+      .filter((g) => g.visible)
+      .flatMap((g) => g.items)
+      .filter((item) => item.url === '/namespaces')
+      .filter((item) => !config.hiddenItems.includes(item.id))
+      .filter((item) => !config.pinnedItems.includes(item.id))
+      .filter((item) => {
+        if (seen.has(item.url)) return false
+        seen.add(item.url)
+        return true
+      })
+  }, [config])
+
+  // Regular groups: exclude namespace/other groups; also strip /namespaces and /crds items
   const regularGroups = useMemo(
-    () => visibleGroups.filter((g) => g.nameKey !== 'sidebar.groups.namespace'),
+    () =>
+      visibleGroups
+        .filter(
+          (g) =>
+            g.nameKey !== 'sidebar.groups.namespace' &&
+            g.nameKey !== 'sidebar.groups.other'
+        )
+        .map((group) => ({
+          ...group,
+          items: group.items.filter(
+            (item) => item.url !== '/namespaces' && item.url !== '/crds'
+          ),
+        }))
+        .filter((group) => group.items.length > 0),
     [visibleGroups]
   )
 
@@ -164,6 +190,59 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       setOpenMobile(false)
     }
   }
+
+  // ── Sidebar resize ──────────────────────────────────────────────────────────
+  const resizeSentinelRef = useRef<HTMLDivElement>(null)
+
+  // Restore persisted width on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('kite-sidebar-width')
+    if (saved && resizeSentinelRef.current) {
+      const wrapper = resizeSentinelRef.current.closest(
+        '[data-slot="sidebar-wrapper"]'
+      ) as HTMLElement | null
+      wrapper?.style.setProperty('--sidebar-width', saved)
+    }
+  }, [])
+
+  const handleResizeMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (isMobile) return
+      e.preventDefault()
+      const wrapper = resizeSentinelRef.current?.closest(
+        '[data-slot="sidebar-wrapper"]'
+      ) as HTMLElement | null
+      if (!wrapper) return
+
+      const gapEl = wrapper.querySelector(
+        '[data-slot="sidebar-gap"]'
+      ) as HTMLElement | null
+      const startWidth = gapEl ? gapEl.offsetWidth : 256
+      const startX = e.clientX
+
+      const onMouseMove = (ev: MouseEvent) => {
+        const newWidth = Math.min(
+          Math.max(startWidth + (ev.clientX - startX), 180),
+          520
+        )
+        wrapper.style.setProperty('--sidebar-width', `${newWidth}px`)
+      }
+      const onMouseUp = () => {
+        const w = wrapper.style.getPropertyValue('--sidebar-width')
+        if (w) localStorage.setItem('kite-sidebar-width', w)
+        document.removeEventListener('mousemove', onMouseMove)
+        document.removeEventListener('mouseup', onMouseUp)
+        document.body.style.cursor = ''
+        document.body.style.userSelect = ''
+      }
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+      document.addEventListener('mousemove', onMouseMove)
+      document.addEventListener('mouseup', onMouseUp)
+    },
+    [isMobile]
+  )
+  // ────────────────────────────────────────────────────────────────────────────
 
   if (isLoading || !config) {
     return (
@@ -193,7 +272,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   }
 
   return (
-    <Sidebar collapsible="offcanvas" {...props}>
+    <Sidebar collapsible="offcanvas" className="overflow-visible" {...props}>
+      {/* DOM sentinel for sidebar-wrapper traversal */}
+      <div ref={resizeSentinelRef} className="sr-only" aria-hidden="true" />
+
+      {/* Resize handle — right edge of the sidebar */}
+      <div
+        onMouseDown={handleResizeMouseDown}
+        className="absolute inset-y-0 right-0 z-50 w-1.5 cursor-col-resize group/resize hidden md:flex items-center justify-center"
+        aria-hidden="true"
+      >
+        <div className="h-full w-px bg-border/40 group-hover/resize:w-1 group-hover/resize:bg-primary/50 group-hover/resize:shadow-[0_0_4px] group-hover/resize:shadow-primary/30 transition-all duration-150 rounded-full" />
+      </div>
+
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -298,8 +389,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           >
             <SidebarGroup>
               <SidebarGroupLabel asChild>
-                <CollapsibleTrigger className="flex items-center justify-between w-full text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors group-data-[state=open]:text-foreground">
-                  <span className="uppercase tracking-wide text-xs font-bold">
+                <CollapsibleTrigger className="flex items-center justify-between w-full text-xs font-bold uppercase tracking-wide text-muted-foreground hover:text-foreground hover:bg-accent/60 active:bg-accent/80 rounded-md transition-all duration-150 group-data-[state=open]:text-foreground group-data-[state=open]:bg-accent/30">
+                  <span>
                     {group.nameKey
                       ? t(group.nameKey, { defaultValue: group.nameKey })
                       : ''}
@@ -339,41 +430,39 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         ))}
 
         {/* Namespace - standalone row without group header */}
-        {namespaceGroups.map((group) =>
-          group.items.map((item) => {
-            const IconComponent = getIconComponent(item.icon)
-            const title = item.titleKey
-              ? t(item.titleKey, { defaultValue: item.titleKey })
-              : ''
-            return (
-              <SidebarGroup key={item.id} className="py-0">
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      tooltip={title}
-                      asChild
-                      isActive={isActive(item.url)}
-                      className="transition-all duration-200 hover:bg-accent/60 active:scale-95 data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:shadow-sm"
-                    >
-                      <Link to={item.url} onClick={handleMenuItemClick}>
-                        <IconComponent className="text-sidebar-primary" />
-                        <span className="font-medium">{title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroup>
-            )
-          })
-        )}
+        {allNamespaceItems.map((item) => {
+          const IconComponent = getIconComponent(item.icon)
+          const title = item.titleKey
+            ? t(item.titleKey, { defaultValue: item.titleKey })
+            : ''
+          return (
+            <SidebarGroup key={item.id} className="py-0">
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    tooltip={title}
+                    asChild
+                    isActive={isActive(item.url)}
+                    className="transition-all duration-200 hover:bg-accent/60 active:scale-95 data-[active=true]:bg-primary/10 data-[active=true]:text-primary data-[active=true]:shadow-sm"
+                  >
+                    <Link to={item.url} onClick={handleMenuItemClick}>
+                      <IconComponent className="text-sidebar-primary" />
+                      <span className="font-medium">{title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroup>
+          )
+        })}
 
         {/* Custom Resources - auto-classified by API group */}
         {crdGroupNames.length > 0 && (
           <Collapsible defaultOpen={false} className="group/collapsible">
             <SidebarGroup>
               <SidebarGroupLabel asChild>
-                <CollapsibleTrigger className="flex items-center justify-between w-full text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors group-data-[state=open]:text-foreground">
-                  <span className="uppercase tracking-wide text-xs font-bold">
+                <CollapsibleTrigger className="flex items-center justify-between w-full text-xs font-bold uppercase tracking-wide text-muted-foreground hover:text-foreground hover:bg-accent/60 active:bg-accent/80 rounded-md transition-all duration-150 group-data-[state=open]:text-foreground group-data-[state=open]:bg-accent/30">
+                  <span>
                     {t('nav.customResources', 'Custom Resources')}
                   </span>
                   <ChevronDown className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-180" />
@@ -412,7 +501,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                             <CollapsibleTrigger asChild>
                               <SidebarMenuButton
                                 tooltip={groupName}
-                                className="hover:bg-accent/60 transition-colors"
+                                className="hover:bg-accent/60 active:bg-accent/80 transition-all duration-150"
                               >
                                 <IconBoxMultiple className="text-sidebar-primary shrink-0" />
                                 <span className="truncate text-xs font-mono">{groupName}</span>
