@@ -156,7 +156,7 @@ func VerifyCardSignature(timestamp, nonce, token, body, signature string) bool {
 }
 
 // BuildRequestCard creates the interactive card payload for a new access request.
-func BuildRequestCard(requestID uint, requesterName, namespace string, durationHours int, reason, approverOpenID, approverName string) map[string]interface{} {
+func BuildRequestCard(requestID uint, requesterName, cluster, namespace string, durationHours int, reason, approverOpenID, approverName string) map[string]interface{} {
 	durationStr := formatDuration(durationHours)
 	atMention := fmt.Sprintf(`<at id="%s">%s</at>`, approverOpenID, approverName)
 	return map[string]interface{}{
@@ -179,6 +179,13 @@ func BuildRequestCard(requestID uint, requesterName, namespace string, durationH
 						"text": map[string]interface{}{
 							"tag":     "lark_md",
 							"content": fmt.Sprintf("**申请人**\n%s", requesterName),
+						},
+					},
+					map[string]interface{}{
+						"is_short": true,
+						"text": map[string]interface{}{
+							"tag":     "lark_md",
+							"content": fmt.Sprintf("**集群**\n`%s`", cluster),
 						},
 					},
 					map[string]interface{}{
@@ -247,7 +254,7 @@ func BuildRequestCard(requestID uint, requesterName, namespace string, durationH
 }
 
 // BuildResultCard creates the card to replace the action buttons after approval/rejection.
-func BuildResultCard(requestID uint, requesterName, namespace string, durationHours int, reason, approverName, status, note string) map[string]interface{} {
+func BuildResultCard(requestID uint, requesterName, cluster, namespace string, durationHours int, reason, approverName, status, note string) map[string]interface{} {
 	durationStr := formatDuration(durationHours)
 	var template, statusText string
 	switch status {
@@ -274,6 +281,13 @@ func BuildResultCard(requestID uint, requesterName, namespace string, durationHo
 					"text": map[string]interface{}{
 						"tag":     "lark_md",
 						"content": fmt.Sprintf("**申请人**\n%s", requesterName),
+					},
+				},
+				map[string]interface{}{
+					"is_short": true,
+					"text": map[string]interface{}{
+						"tag":     "lark_md",
+						"content": fmt.Sprintf("**集群**\n`%s`", cluster),
 					},
 				},
 				map[string]interface{}{
@@ -332,8 +346,8 @@ func BuildResultCard(requestID uint, requesterName, namespace string, durationHo
 }
 
 // BuildReminderCard creates a reminder card for a pending request.
-func BuildReminderCard(requestID uint, requesterName, namespace string, durationHours int, reason, approverOpenID, approverName string) map[string]interface{} {
-	card := BuildRequestCard(requestID, requesterName, namespace, durationHours, reason, approverOpenID, approverName)
+func BuildReminderCard(requestID uint, requesterName, cluster, namespace string, durationHours int, reason, approverOpenID, approverName string) map[string]interface{} {
+	card := BuildRequestCard(requestID, requesterName, cluster, namespace, durationHours, reason, approverOpenID, approverName)
 	// Update header to indicate it's a reminder
 	card["header"] = map[string]interface{}{
 		"template": "orange",

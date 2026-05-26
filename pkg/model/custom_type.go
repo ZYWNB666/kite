@@ -84,16 +84,20 @@ func (s *SliceString) Scan(value interface{}) error {
 		*s = nil
 		return nil
 	}
-	var strArray []string
+	var str string
 	switch v := value.(type) {
 	case string:
-		strArray = strings.Split(v, ",")
+		str = v
 	case []byte:
-		strArray = strings.Split(string(v), ",")
+		str = string(v)
 	default:
 		return fmt.Errorf("cannot scan %T into SliceString", value)
 	}
-	*s = SliceString(strArray)
+	if str == "" {
+		*s = nil
+		return nil
+	}
+	*s = SliceString(strings.Split(str, ","))
 	return nil
 }
 

@@ -223,6 +223,11 @@ func matchResourceName(resourceNames []string, resourceName string) bool {
 	if resourceName == "" || len(resourceNames) == 0 {
 		return true
 	}
+	// Treat a single empty-string element (artifact of SQLite comma-join storage)
+	// the same as an empty slice — i.e., allow all resource names.
+	if len(resourceNames) == 1 && resourceNames[0] == "" {
+		return true
+	}
 	return match(resourceNames, resourceName)
 }
 

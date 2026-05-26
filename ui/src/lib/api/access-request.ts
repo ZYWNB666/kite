@@ -18,6 +18,7 @@ export interface AccessRequest {
   updatedAt: string
   requesterId: number
   requesterName: string
+  cluster: string
   namespace: string
   durationHours: number
   reason: string
@@ -46,6 +47,7 @@ export interface FeishuSetting {
 }
 
 export interface CreateAccessRequestBody {
+  cluster: string
   namespaces: string[]
   durationHours: number
   reason: string

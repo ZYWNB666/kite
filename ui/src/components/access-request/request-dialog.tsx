@@ -8,6 +8,7 @@ import {
   useFeishuApprovers,
 } from '@/lib/api'
 import { useResources } from '@/lib/api'
+import { useCurrentClusterList } from '@/lib/api/cluster'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -64,6 +65,7 @@ export function AccessRequestDialog({
   const { t } = useTranslation()
   const { data: approvers = [] } = useFeishuApprovers()
   const createMutation = useCreateAccessRequest()
+  const { data: clusters = [] } = useCurrentClusterList({ enabled: open })
   const { data: nsItems = [] } = useResources('namespaces')
 
   const namespaceNames = nsItems
@@ -71,6 +73,7 @@ export function AccessRequestDialog({
     .filter((n): n is string => !!n)
     .sort()
 
+  const [selectedCluster, setSelectedCluster] = useState('')
   const [selectedNamespaces, setSelectedNamespaces] = useState<string[]>([])
   const [nsPopoverOpen, setNsPopoverOpen] = useState(false)
   const [durationHours, setDurationHours] = useState<number>(4)
@@ -78,6 +81,7 @@ export function AccessRequestDialog({
   const [approverUid, setApproverUid] = useState('')
 
   const resetForm = () => {
+    setSelectedCluster('')
     setSelectedNamespaces([])
     setDurationHours(4)
     setReason('')
@@ -95,6 +99,10 @@ export function AccessRequestDialog({
   }
 
   const handleSubmit = async () => {
+    if (!selectedCluster) {
+      toast.error(t('accessRequest.errors.clusterRequired', '请选择集群'))
+      return
+    }
     if (selectedNamespaces.length === 0) {
       toast.error(t('accessRequest.errors.namespaceRequired', '请选择命名空间'))
       return
@@ -110,6 +118,7 @@ export function AccessRequestDialog({
     const selectedApprover = approvers.find((a) => a.openId === approverUid)
     try {
       await createMutation.mutateAsync({
+        cluster: selectedCluster,
         namespaces: selectedNamespaces,
         durationHours,
         reason: reason.trim(),
@@ -135,6 +144,28 @@ export function AccessRequestDialog({
         </DialogHeader>
 
         <div className="grid gap-4 py-2">
+          {/* Cluster selector */}
+          <div className="grid gap-1.5">
+            <Label htmlFor="ar-cluster">
+              {t('accessRequest.fields.cluster', '集群')}{' '}
+              <span className="text-destructive">*</span>
+            </Label>
+            <Select value={selectedCluster} onValueChange={setSelectedCluster}>
+              <SelectTrigger id="ar-cluster">
+                <SelectValue
+                  placeholder={t('accessRequest.fields.clusterPlaceholder', '请选择集群')}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {clusters.map((c) => (
+                  <SelectItem key={c.name} value={c.name}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Namespace multi-select */}
           <div className="grid gap-1.5">
             <Label>

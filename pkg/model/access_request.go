@@ -18,6 +18,7 @@ type AccessRequest struct {
 	Model
 	RequesterID   uint       `json:"requesterId" gorm:"index;not null"`
 	RequesterName string     `json:"requesterName" gorm:"type:varchar(100)"`
+	Cluster       string     `json:"cluster" gorm:"type:varchar(255)"`
 	Namespace     string     `json:"namespace" gorm:"type:varchar(255);not null"`
 	DurationHours int        `json:"durationHours" gorm:"not null"`
 	Reason        string     `json:"reason" gorm:"type:text"`

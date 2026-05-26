@@ -17,6 +17,7 @@ import (
 // ─── Request/Response types ──────────────────────────────────────────────────
 
 type createAccessRequestBody struct {
+	Cluster       string   `json:"cluster" binding:"required"`
 	Namespaces    []string `json:"namespaces"`
 	DurationHours int      `json:"durationHours" binding:"required,min=1,max=720"`
 	Reason        string   `json:"reason" binding:"required"`
@@ -46,7 +47,7 @@ func sendRequestCard(req *model.AccessRequest) {
 	if requesterName == "" {
 		requesterName = fmt.Sprintf("用户#%d", req.RequesterID)
 	}
-	card := feishu.BuildRequestCard(req.ID, requesterName, req.Namespace, req.DurationHours, req.Reason, req.ApproverUID, req.ApproverName)
+	card := feishu.BuildRequestCard(req.ID, requesterName, req.Cluster, req.Namespace, req.DurationHours, req.Reason, req.ApproverUID, req.ApproverName)
 	msgID, err := bot.SendCard(setting.GroupChatID, card)
 	if err != nil {
 		klog.Warningf("access_request: failed to send feishu card for request %d: %v", req.ID, err)
@@ -62,10 +63,14 @@ func sendRequestCard(req *model.AccessRequest) {
 func createTempRole(req *model.AccessRequest) error {
 	roleName := fmt.Sprintf("temp-access-req-%d", req.ID)
 	namespaces := strings.Split(req.Namespace, ",")
+	cluster := req.Cluster
+	if cluster == "" {
+		cluster = "*"
+	}
 	role := &model.Role{
 		Name:        roleName,
-		Description: fmt.Sprintf("临时授权 #%d: 用户 %s 访问 %s (过期: %s)", req.ID, req.RequesterName, req.Namespace, req.ExpiresAt.Format("2006-01-02 15:04")),
-		Clusters:    []string{"*"},
+		Description: fmt.Sprintf("临时授权 #%d: 用户 %s 访问 %s/%s (过期: %s)", req.ID, req.RequesterName, cluster, req.Namespace, req.ExpiresAt.Format("2006-01-02 15:04")),
+		Clusters:    []string{cluster},
 		Resources:   []string{"*"},
 		Namespaces:  namespaces,
 		Verbs:       []string{"*"},
@@ -108,7 +113,7 @@ func updateCardToResult(req *model.AccessRequest) {
 	if requesterName == "" {
 		requesterName = fmt.Sprintf("用户#%d", req.RequesterID)
 	}
-	card := feishu.BuildResultCard(req.ID, requesterName, req.Namespace, req.DurationHours, req.Reason, req.ApproverName, req.Status, req.ReviewNote)
+	card := feishu.BuildResultCard(req.ID, requesterName, req.Cluster, req.Namespace, req.DurationHours, req.Reason, req.ApproverName, req.Status, req.ReviewNote)
 	if err := bot.PatchCard(req.MessageID, card); err != nil {
 		klog.Warningf("access_request: failed to update card for request %d: %v", req.ID, err)
 	}
@@ -163,6 +168,7 @@ func CreateAccessRequest(c *gin.Context) {
 	req := &model.AccessRequest{
 		RequesterID:   currentUser.ID,
 		RequesterName: requesterName,
+		Cluster:       body.Cluster,
 		Namespace:     strings.Join(body.Namespaces, ","),
 		DurationHours: body.DurationHours,
 		Reason:        body.Reason,
@@ -265,7 +271,7 @@ func RemindAccessRequest(c *gin.Context) {
 	if requesterName == "" {
 		requesterName = fmt.Sprintf("用户#%d", req.RequesterID)
 	}
-	card := feishu.BuildReminderCard(req.ID, requesterName, req.Namespace, req.DurationHours, req.Reason, req.ApproverUID, req.ApproverName)
+	card := feishu.BuildReminderCard(req.ID, requesterName, req.Cluster, req.Namespace, req.DurationHours, req.Reason, req.ApproverUID, req.ApproverName)
 	msgID, err := bot.SendCard(setting.GroupChatID, card)
 	if err != nil {
 		klog.Warningf("access_request: failed to send reminder for request %d: %v", req.ID, err)
