@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -16,11 +17,11 @@ import (
 // ─── Request/Response types ──────────────────────────────────────────────────
 
 type createAccessRequestBody struct {
-	Namespace     string `json:"namespace" binding:"required"`
-	DurationHours int    `json:"durationHours" binding:"required,min=1,max=720"`
-	Reason        string `json:"reason" binding:"required"`
-	ApproverUID   string `json:"approverUid" binding:"required"`
-	ApproverName  string `json:"approverName"`
+	Namespaces    []string `json:"namespaces"`
+	DurationHours int      `json:"durationHours" binding:"required,min=1,max=720"`
+	Reason        string   `json:"reason" binding:"required"`
+	ApproverUID   string   `json:"approverUid" binding:"required"`
+	ApproverName  string   `json:"approverName"`
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -60,12 +61,13 @@ func sendRequestCard(req *model.AccessRequest) {
 // createTempRole creates a temporary Kite role granting full access to the requested namespace.
 func createTempRole(req *model.AccessRequest) error {
 	roleName := fmt.Sprintf("temp-access-req-%d", req.ID)
+	namespaces := strings.Split(req.Namespace, ",")
 	role := &model.Role{
 		Name:        roleName,
 		Description: fmt.Sprintf("临时授权 #%d: 用户 %s 访问 %s (过期: %s)", req.ID, req.RequesterName, req.Namespace, req.ExpiresAt.Format("2006-01-02 15:04")),
 		Clusters:    []string{"*"},
 		Resources:   []string{"*"},
-		Namespaces:  []string{req.Namespace},
+		Namespaces:  namespaces,
 		Verbs:       []string{"*"},
 	}
 	if err := model.DB.Create(role).Error; err != nil {
@@ -128,6 +130,10 @@ func CreateAccessRequest(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	if len(body.Namespaces) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "at least one namespace is required"})
+		return
+	}
 
 	// Validate approver is in the configured list
 	setting, err := model.GetFeishuNotificationSetting()
@@ -158,7 +164,7 @@ func CreateAccessRequest(c *gin.Context) {
 	req := &model.AccessRequest{
 		RequesterID:   currentUser.ID,
 		RequesterName: requesterName,
-		Namespace:     body.Namespace,
+		Namespace:     strings.Join(body.Namespaces, ","),
 		DurationHours: body.DurationHours,
 		Reason:        body.Reason,
 		ApproverUID:   body.ApproverUID,

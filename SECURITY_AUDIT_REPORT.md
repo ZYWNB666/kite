@@ -1,7 +1,28 @@
 # Kite 安全审计报告
 
 > 审计时间: 2026-05-26  
-> 审计范围: 认证/授权、API路由、数据加密、输入验证、SSRF/XSS/CSRF等
+> 重新验证时间: 2026-05-26  
+> 审计范围: 认证/授权、API路由、数据加密、输入验证、SSRF/XSS/CSRF等  
+> 重新验证状态: ✅ 全部 17 项漏洞已逐行确认，均未修复
+
+---
+
+## ⚡ 外部可利用漏洞（无需登录）
+
+> 以下漏洞**无需平台账户**即可从外部利用，是最高优先级修复项。
+
+| # | 漏洞 | 严重程度 | 利用条件 |
+|---|------|---------|---------|
+| 1 | `CreateSuperUser`/`ImportClusters` 无认证 | 🔴 严重 | 首次部署时直接调用 |
+| 2 | 硬编码默认密钥 | 🔴 严重 | 未设置环境变量时直接伪造JWT |
+| 3 | OAuth 重定向 URL 被 `X-Forwarded-*` 操纵 | 🔴 严重 | `HOST` 未设置时构造请求头 |
+| 4 | 匿名用户拥有管理员权限 | 🟠 高危 | `ANONYMOUS_USER_ENABLED=true` 时 |
+| 5 | 飞书回调签名验证可选 | 🟠 高危 | `VerificationToken` 未配置时 |
+| 6 | API Key 非常量时间比较 | 🟠 高危 | 向认证端点发送请求测量时间 |
+| 8 | 登录接口无速率限制 | 🟡 中危 | 直接对登录接口暴力破解 |
+| 12 | Cookie Secure 依赖可伪造头 | 🟡 中危 | 需网络层中间人位置 |
+| 14 | `/metrics` 端点无认证 | 🟢 低危 | 直接访问 |
+| 16 | 登录错误信息泄露用户名 | 🟢 低危 | 直接对登录接口探测 |
 
 ---
 
@@ -22,6 +43,8 @@ adminAPI.Use(authHandler.RequireAuth(), authHandler.RequireAdmin())   // ← 中
 
 - `POST /api/v1/admin/users/create_super_user` — 在数据库为空时（如全新部署）创建超级管理员账户
 - `POST /api/v1/admin/clusters/import` — 导入任意 kubeconfig 集群配置
+
+**缓解因素**: [`CreateSuperUser`](pkg/handlers/user_handler.go:33) 有 `if uc > 0` 检查（仅当用户数为0时生效），[`ImportClustersFromKubeconfig`](pkg/cluster/cluster_handler.go:253) 有 `if cc > 0` 检查（仅当集群数为0时生效）。但这仅将攻击窗口限制在**首次部署阶段**，攻击者若抢先到达系统仍可完全接管。
 
 **攻击场景**: 攻击者在 Kite 首次部署、数据库尚未初始化时，抢先调用 `create_super_user` 创建自己的管理员账户，从而接管整个系统。
 
@@ -47,7 +70,7 @@ var (
 - **JWT**: 任何人都可以用已知的默认密钥伪造合法的 JWT token，冒充任意用户（包括管理员）
 - **加密**: 任何人都可以解密数据库中用 `EncryptString()` 加密的敏感字段（如 OAuth ClientSecret、LDAP BindPassword、集群 kubeconfig 等）
 
-虽然代码中有 warning 日志，但**不会阻止启动**。
+虽然代码中有 warning 日志（[第98行](pkg/common/common.go:98)），但**不会阻止启动**。
 
 **修复建议**: 
 1. 如果未设置密钥，在生产模式下拒绝启动（`klog.Fatal`）
@@ -76,7 +99,7 @@ func getRequestHost(c *gin.Context) string {
 当 `HOST` 环境变量未设置时，`getRequestHost()` 直接信任 `X-Forwarded-Proto` 和 `X-Forwarded-Host` 请求头。攻击者可以：
 
 1. 构造恶意请求，设置 `X-Forwarded-Host: evil.com`
-2. OAuth 回调 URL 被设为 `https://evil.com/api/auth/callback`
+2. OAuth 回调 URL 被设为 `https://evil.com/api/auth/callback`（[第55行](pkg/auth/oauth_manager.go:55)）
 3. 用户完成 OAuth 登录后，授权码被发送到攻击者的服务器
 4. 攻击者用授权码换取 token，接管用户账户
 
@@ -109,7 +132,7 @@ AnonymousUser = User{
 }
 ```
 
-如果 `ANONYMOUS_USER_ENABLED=true`，所有未认证用户自动获得**全集群、全资源、全操作**的管理员权限。虽然代码中有 warning，但这在生产环境中极其危险。
+如果 `ANONYMOUS_USER_ENABLED=true`（[common.go:101](pkg/common/common.go:101)），所有未认证用户自动获得**全集群、全资源、全操作**的管理员权限。虽然代码中有 warning，但这在生产环境中极其危险。
 
 **修复建议**: 匿名用户应默认为最小权限（如只读），而非管理员。
 
@@ -126,7 +149,9 @@ if token := string(setting.VerificationToken); token != "" {
 // 如果 token 为空，直接跳过验证！
 ```
 
-如果未配置 `VerificationToken`，飞书回调端点 `POST /api/feishu/card-callback` **完全无认证**。任何人都可以伪造回调请求来**批准或拒绝**访问申请。
+如果未配置 `VerificationToken`，飞书回调端点 `POST /api/feishu/card-callback`（[routes.go:59](routes.go:59)）**完全无认证**。任何人都可以伪造回调请求来**批准或拒绝**访问申请。
+
+**注意**: 虽然代码中有 `req.ApproverUID != operatorOpenID` 检查（[第110行](pkg/handlers/feishu_callback_handler.go:110)），但无签名验证时，攻击者可以伪造请求体中的 `operator.open_id` 字段来匹配任何审批人。
 
 **攻击场景**: 攻击者构造恶意请求批准自己的访问申请，获取临时管理员角色。
 
@@ -150,9 +175,40 @@ if key != string(apikey.APIKey) {
 
 ---
 
+### 7. Resource Apply 仅检查 "create" 权限但可执行 "update" 操作
+
+**文件**: [`pkg/handlers/resource_apply_handler.go`](pkg/handlers/resource_apply_handler.go:54)
+
+```go
+// 第54行：仅检查 "create" 权限
+if !rbac.CanAccess(user, resource, "create", cs.Name, obj.GetNamespace()) {
+    // 拒绝
+}
+
+// 第96-110行：但实际可能执行 Update 操作
+case apierrors.IsNotFound(err):
+    if err := cs.K8sClient.Create(ctx, obj); err != nil {  // Create
+case err == nil:
+    obj.SetResourceVersion(existingObj.GetResourceVersion())
+    if err := cs.K8sClient.Update(ctx, obj); err != nil {  // Update! 但未检查 "update" 权限
+```
+
+当资源已存在时，handler 执行 `Update` 操作，但权限检查只验证了 `"create"` verb。拥有 "create" 但没有 "update" 权限的用户可以修改已有资源，构成**权限提升**。
+
+**修复建议**: 在资源已存在时，额外检查 `"update"` 权限：
+```go
+if existingObj.GetResourceVersion() != "" {
+    if !rbac.CanAccess(user, resource, "update", cs.Name, obj.GetNamespace()) {
+        // 拒绝
+    }
+}
+```
+
+---
+
 ## 🟡 中危 (Medium)
 
-### 7. 登录接口无速率限制
+### 8. 登录接口无速率限制
 
 **文件**: [`routes.go`](routes.go:45-46)
 
@@ -167,7 +223,7 @@ authGroup.POST("/login/ldap", authHandler.LDAPLogin)
 
 ---
 
-### 8. SSRF — 镜像标签查询
+### 9. SSRF — 镜像标签查询
 
 **文件**: [`pkg/handlers/image_tags_handler.go`](pkg/handlers/image_tags_handler.go:66)
 
@@ -177,13 +233,13 @@ func (d containerRegistryV2) GetTags(ctx context.Context) ([]ImageTagInfo, error
     resp, err := http.Get(url)
 ```
 
-`baseURL` 来自用户输入的 `image` 查询参数。攻击者可以构造特殊的镜像名使服务器向内网服务发起请求（SSRF）。
+`baseURL` 来自用户输入的 `image` 查询参数（[第105行](pkg/handlers/image_tags_handler.go:105)），经 [`GetImageRegistryAndRepo()`](pkg/utils/utils.go:40) 解析。攻击者可以构造特殊的镜像名使服务器向内网服务发起请求（SSRF）。
 
 **修复建议**: 对 `baseURL` 做白名单校验，或限制只能访问已知的容器镜像仓库域名。
 
 ---
 
-### 9. RBAC 正则表达式 ReDoS 风险
+### 10. RBAC 正则表达式 ReDoS 风险
 
 **文件**: [`pkg/rbac/rbac.go`](pkg/rbac/rbac.go:207)
 
@@ -201,17 +257,17 @@ RBAC 规则中的 `Clusters`、`Namespaces` 等字段支持正则匹配，但正
 
 ---
 
-### 10. 临时访问授权角色权限过大
+### 11. 临时访问授权角色权限过大
 
 **文件**: [`pkg/handlers/access_request_handler.go`](pkg/handlers/access_request_handler.go:62-69)
 
 ```go
 role := &model.Role{
-    Name:       roleName,
-    Clusters:   []string{"*"},    // ← 所有集群!
-    Resources:  []string{"*"},    // ← 所有资源!
-    Namespaces: []string{req.Namespace},
-    Verbs:      []string{"*"},    // ← 所有操作!
+    Name:        roleName,
+    Clusters:    []string{"*"},    // ← 所有集群!
+    Resources:   []string{"*"},    // ← 所有资源!
+    Namespaces:  []string{req.Namespace},
+    Verbs:       []string{"*"},    // ← 所有操作!
 }
 ```
 
@@ -221,7 +277,7 @@ role := &model.Role{
 
 ---
 
-### 11. Cookie Secure 标志依赖可伪造的请求头
+### 12. Cookie Secure 标志依赖可伪造的请求头
 
 **文件**: [`pkg/auth/login_handler.go`](pkg/auth/login_handler.go:349)
 
@@ -238,7 +294,7 @@ func setCookieSecure(c *gin.Context, name, value string, maxAge int) {
 
 ---
 
-### 12. JWT 中嵌入 OAuth Refresh Token
+### 13. JWT 中嵌入 OAuth Refresh Token
 
 **文件**: [`pkg/auth/oauth_manager.go`](pkg/auth/oauth_manager.go:89)
 
@@ -257,7 +313,7 @@ OAuth Refresh Token 被嵌入 JWT 并存储在 cookie 中。如果 JWT 被泄露
 
 ## 🟢 低危 (Low)
 
-### 13. `/metrics` 端点无认证
+### 14. `/metrics` 端点无认证
 
 **文件**: [`routes.go`](routes.go:31-34)
 
@@ -271,7 +327,7 @@ Prometheus metrics 端点无需认证即可访问，可能泄露内部运行指�
 
 ---
 
-### 14. 无密码复杂度要求
+### 15. 无密码复杂度要求
 
 **文件**: [`pkg/handlers/user_handler.go`](pkg/handlers/user_handler.go:52-77)
 
@@ -281,22 +337,25 @@ Prometheus metrics 端点无需认证即可访问，可能泄露内部运行指�
 
 ---
 
-### 15. 登录错误日志泄露用户名
+### 16. 登录错误信息泄露用户名
 
-**文件**: [`pkg/auth/login_handler.go`](pkg/auth/login_handler.go:107-108)
+**文件**: [`pkg/auth/login_handler.go`](pkg/auth/login_handler.go:107-110)
 
 ```go
 errMsg := fmt.Sprintf("%s login failed for %s: %v", strings.ToUpper(provider), username, err)
 klog.Warning(errMsg)
+if isCredentialFailure(err) {
+    c.JSON(http.StatusUnauthorized, gin.H{"error": errMsg})  // ← 错误信息返回给客户端
+}
 ```
 
-登录失败的日志包含用户名和错误详情，在日志被集中收集时可能造成信息泄露。
+登录失败的错误信息包含用户名和错误详情，不仅在日志中记录（[第108行](pkg/auth/login_handler.go:108)），还通过 HTTP 响应返回给客户端（[第110行](pkg/auth/login_handler.go:110)）。在日志被集中收集时可能造成信息泄露。
 
-**修复建议**: 日志中不记录用户名，或对用户名做脱敏处理。
+**修复建议**: 日志中不记录用户名，HTTP 响应中使用通用错误信息（如 "Invalid credentials"）。
 
 ---
 
-### 16. `ListUsers` 搜索参数存在潜在 SQL 注入
+### 17. `ListUsers` 搜索参数 LIKE 通配符未转义
 
 **文件**: [`pkg/model/user.go`](pkg/model/user.go:252-258)
 
@@ -316,10 +375,17 @@ query = query.Where("users.username LIKE ? OR users.name LIKE ?", likeQuery, lik
 | 严重程度 | 数量 |
 |---------|------|
 | 🔴 严重  | 3    |
-| 🟠 高危  | 3    |
+| 🟠 高危  | 4    |
 | 🟡 中危  | 6    |
 | 🟢 低危  | 4    |
-| **合计** | **16** |
+| **合计** | **17** |
+
+### 按利用条件分类
+
+| 分类 | 数量 | 漏洞编号 |
+|------|------|---------|
+| ⚡ 外部可利用（无需登录） | 10 | #1, #2, #3, #4, #5, #6, #8, #12, #14, #16 |
+| 🔒 内部漏洞（需先登录） | 7 | #7, #9, #10, #11, #13, #15, #17 |
 
 ---
 
@@ -327,5 +393,31 @@ query = query.Where("users.username LIKE ? OR users.name LIKE ?", likeQuery, lik
 
 1. **立即修复** #1（无认证端点）和 #2（硬编码密钥）— 这两个漏洞可被直接利用接管系统
 2. **尽快修复** #3（OAuth 重定向）和 #5（飞书回调）— 可导致账户接管
-3. **短期修复** #4、#6、#7、#8 — 降低攻击面
+3. **短期修复** #4、#6、#7、#8 — 降低攻击面和权限提升风险
 4. **中期修复** 其余中低危漏洞
+
+---
+
+## 重新验证详情
+
+> 以下为 2026-05-26 重新验证结果
+
+| # | 漏洞 | 验证文件 | 行号 | 状态 | 外部可利用 |
+|---|------|---------|------|------|-----------|
+| 1 | 无认证端点 | `routes.go` | 74-77 | ✅ 确认未修复 | ⚡ 是 |
+| 2 | 硬编码默认密钥 | `pkg/common/common.go` | 13, 28, 37 | ✅ 确认未修复 | ⚡ 是 |
+| 3 | OAuth 重定向操纵 | `pkg/auth/oauth_manager.go` | 34-37 | ✅ 确认未修复 | ⚡ 是 |
+| 4 | 匿名用户管理员权限 | `pkg/model/user.go` | 455-470 | ✅ 确认未修复 | ⚡ 是 |
+| 5 | 飞书回调签名可选 | `pkg/handlers/feishu_callback_handler.go` | 50-60 | ✅ 确认未修复 | ⚡ 是 |
+| 6 | API Key 非常量时间比较 | `pkg/auth/middleware.go` | 41 | ✅ 确认未修复 | ⚡ 是 |
+| 7 | Apply 仅检查 create 权限 | `pkg/handlers/resource_apply_handler.go` | 54 vs 106 | ✅ 确认未修复 | 🔒 需登录 |
+| 8 | 登录无速率限制 | `routes.go` | 45-46 | ✅ 确认未修复 | ⚡ 是 |
+| 9 | SSRF 镜像标签查询 | `pkg/handlers/image_tags_handler.go` | 66 | ✅ 确认未修复 | 🔒 需登录 |
+| 10 | RBAC ReDoS | `pkg/rbac/rbac.go` | 207 | ✅ 确认未修复 | 🔒 需登录 |
+| 11 | 临时角色权限过大 | `pkg/handlers/access_request_handler.go` | 62-69 | ✅ 确认未修复 | 🔒 需登录 |
+| 12 | Cookie Secure 依赖伪造头 | `pkg/auth/login_handler.go` | 349 | ✅ 确认未修复 | ⚡ 是 |
+| 13 | JWT 嵌入 Refresh Token | `pkg/auth/oauth_manager.go` | 89 | ✅ 确认未修复 | 🔒 需登录 |
+| 14 | /metrics 无认证 | `routes.go` | 31-34 | ✅ 确认未修复 | ⚡ 是 |
+| 15 | 无密码复杂度 | `pkg/handlers/user_handler.go` | 52-77 | ✅ 确认未修复 | 🔒 需登录 |
+| 16 | 登录错误泄露用户名 | `pkg/auth/login_handler.go` | 107-110 | ✅ 确认未修复 | ⚡ 是 |
+| 17 | LIKE 通配符未转义 | `pkg/model/user.go` | 252-258 | ✅ 确认未修复 | 🔒 需登录 |

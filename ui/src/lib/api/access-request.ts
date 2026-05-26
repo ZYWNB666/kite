@@ -46,7 +46,7 @@ export interface FeishuSetting {
 }
 
 export interface CreateAccessRequestBody {
-  namespace: string
+  namespaces: string[]
   durationHours: number
   reason: string
   approverUid: string

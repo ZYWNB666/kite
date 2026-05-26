@@ -61,8 +61,8 @@ func registerUserRoutes(r *gin.RouterGroup, authHandler *auth.AuthHandler) {
 	// Access-request endpoints for authenticated users
 	arGroup := r.Group("/api/v1/access-requests")
 	arGroup.Use(authHandler.RequireAuth())
-	arGroup.GET("/", handlers.ListMyAccessRequests)
-	arGroup.POST("/", handlers.CreateAccessRequest)
+	arGroup.GET("", handlers.ListMyAccessRequests)
+	arGroup.POST("", handlers.CreateAccessRequest)
 	arGroup.PUT("/:id/withdraw", handlers.WithdrawAccessRequest)
 	arGroup.POST("/:id/remind", handlers.RemindAccessRequest)
 
