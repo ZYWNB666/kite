@@ -118,9 +118,8 @@ func updateCardToResult(req *model.AccessRequest) {
 
 // CreateAccessRequest handles POST /api/v1/access-requests
 func CreateAccessRequest(c *gin.Context) {
-	userRaw, _ := c.Get("user")
-	currentUser, ok := userRaw.(*model.User)
-	if !ok || currentUser == nil {
+	currentUser, ok := c.MustGet("user").(model.User)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
@@ -184,9 +183,8 @@ func CreateAccessRequest(c *gin.Context) {
 
 // ListMyAccessRequests handles GET /api/v1/access-requests
 func ListMyAccessRequests(c *gin.Context) {
-	userRaw, _ := c.Get("user")
-	currentUser, ok := userRaw.(*model.User)
-	if !ok || currentUser == nil {
+	currentUser, ok := c.MustGet("user").(model.User)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
@@ -200,9 +198,8 @@ func ListMyAccessRequests(c *gin.Context) {
 
 // WithdrawAccessRequest handles PUT /api/v1/access-requests/:id/withdraw
 func WithdrawAccessRequest(c *gin.Context) {
-	userRaw, _ := c.Get("user")
-	currentUser, ok := userRaw.(*model.User)
-	if !ok || currentUser == nil {
+	currentUser, ok := c.MustGet("user").(model.User)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}
@@ -235,9 +232,8 @@ func WithdrawAccessRequest(c *gin.Context) {
 
 // RemindAccessRequest handles POST /api/v1/access-requests/:id/remind
 func RemindAccessRequest(c *gin.Context) {
-	userRaw, _ := c.Get("user")
-	currentUser, ok := userRaw.(*model.User)
-	if !ok || currentUser == nil {
+	currentUser, ok := c.MustGet("user").(model.User)
+	if !ok {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
 		return
 	}

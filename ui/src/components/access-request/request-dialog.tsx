@@ -169,10 +169,14 @@ export function AccessRequestDialog({
                   <IconChevronDown className="h-4 w-4 shrink-0 text-muted-foreground ml-2" />
                 </button>
               </PopoverTrigger>
-              <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+              <PopoverContent
+                className="w-[var(--radix-popover-trigger-width)] p-0"
+                align="start"
+                onWheel={(e) => e.stopPropagation()}
+              >
                 <Command>
                   <CommandInput placeholder="搜索命名空间..." />
-                  <CommandList>
+                  <CommandList className="max-h-48">
                     <CommandEmpty>暂无命名空间</CommandEmpty>
                     <CommandGroup>
                       {namespaceNames.map((ns) => (
