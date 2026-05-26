@@ -14,26 +14,47 @@ import (
 	"k8s.io/klog/v2"
 )
 
-// feishuCardCallback is the structure Feishu sends on card action.
+// feishuCBAction is the card action payload (same shape in old and new formats).
+type feishuCBAction struct {
+	Tag    string                 `json:"tag"`
+	Value  map[string]interface{} `json:"value"`
+	OpenID string                 `json:"open_id"` // old format only
+}
+
+// feishuCBOperator is the operator info (same shape in old and new formats).
+type feishuCBOperator struct {
+	OpenID string `json:"open_id"`
+	UserID string `json:"user_id"`
+}
+
+// feishuCardCallback handles both old (card.action.trigger_v1) and new (card.action.trigger v2.0) formats,
+// as well as URL verification challenges.
 type feishuCardCallback struct {
-	Type      string `json:"type"`
-	Challenge string `json:"challenge"` // URL verification challenge
-	Token     string `json:"token"`
-	Action    struct {
-		Tag    string                 `json:"tag"`
-		Value  map[string]interface{} `json:"value"`
-		OpenID string                 `json:"open_id"`
-	} `json:"action"`
-	Operator struct {
-		OpenID string `json:"open_id"`
-		UserID string `json:"user_id"`
-	} `json:"operator"`
+	// URL verification (event-subscription style challenge)
+	Type      string `json:"type"`      // "url_verification"
+	Challenge string `json:"challenge"` // challenge value to echo back
+
+	// Old format fields (card.action.trigger_v1)
+	Token    string           `json:"token"` // VerificationToken at root
+	Action   feishuCBAction   `json:"action"`
+	Operator feishuCBOperator `json:"operator"`
+
+	// New v2.0 format fields (card.action.trigger)
+	Schema string `json:"schema"` // "2.0"
+	Header struct {
+		EventID   string `json:"event_id"`
+		Token     string `json:"token"`      // VerificationToken
+		EventType string `json:"event_type"` // "card.action.trigger"
+	} `json:"header"`
+	Event struct {
+		Operator feishuCBOperator `json:"operator"`
+		Action   feishuCBAction   `json:"action"`
+	} `json:"event"`
 }
 
 // HandleFeishuCardCallback handles POST /api/feishu/card-callback.
 // This is a public endpoint called directly by Feishu servers.
 func HandleFeishuCardCallback(c *gin.Context) {
-	// Read body before signature verification
 	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read body"})
@@ -46,8 +67,7 @@ func HandleFeishuCardCallback(c *gin.Context) {
 		return
 	}
 
-	// Handle URL verification challenge FIRST (Feishu sends this when registering the callback URL).
-	// No signature check needed for this handshake.
+	// Handle URL verification challenge FIRST — no auth needed for this handshake.
 	if cb.Type == "url_verification" {
 		c.JSON(http.StatusOK, gin.H{"challenge": cb.Challenge})
 		return
@@ -60,27 +80,40 @@ func HandleFeishuCardCallback(c *gin.Context) {
 		return
 	}
 
-	// Verify signature when verification token is configured
-	if token := string(setting.VerificationToken); token != "" {
-		timestamp := c.GetHeader("X-Lark-Request-Timestamp")
-		nonce := c.GetHeader("X-Lark-Request-Nonce")
-		signature := c.GetHeader("X-Lark-Signature")
-		if !feishu.VerifyCardSignature(timestamp, nonce, token, string(bodyBytes), signature) {
-			klog.Warningf("feishu callback: invalid signature from %s", c.ClientIP())
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid signature"})
+	// Security: Verification Token comparison (official "Verification Token 校验" approach).
+	// Per docs, signature verification (X-Lark-Signature) uses EncryptKey — a separate credential.
+	// We use the simpler token-in-body comparison which matches what users configure here.
+	if storedToken := string(setting.VerificationToken); storedToken != "" {
+		var bodyToken string
+		if cb.Schema == "2.0" {
+			bodyToken = cb.Header.Token
+		} else {
+			bodyToken = cb.Token
+		}
+		if bodyToken != storedToken {
+			klog.Warningf("feishu callback: token mismatch from %s", c.ClientIP())
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
 			return
 		}
 	}
 
-	// Determine operator's open_id
-	operatorOpenID := cb.Operator.OpenID
-	if operatorOpenID == "" {
-		operatorOpenID = cb.Action.OpenID
+	// Extract action and operator depending on callback format version.
+	var action feishuCBAction
+	var operatorOpenID string
+	if cb.Schema == "2.0" {
+		action = cb.Event.Action
+		operatorOpenID = cb.Event.Operator.OpenID
+	} else {
+		action = cb.Action
+		operatorOpenID = cb.Operator.OpenID
+		if operatorOpenID == "" {
+			operatorOpenID = action.OpenID
+		}
 	}
 
 	// Parse action value
-	actionType, _ := cb.Action.Value["action"].(string)
-	requestIDStr, _ := cb.Action.Value["request_id"].(string)
+	actionType, _ := action.Value["action"].(string)
+	requestIDStr, _ := action.Value["request_id"].(string)
 	requestID, parseErr := strconv.ParseUint(requestIDStr, 10, 32)
 	if parseErr != nil || (actionType != "approve" && actionType != "reject") {
 		c.JSON(http.StatusOK, gin.H{"toast": map[string]interface{}{
