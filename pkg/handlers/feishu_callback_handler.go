@@ -27,6 +27,36 @@ type feishuCBOperator struct {
 	UserID string `json:"user_id"`
 }
 
+func callbackValueToString(v interface{}) (string, bool) {
+	switch vv := v.(type) {
+	case string:
+		if vv == "" {
+			return "", false
+		}
+		return vv, true
+	case float64:
+		return strconv.FormatInt(int64(vv), 10), true
+	case int:
+		return strconv.Itoa(vv), true
+	case int64:
+		return strconv.FormatInt(vv, 10), true
+	default:
+		return "", false
+	}
+}
+
+func isApproverMatched(expectedUID string, candidates ...string) bool {
+	if expectedUID == "" {
+		return false
+	}
+	for _, c := range candidates {
+		if c != "" && c == expectedUID {
+			return true
+		}
+	}
+	return false
+}
+
 // feishuCardCallback handles both old (card.action.trigger_v1) and new (card.action.trigger v2.0) formats,
 // as well as URL verification challenges.
 type feishuCardCallback struct {
@@ -84,28 +114,34 @@ func HandleFeishuCardCallback(c *gin.Context) {
 	// Per docs, signature verification (X-Lark-Signature) uses EncryptKey — a separate credential.
 	// We use the simpler token-in-body comparison which matches what users configure here.
 	if storedToken := string(setting.VerificationToken); storedToken != "" {
-		var bodyToken string
 		if cb.Schema == "2.0" {
-			bodyToken = cb.Header.Token
-		} else {
-			bodyToken = cb.Token
-		}
-		if bodyToken != storedToken {
-			klog.Warningf("feishu callback: token mismatch from %s", c.ClientIP())
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
-			return
+			if cb.Header.Token != storedToken {
+				klog.Warningf("feishu callback: token mismatch from %s (schema=2.0)", c.ClientIP())
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid token"})
+				return
+			}
+		} else if cb.Token != "" && cb.Token != storedToken {
+			// 旧版卡片回调字段语义与事件订阅不同，部分场景 token 非 Verification Token。
+			// 这里仅记录告警，不做强拦截，避免因混合订阅（v1+v2）导致合法回调被误拒绝。
+			klog.Warningf("feishu callback: non-v2 token mismatch from %s (ignored)", c.ClientIP())
 		}
 	}
 
 	// Extract action and operator depending on callback format version.
 	var action feishuCBAction
 	var operatorOpenID string
+	var operatorUserID string
+	var actionOpenID string
 	if cb.Schema == "2.0" {
 		action = cb.Event.Action
 		operatorOpenID = cb.Event.Operator.OpenID
+		operatorUserID = cb.Event.Operator.UserID
+		actionOpenID = cb.Event.Action.OpenID
 	} else {
 		action = cb.Action
 		operatorOpenID = cb.Operator.OpenID
+		operatorUserID = cb.Operator.UserID
+		actionOpenID = cb.Action.OpenID
 		if operatorOpenID == "" {
 			operatorOpenID = action.OpenID
 		}
@@ -113,7 +149,10 @@ func HandleFeishuCardCallback(c *gin.Context) {
 
 	// Parse action value
 	actionType, _ := action.Value["action"].(string)
-	requestIDStr, _ := action.Value["request_id"].(string)
+	requestIDStr, ok := callbackValueToString(action.Value["request_id"])
+	if !ok {
+		requestIDStr = ""
+	}
 	requestID, parseErr := strconv.ParseUint(requestIDStr, 10, 32)
 	if parseErr != nil || (actionType != "approve" && actionType != "reject") {
 		c.JSON(http.StatusOK, gin.H{"toast": map[string]interface{}{
@@ -141,7 +180,15 @@ func HandleFeishuCardCallback(c *gin.Context) {
 	}
 
 	// Only the designated approver may act
-	if req.ApproverUID != operatorOpenID {
+	if !isApproverMatched(req.ApproverUID, operatorOpenID, operatorUserID, actionOpenID) {
+		klog.Warningf(
+			"feishu callback: approver mismatch req=%d expected=%q operator_open=%q operator_user=%q action_open=%q",
+			req.ID,
+			req.ApproverUID,
+			operatorOpenID,
+			operatorUserID,
+			actionOpenID,
+		)
 		c.JSON(http.StatusOK, gin.H{"toast": map[string]interface{}{
 			"type":    "error",
 			"content": "您无权操作此申请",
