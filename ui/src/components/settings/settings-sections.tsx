@@ -3,12 +3,14 @@ import type { TFunction } from 'i18next'
 import type { AuthUser } from '@/lib/api'
 
 import { APIKeyManagement } from './apikey-management'
+import { AccessRequestSettings } from './access-request-settings'
 import { AuditLog } from './audit-log'
 import { AuthenticationManagement } from './authentication-management'
 import { ClusterManagement } from './cluster-management'
 import { GeneralManagement } from './general-management'
 import { RBACManagement } from './rbac-management'
 import { TemplateManagement } from './template-management'
+import { TempPermissionsManagement } from './temp-permissions'
 import { UserManagement } from './user-management'
 
 export interface SettingsSectionDefinition {
@@ -89,6 +91,20 @@ export const settingsSectionRegistry: SettingsSectionDefinition[] = [
     'settings.tabs.audit',
     'Audit',
     AuditLog,
+    true
+  ),
+  createSettingsSectionDefinition(
+    'access-request',
+    'settings.tabs.accessRequest',
+    'Access Request',
+    AccessRequestSettings,
+    true
+  ),
+  createSettingsSectionDefinition(
+    'temp-permissions',
+    'settings.tabs.tempPermissions',
+    'Temp Permissions',
+    TempPermissionsManagement,
     true
   ),
 ]

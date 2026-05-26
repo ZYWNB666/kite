@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '@/contexts/auth-context'
-import { CaseSensitive, Check, LogOut, Palette } from 'lucide-react'
+import { CaseSensitive, Check, ClipboardList, LogOut, Palette } from 'lucide-react'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -19,7 +19,11 @@ import { ColorTheme, colorThemes } from '@/components/color-theme-provider'
 
 import { SidebarCustomizer } from './sidebar-customizer'
 
-export function UserMenu() {
+interface UserMenuProps {
+  onMyRequests?: () => void
+}
+
+export function UserMenu({ onMyRequests }: UserMenuProps) {
   const { user, logout, hasGlobalSidebarPreference } = useAuth()
   const { colorTheme, setColorTheme, font, setFont } = useAppearance()
   const [open, setOpen] = useState(false)
@@ -153,6 +157,19 @@ export function UserMenu() {
 
         {(user.isAdmin() || !hasGlobalSidebarPreference) && (
           <SidebarCustomizer onOpenChange={(d) => setOpen(d)} />
+        )}
+
+        {onMyRequests && user.provider !== 'Anonymous' && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => { setOpen(false); onMyRequests() }}
+              className="cursor-pointer"
+            >
+              <ClipboardList className="mr-2 h-4 w-4" />
+              <span>我的权限申请</span>
+            </DropdownMenuItem>
+          </>
         )}
 
         {user.provider !== 'Anonymous' && (

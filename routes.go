@@ -54,6 +54,20 @@ func registerAuthRoutes(r *gin.RouterGroup, authHandler *auth.AuthHandler) {
 func registerUserRoutes(r *gin.RouterGroup, authHandler *auth.AuthHandler) {
 	userGroup := r.Group("/api/users")
 	userGroup.POST("/sidebar_preference", authHandler.RequireAuth(), handlers.UpdateSidebarPreference)
+
+	// Feishu card-action callback — no auth (called by Feishu servers)
+	r.POST("/api/feishu/card-callback", handlers.HandleFeishuCardCallback)
+
+	// Access-request endpoints for authenticated users
+	arGroup := r.Group("/api/v1/access-requests")
+	arGroup.Use(authHandler.RequireAuth())
+	arGroup.GET("/", handlers.ListMyAccessRequests)
+	arGroup.POST("/", handlers.CreateAccessRequest)
+	arGroup.PUT("/:id/withdraw", handlers.WithdrawAccessRequest)
+	arGroup.POST("/:id/remind", handlers.RemindAccessRequest)
+
+	// Approver list for the request dialog (auth required, no admin required)
+	r.GET("/api/v1/feishu-approvers", authHandler.RequireAuth(), handlers.GetFeishuApprovers)
 }
 
 func registerAdminRoutes(r *gin.RouterGroup, authHandler *auth.AuthHandler, cm *cluster.ClusterManager) {
@@ -113,6 +127,16 @@ func registerAdminRoutes(r *gin.RouterGroup, authHandler *auth.AuthHandler, cm *
 	templateAPI.POST("/", handlers.CreateTemplate)
 	templateAPI.PUT("/:id", handlers.UpdateTemplate)
 	templateAPI.DELETE("/:id", handlers.DeleteTemplate)
+
+	// Access request admin endpoints
+	accessRequestAdminAPI := adminAPI.Group("/access-requests")
+	accessRequestAdminAPI.GET("/", handlers.ListAllAccessRequests)
+	accessRequestAdminAPI.PUT("/:id/revoke", handlers.RevokeAccess)
+
+	// Feishu notification setting
+	feishuSettingAPI := adminAPI.Group("/feishu-setting")
+	feishuSettingAPI.GET("/", handlers.GetFeishuSetting)
+	feishuSettingAPI.PUT("/", handlers.UpdateFeishuSetting)
 
 	// Proxy kubeconfig endpoint – auth required, no admin required (API-key users with
 	// proxy permission can call this to retrieve kubeconfigs for kite-proxy).

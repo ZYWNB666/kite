@@ -294,7 +294,86 @@
       "general": "General",
       "oauth": "Authentication",
       "rbac": "RBAC",
-      "users": "User"
+      "users": "User",
+      "accessRequest": "Access Request",
+      "tempPermissions": "Temp Permissions"
+    }
+  },
+  "accessRequest": {
+    "title": "Request Namespace Access",
+    "myRequestsTitle": "My Access Requests",
+    "noRequests": "No requests yet",
+    "submit": "Submit Request",
+    "withdraw": "Withdraw",
+    "remind": "Remind",
+    "createSuccess": "Request submitted, awaiting approval",
+    "createError": "Failed to submit request",
+    "withdrawSuccess": "Request withdrawn",
+    "withdrawError": "Failed to withdraw",
+    "remindSuccess": "Reminder sent",
+    "remindError": "Failed to send reminder",
+    "fields": {
+      "namespace": "Namespace",
+      "namespacePlaceholder": "e.g. production",
+      "duration": "Duration",
+      "approver": "Approver",
+      "approverPlaceholder": "Select an approver",
+      "reason": "Reason",
+      "reasonPlaceholder": "Explain why you need access...",
+      "reviewNote": "Review Note",
+      "createdAt": "Created At"
+    },
+    "status": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "withdrawn": "Withdrawn",
+      "expired": "Expired"
+    },
+    "errors": {
+      "namespaceRequired": "Namespace is required",
+      "reasonRequired": "Reason is required",
+      "approverRequired": "Please select an approver"
+    }
+  },
+  "accessRequestSettings": {
+    "saveSuccess": "Feishu settings saved",
+    "saveError": "Failed to save",
+    "alreadySet": "Already set, leave blank to keep",
+    "feishuBot": {
+      "title": "Feishu Bot Configuration",
+      "description": "Configure a Feishu custom app to send approval messages. Requires 'Send Messages' permission.",
+      "groupChatId": "Group Chat ID",
+      "groupChatIdHint": "Find the group Chat ID in bot settings (starts with oc_)",
+      "verificationToken": "Verification Token",
+      "verificationTokenPlaceholder": "Used to verify card callback signatures"
+    },
+    "approvers": {
+      "title": "Approvers",
+      "description": "Configure people who can approve access requests. Feishu Open ID required (starts with ou_).",
+      "empty": "No approvers yet, please add one",
+      "addTitle": "Add Approver",
+      "add": "Add",
+      "namePlaceholder": "Name",
+      "openIdPlaceholder": "Open ID (ou_xxx)"
+    },
+    "errors": {
+      "approverFieldsRequired": "Please fill in approver name and Open ID",
+      "approverDuplicate": "This Open ID already exists"
+    }
+  },
+  "tempPermissions": {
+    "title": "Temp Permissions",
+    "description": "View all access requests and revoke approved temporary permissions.",
+    "revoke": "Revoke",
+    "revokeSuccess": "Revoked {{name}}'s access to {{ns}}",
+    "revokeError": "Failed to revoke",
+    "table": {
+      "requester": "Requester",
+      "namespace": "Namespace",
+      "duration": "Duration",
+      "approver": "Approver",
+      "expiresAt": "Expires At"
     }
   },
   "generalManagement": {

@@ -28,6 +28,7 @@ func initializeApp() (*cluster.ClusterManager, error) {
 
 	rbac.InitRBAC()
 	handlers.InitTemplates()
+	handlers.StartAccessRequestExpiryWorker()
 	internal.LoadConfigFromEnv()
 
 	return cluster.NewClusterManager()

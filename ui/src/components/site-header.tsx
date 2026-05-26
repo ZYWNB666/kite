@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 
+import { AccessRequestDialog } from './access-request/request-dialog'
+import { MyRequestsDialog } from './access-request/my-requests-dialog'
 import { CreateResourceDialog } from './create-resource-dialog'
 import { DynamicBreadcrumb } from './dynamic-breadcrumb'
 import { LanguageToggle } from './language-toggle'
@@ -23,6 +25,8 @@ export function SiteHeader() {
   const { user } = useAuth()
   const { toggleTerminal, isOpen } = useTerminal()
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [accessRequestOpen, setAccessRequestOpen] = useState(false)
+  const [myRequestsOpen, setMyRequestsOpen] = useState(false)
   const isAdmin = user?.isAdmin() ?? false
   const { data: generalSetting } = useGeneralSetting({
     enabled: isAdmin,
@@ -46,6 +50,29 @@ export function SiteHeader() {
               onClick={() => setCreateDialogOpen(true)}
               aria-label="Create new resource"
             />
+            {/* Permission request button – visible to all authenticated users */}
+            <button
+              onClick={() => setAccessRequestOpen(true)}
+              title="申请权限"
+              aria-label="申请权限"
+              className="flex items-center justify-center rounded-sm p-1 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" />
+                <path d="M12 8v4" />
+                <path d="M12 16h.01" />
+              </svg>
+            </button>
             {isAdmin && kubectlEnabled && (
               <button
                 onClick={toggleTerminal}
@@ -81,7 +108,7 @@ export function SiteHeader() {
                 <ModeToggle />
               </>
             )}
-            <UserMenu />
+            <UserMenu onMyRequests={() => setMyRequestsOpen(true)} />
           </div>
         </div>
       </header>
@@ -92,6 +119,15 @@ export function SiteHeader() {
           onOpenChange={setCreateDialogOpen}
         />
       ) : null}
+
+      <AccessRequestDialog
+        open={accessRequestOpen}
+        onOpenChange={setAccessRequestOpen}
+      />
+      <MyRequestsDialog
+        open={myRequestsOpen}
+        onOpenChange={setMyRequestsOpen}
+      />
     </>
   )
 }
