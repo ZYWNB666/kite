@@ -40,6 +40,19 @@ func HandleFeishuCardCallback(c *gin.Context) {
 		return
 	}
 
+	var cb feishuCardCallback
+	if err := json.Unmarshal(bodyBytes, &cb); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid json"})
+		return
+	}
+
+	// Handle URL verification challenge FIRST (Feishu sends this when registering the callback URL).
+	// No signature check needed for this handshake.
+	if cb.Type == "url_verification" {
+		c.JSON(http.StatusOK, gin.H{"challenge": cb.Challenge})
+		return
+	}
+
 	setting, err := model.GetFeishuNotificationSetting()
 	if err != nil {
 		klog.Warningf("feishu callback: failed to load setting: %v", err)
@@ -57,18 +70,6 @@ func HandleFeishuCardCallback(c *gin.Context) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid signature"})
 			return
 		}
-	}
-
-	var cb feishuCardCallback
-	if err := json.Unmarshal(bodyBytes, &cb); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid json"})
-		return
-	}
-
-	// Handle URL verification challenge (Feishu sends this when setting the callback URL)
-	if cb.Type == "url_verification" {
-		c.JSON(http.StatusOK, gin.H{"challenge": cb.Challenge})
-		return
 	}
 
 	// Determine operator's open_id
