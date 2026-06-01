@@ -133,6 +133,7 @@ func getGPUNodes(ctx context.Context, cs *cluster.ClientSet) ([]GPUNodeInfo, err
 	gpuKeys := []string{
 		"nvidia.com/gpu",
 		"amd.com/gpu",
+		"mars-tech.com/gpu",
 		"gpu",
 		"alpha.kubernetes.io/nvidia-gpu",
 	}
@@ -185,6 +186,7 @@ func getGPUUsageFromPods(ctx context.Context, cs *cluster.ClientSet) (map[string
 	gpuKeys := []string{
 		"nvidia.com/gpu",
 		"amd.com/gpu",
+		"mars-tech.com/gpu",
 		"gpu",
 		"alpha.kubernetes.io/nvidia-gpu",
 	}
@@ -240,7 +242,7 @@ func getLWSStats(ctx context.Context, cs *cluster.ClientSet) (map[string]int64, 
 		return namespaceStats, modelStats, noModelCount, roleStatsMap
 	}
 
-	gpuKeys := []string{"nvidia.com/gpu", "amd.com/gpu", "gpu"}
+	gpuKeys := []string{"nvidia.com/gpu", "amd.com/gpu", "mars-tech.com/gpu", "gpu"}
 
 	for _, item := range lwsList.Items {
 		namespace := item.GetNamespace()
