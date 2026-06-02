@@ -53,29 +53,53 @@ function getDotClass(state: DotState): string {
   }
 }
 
-function getTooltipText(cs: ContainerStatus, state: DotState): string {
-  const prefix = cs.name
-  const restarts = cs.restartCount ? ` (restarts: ${cs.restartCount})` : ''
-
+function getStateLabel(cs: ContainerStatus, state: DotState): string {
   switch (state) {
     case 'ready':
-      return `${prefix}: Running${restarts}`
-    case 'error': {
-      const reason =
+      return 'running, ready'
+    case 'error':
+      return (
         cs.state?.waiting?.reason ||
         cs.state?.terminated?.reason ||
         (cs.state?.terminated?.exitCode !== undefined
           ? `ExitCode:${cs.state.terminated.exitCode}`
-          : 'Error')
-      return `${prefix}: ${reason}${restarts}`
-    }
+          : 'error')
+      )
     case 'waiting':
-      return `${prefix}: ${cs.state?.waiting?.reason || 'Waiting'}${restarts}`
+      return cs.state?.waiting?.reason || 'waiting'
     case 'terminated':
-      return `${prefix}: Completed${restarts}`
+      return 'completed'
     default:
-      return `${prefix}: Unknown${restarts}`
+      return 'unknown'
   }
+}
+
+function getStartedAt(cs: ContainerStatus, state: DotState): string | null {
+  if (state === 'ready' && cs.state?.running?.startedAt) {
+    return cs.state.running.startedAt
+  }
+  if (state === 'terminated' || state === 'error') {
+    return cs.state?.terminated?.finishedAt || cs.state?.terminated?.startedAt || null
+  }
+  return null
+}
+
+function ContainerTooltip({ cs, state }: { cs: ContainerStatus; state: DotState }) {
+  const startedAt = getStartedAt(cs, state)
+  const stateLabel = getStateLabel(cs, state)
+
+  return (
+    <div className="space-y-0.5">
+      <div className="font-semibold">{cs.name}</div>
+      <div className="text-muted-foreground">{stateLabel}</div>
+      {cs.restartCount > 0 && (
+        <div className="text-muted-foreground">restarts: {cs.restartCount}</div>
+      )}
+      {startedAt && (
+        <div className="text-muted-foreground">Started At {startedAt}</div>
+      )}
+    </div>
+  )
 }
 
 export function ContainerStatusDots({
@@ -85,38 +109,40 @@ export function ContainerStatusDots({
   containerStatuses?: ContainerStatus[]
   totalContainers?: number
 }) {
-  // If no statuses yet but we know total count, render gray placeholders
   if (!containerStatuses?.length) {
     const count = totalContainers ?? 0
     return (
-      <div className="flex items-center gap-0.5">
+      <span className="inline-flex items-center gap-0.5">
         {Array.from({ length: count }).map((_, i) => (
           <span
             key={i}
-            className="inline-block w-2.5 h-2.5 rounded-sm bg-gray-300"
+            className="inline-block w-2.5 h-2.5 rounded-none bg-gray-300"
           />
         ))}
-      </div>
+      </span>
     )
   }
 
   return (
-    <div className="flex items-center gap-0.5">
+    <span className="inline-flex items-center gap-0.5">
       {containerStatuses.map((cs) => {
         const state = getContainerDotState(cs)
         return (
           <Tooltip key={cs.name}>
             <TooltipTrigger asChild>
               <span
-                className={`inline-block w-2.5 h-2.5 rounded-sm cursor-default ${getDotClass(state)}`}
+                className={`inline-block w-2.5 h-2.5 rounded-none cursor-default ${getDotClass(state)}`}
               />
             </TooltipTrigger>
             <TooltipContent side="top" className="text-xs">
-              {getTooltipText(cs, state)}
+              <ContainerTooltip cs={cs} state={state} />
             </TooltipContent>
           </Tooltip>
         )
       })}
-    </div>
+    </span>
+  )
+}
+
   )
 }
