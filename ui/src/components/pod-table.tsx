@@ -7,6 +7,7 @@ import { MetricsData, PodWithMetrics } from '@/types/api'
 import { getPodStatus } from '@/lib/k8s'
 import { formatDate } from '@/lib/utils'
 
+import { ContainerStatusDots } from './container-status-dots'
 import { MetricCell } from './metrics-cell'
 import { PodStatusIcon } from './pod-status-icon'
 import { Column, SimpleTable } from './simple-table'
@@ -41,11 +42,16 @@ export function PodTable(props: {
       },
       {
         header: 'Ready',
-        accessor: (pod: Pod) => {
-          const status = getPodStatus(pod)
-          return `${status.readyContainers} / ${status.totalContainers}`
+        accessor: (pod: Pod) => pod,
+        cell: (value: unknown) => {
+          const pod = value as Pod
+          return (
+            <ContainerStatusDots
+              containerStatuses={pod.status?.containerStatuses}
+              totalContainers={pod.spec?.containers?.length}
+            />
+          )
         },
-        cell: (value: unknown) => value as string,
       },
       {
         header: 'Restart',

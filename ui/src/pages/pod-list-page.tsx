@@ -13,6 +13,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { ContainerStatusDots } from '@/components/container-status-dots'
 import { MetricCell } from '@/components/metrics-cell'
 import { PodStatusIcon } from '@/components/pod-status-icon'
 import { ResourceTable } from '@/components/resource-table'
@@ -49,11 +50,12 @@ export function PodListPage() {
         id: 'containers',
         header: t('pods.ready'),
         cell: ({ row }) => {
-          const status = getPodStatus(row.original)
+          const pod = row.original
           return (
-            <div>
-              {status.readyContainers} / {status.totalContainers}
-            </div>
+            <ContainerStatusDots
+              containerStatuses={pod.status?.containerStatuses}
+              totalContainers={pod.spec?.containers?.length}
+            />
           )
         },
       }),
