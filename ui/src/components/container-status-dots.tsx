@@ -134,7 +134,7 @@ export function ContainerStatusDots({
                 className={`inline-block w-2.5 h-2.5 rounded-none cursor-default ${getDotClass(state)}`}
               />
             </TooltipTrigger>
-            <TooltipContent side="top" className="text-xs">
+            <TooltipContent side="top" className="text-xs bg-popover text-popover-foreground border shadow-md">
               <ContainerTooltip cs={cs} state={state} />
             </TooltipContent>
           </Tooltip>
