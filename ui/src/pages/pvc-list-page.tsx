@@ -8,6 +8,7 @@ import { createSearchFilter } from '@/lib/k8s'
 import { formatDate, parseBytes } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { ResourceTable } from '@/components/resource-table'
+import { multiSelectFilter } from '@/components/resource-table'
 
 const pvcSearchFilter = createSearchFilter<PersistentVolumeClaim>(
   (pvc) => pvc.metadata?.name,
@@ -79,7 +80,7 @@ export function PVCListPage() {
       columnHelper.accessor('spec.storageClassName', {
         header: t('pvcs.storageClass'),
         enableColumnFilter: true,
-        filterFn: 'multiSelect',
+        filterFn: multiSelectFilter,
         cell: ({ getValue }) => {
           const scName = getValue()
           if (scName) {

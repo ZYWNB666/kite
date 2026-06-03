@@ -8,6 +8,7 @@ import { createSearchFilter } from '@/lib/k8s'
 import { formatDate, parseBytes } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { ResourceTable } from '@/components/resource-table'
+import { multiSelectFilter } from '@/components/resource-table'
 
 const pvSearchFilter = createSearchFilter<PersistentVolume>(
   (pv) => pv.metadata?.name,
@@ -37,7 +38,7 @@ export function PVListPage() {
       columnHelper.accessor('status.phase', {
         header: t('common.status'),
         enableColumnFilter: true,
-        filterFn: 'multiSelect',
+        filterFn: multiSelectFilter,
         cell: ({ getValue }) => {
           const phase = getValue() || 'Unknown'
           let variant: 'default' | 'destructive' | 'secondary' = 'secondary'
@@ -61,7 +62,7 @@ export function PVListPage() {
       columnHelper.accessor('spec.storageClassName', {
         header: t('pvs.storageClass'),
         enableColumnFilter: true,
-        filterFn: 'multiSelect',
+        filterFn: multiSelectFilter,
         cell: ({ getValue }) => {
           const scName = getValue()
           if (scName) {

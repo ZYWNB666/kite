@@ -17,6 +17,7 @@ import { ContainerStatusDots } from '@/components/container-status-dots'
 import { MetricCell } from '@/components/metrics-cell'
 import { PodStatusIcon } from '@/components/pod-status-icon'
 import { ResourceTable } from '@/components/resource-table'
+import { multiSelectFilter } from '@/components/resource-table'
 
 const podSearchFilter = createSearchFilter<Pod>(
   (p) => p.metadata?.name,
@@ -63,7 +64,7 @@ export function PodListPage() {
         id: 'status',
         header: t('common.status'),
         enableColumnFilter: true,
-        filterFn: 'multiSelect',
+        filterFn: multiSelectFilter,
         cell: ({ row }) => {
           const status = getPodStatus(row.original)
           return (
@@ -128,7 +129,7 @@ export function PodListPage() {
         id: 'nodeName',
         header: t('pods.node'),
         enableColumnFilter: true,
-        filterFn: 'multiSelect',
+        filterFn: multiSelectFilter,
         cell: ({ row }) => {
           if (row.original.spec?.nodeName) {
             return (

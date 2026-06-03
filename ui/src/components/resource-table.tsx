@@ -10,12 +10,6 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
-
-declare module '@tanstack/react-table' {
-  interface FilterFns {
-    multiSelect: FilterFn<unknown>
-  }
-}
 import { Box, Database } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -39,6 +33,17 @@ import {
 
 import { ErrorMessage } from './error-message'
 import { ResourceTableToolbar } from './resource-table-toolbar'
+
+export const multiSelectFilter: FilterFn<unknown> = (
+  row,
+  columnId,
+  filterValue: string[]
+) => {
+  if (!filterValue?.length) return true
+  return filterValue.includes(row.getValue(columnId) as string)
+}
+multiSelectFilter.autoRemove = (val: unknown) =>
+  !val || (Array.isArray(val) && val.length === 0)
 import { ResourceTableView } from './resource-table-view'
 
 export interface ResourceTableProps<T> {
@@ -205,12 +210,6 @@ export function ResourceTable<T>({
   const table = useReactTable<T>({
     data: memoizedData,
     columns: enhancedColumns,
-    filterFns: {
-      multiSelect: (row, columnId, filterValue: string[]) => {
-        if (!filterValue?.length) return true
-        return filterValue.includes(row.getValue(columnId) as string)
-      },
-    },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),

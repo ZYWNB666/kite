@@ -7,6 +7,7 @@ import { createSearchFilter } from '@/lib/k8s'
 import { getAge } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { ResourceTable } from '@/components/resource-table'
+import { multiSelectFilter } from '@/components/resource-table'
 
 const searchQueryFilter = createSearchFilter<CustomResourceDefinition>(
   (crd) => crd.metadata?.name,
@@ -35,7 +36,7 @@ export function CRDListPage() {
       columnHelper.accessor('spec.group', {
         header: 'Group',
         enableColumnFilter: true,
-        filterFn: 'multiSelect',
+        filterFn: multiSelectFilter,
         cell: ({ getValue }) => (
           <span className="text-sm font-mono">{getValue()}</span>
         ),

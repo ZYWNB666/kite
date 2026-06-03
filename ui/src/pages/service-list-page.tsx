@@ -15,6 +15,7 @@ import { getClusterScopedStorageKey } from '@/lib/current-cluster'
 import { useResources } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
 import { ResourceTable } from '@/components/resource-table'
+import { multiSelectFilter } from '@/components/resource-table'
 
 const serviceSearchFilter = createSearchFilter<Service>(
   (s) => s.metadata?.name,
@@ -80,7 +81,7 @@ export function ServiceListPage() {
       columnHelper.accessor('spec.type', {
         header: t('services.type'),
         enableColumnFilter: true,
-        filterFn: 'multiSelect',
+        filterFn: multiSelectFilter,
         cell: ({ getValue }) => {
           const type = getValue() || 'ClusterIP'
           return <Badge variant="outline">{type}</Badge>

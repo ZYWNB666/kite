@@ -8,6 +8,7 @@ import { createSearchFilter } from '@/lib/k8s'
 import { formatDate } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { ResourceTable } from '@/components/resource-table'
+import { multiSelectFilter } from '@/components/resource-table'
 
 const eventSearchFilter = createSearchFilter<Event>(
   (e) => e.metadata?.name,
@@ -31,7 +32,7 @@ export function EventListPage() {
           id: 'involvedObject',
           header: t('events.involvedObject', 'Involved Object'),
           enableColumnFilter: true,
-          filterFn: 'multiSelect',
+          filterFn: multiSelectFilter,
           cell: ({ row }) => {
             const obj = row.original.involvedObject
             if (!obj) return '-'
@@ -60,7 +61,7 @@ export function EventListPage() {
         id: 'type',
         header: t('events.type'),
         enableColumnFilter: true,
-        filterFn: 'multiSelect',
+        filterFn: multiSelectFilter,
         cell: ({ getValue }) => {
           const type = getValue() || ''
           const variant = type === 'Normal' ? 'default' : 'destructive'
