@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ColumnDef,
+  FilterFn,
   getCoreRowModel,
   getFacetedRowModel,
   getFacetedUniqueValues,
@@ -9,6 +10,12 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table'
+
+declare module '@tanstack/react-table' {
+  interface FilterFns {
+    multiSelect: FilterFn<unknown>
+  }
+}
 import { Box, Database } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
