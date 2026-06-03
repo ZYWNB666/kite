@@ -139,39 +139,82 @@ export function ResourceTableToolbar<T>({
               enableColumnFilter?: boolean
             }
             const uniqueValues = column.getFacetedUniqueValues()
-            const filterValue = column.getFilterValue() as string
+            const filterValue = (column.getFilterValue() as string[]) ?? []
+            const headerLabel =
+              typeof columnDef.header === 'string' ? columnDef.header : 'Column'
+            const allOptions = Array.from(uniqueValues.keys())
+              .filter(Boolean)
+              .map(String)
+              .sort()
+
+            const toggleValue = (value: string) => {
+              const next = filterValue.includes(value)
+                ? filterValue.filter((v) => v !== value)
+                : [...filterValue, value]
+              column.setFilterValue(next.length ? next : undefined)
+            }
 
             return (
-              <Select
-                key={column.id}
-                value={filterValue || ''}
-                onValueChange={(value) =>
-                  column.setFilterValue(value === 'all' ? '' : value)
-                }
-              >
-                <SelectTrigger className="w-full sm:w-auto sm:min-w-[8.5rem] sm:max-w-[12rem]">
-                  <SelectValue
-                    placeholder={`Filter ${typeof columnDef.header === 'string' ? columnDef.header : 'Column'}`}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">
-                    All{' '}
-                    {typeof columnDef.header === 'string'
-                      ? columnDef.header
-                      : 'Values'}
-                  </SelectItem>
-                  {Array.from(uniqueValues.keys())
-                    .sort()
-                    .map((value) =>
-                      value ? (
-                        <SelectItem key={String(value)} value={String(value)}>
-                          {String(value)} ({uniqueValues.get(value)})
-                        </SelectItem>
-                      ) : null
+              <DropdownMenu key={column.id}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full sm:w-auto sm:min-w-[8.5rem] sm:max-w-[14rem] justify-between font-normal"
+                  >
+                    <span className="truncate">
+                      {filterValue.length === 0
+                        ? `Filter ${headerLabel}`
+                        : filterValue.length === 1
+                          ? filterValue[0]
+                          : `${headerLabel}: ${filterValue.length} selected`}
+                    </span>
+                    {filterValue.length > 0 && (
+                      <XCircle
+                        className="ml-1 h-3.5 w-3.5 shrink-0 text-muted-foreground hover:text-foreground"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          column.setFilterValue(undefined)
+                        }}
+                      />
                     )}
-                </SelectContent>
-              </Select>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
+                  <DropdownMenuLabel className="flex items-center justify-between py-1">
+                    <span>{headerLabel}</span>
+                    {filterValue.length > 0 && (
+                      <button
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => column.setFilterValue(undefined)}
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuCheckboxItem
+                    checked={filterValue.length === 0}
+                    onCheckedChange={() => column.setFilterValue(undefined)}
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    All ({allOptions.reduce((s, v) => s + (uniqueValues.get(v) ?? 0), 0)})
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuSeparator />
+                  {allOptions.map((value) => (
+                    <DropdownMenuCheckboxItem
+                      key={value}
+                      checked={filterValue.includes(value)}
+                      onCheckedChange={() => toggleValue(value)}
+                      onSelect={(e) => e.preventDefault()}
+                    >
+                      {value}
+                      <span className="ml-auto text-xs text-muted-foreground">
+                        {uniqueValues.get(value)}
+                      </span>
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             )
           })}
         </div>

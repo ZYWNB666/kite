@@ -79,6 +79,7 @@ export function PVCListPage() {
       columnHelper.accessor('spec.storageClassName', {
         header: t('pvcs.storageClass'),
         enableColumnFilter: true,
+        filterFn: 'arrIncludes',
         cell: ({ getValue }) => {
           const scName = getValue()
           if (scName) {

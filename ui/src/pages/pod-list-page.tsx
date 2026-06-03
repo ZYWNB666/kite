@@ -59,9 +59,11 @@ export function PodListPage() {
           )
         },
       }),
-      columnHelper.accessor((row) => row.status?.phase, {
+      columnHelper.accessor((row) => getPodStatus(row).reason, {
+        id: 'status',
         header: t('common.status'),
         enableColumnFilter: true,
+        filterFn: 'arrIncludes',
         cell: ({ row }) => {
           const status = getPodStatus(row.original)
           return (
@@ -126,6 +128,7 @@ export function PodListPage() {
         id: 'nodeName',
         header: t('pods.node'),
         enableColumnFilter: true,
+        filterFn: 'arrIncludes',
         cell: ({ row }) => {
           if (row.original.spec?.nodeName) {
             return (
