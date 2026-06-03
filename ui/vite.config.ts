@@ -51,7 +51,7 @@ function runtimeBaseHtmlPlugin(): Plugin {
     configResolved(config) {
       buildOutDir = path.resolve(config.root, config.build.outDir)
     },
-    closeBundle() {
+    writeBundle() {
       const indexHtmlPath = path.join(buildOutDir, 'index.html')
       const html = readFileSync(indexHtmlPath, 'utf8')
 

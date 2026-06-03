@@ -34,7 +34,7 @@ import {
 import { ErrorMessage } from './error-message'
 import { ResourceTableToolbar } from './resource-table-toolbar'
 
-export const multiSelectFilter: FilterFn<unknown> = (
+export const multiSelectFilter: FilterFn<any> = (
   row,
   columnId,
   filterValue: string[]

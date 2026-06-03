@@ -251,7 +251,7 @@ export function ServiceDetail(props: { name: string; namespace?: string }) {
                     </div>
                   </div>
 
-                  {/* External IP â€?LoadBalancer only */}
+                  {/* External IP â€“LoadBalancer only */}
                   {data.spec?.type === 'LoadBalancer' &&
                     (data.status?.loadBalancer?.ingress?.length ?? 0) > 0 && (
                       <div>
@@ -276,7 +276,7 @@ export function ServiceDetail(props: { name: string; namespace?: string }) {
                       </div>
                     )}
 
-                  {/* Ports â€?enhanced: port â†?targetPort (proto) + nodePort badge */}
+                  {/* Ports â€“enhanced: port â†’targetPort (proto) + nodePort badge */}
                   <div>
                     <Label className="text-xs text-muted-foreground">Ports</Label>
                     <div className="flex flex-col gap-1 mt-1">
@@ -301,7 +301,7 @@ export function ServiceDetail(props: { name: string; namespace?: string }) {
                               {portLabel}
                               {port.port}
                               {targetPort && targetPort !== String(port.port)
-                                ? ` â†?${targetPort}`
+                                ? ` â†’${targetPort}`
                                 : ''}
                               {` (${proto})`}
                               <IconExternalLink className="w-3 h-3" />
@@ -336,7 +336,7 @@ export function ServiceDetail(props: { name: string; namespace?: string }) {
                       </div>
                     )}
 
-                  {/* Session Affinity â€?only when ClientIP */}
+                  {/* Session Affinity â€“only when ClientIP */}
                   {data.spec?.sessionAffinity === 'ClientIP' && (
                     <div>
                       <Label className="text-xs text-muted-foreground">
@@ -353,7 +353,7 @@ export function ServiceDetail(props: { name: string; namespace?: string }) {
                     </div>
                   )}
 
-                  {/* External Traffic Policy â€?NodePort / LoadBalancer only */}
+                  {/* External Traffic Policy â€“NodePort / LoadBalancer only */}
                   {(data.spec?.type === 'NodePort' ||
                     data.spec?.type === 'LoadBalancer') &&
                     data.spec?.externalTrafficPolicy && (

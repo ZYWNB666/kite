@@ -1,0 +1,33 @@
+# Dependencies
+ui/node_modules
+docs/node_modules
+e2e/node_modules
+
+# Build outputs
+ui/dist
+static/assets
+
+# Dev/test artifacts
+*.db
+*.db-shm
+*.db-wal
+dev.db
+temp/
+data/
+
+# Git
+.git
+.gitignore
+
+# Docs & misc
+docs/
+e2e/
+charts/
+deploy/
+scripts/
+*.md
+!README.md
+
+# Env files
+.env
+.env.*
