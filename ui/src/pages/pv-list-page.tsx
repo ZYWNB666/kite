@@ -37,7 +37,7 @@ export function PVListPage() {
       columnHelper.accessor('status.phase', {
         header: t('common.status'),
         enableColumnFilter: true,
-        filterFn: 'arrIncludes',
+        filterFn: 'multiSelect',
         cell: ({ getValue }) => {
           const phase = getValue() || 'Unknown'
           let variant: 'default' | 'destructive' | 'secondary' = 'secondary'
@@ -61,7 +61,7 @@ export function PVListPage() {
       columnHelper.accessor('spec.storageClassName', {
         header: t('pvs.storageClass'),
         enableColumnFilter: true,
-        filterFn: 'arrIncludes',
+        filterFn: 'multiSelect',
         cell: ({ getValue }) => {
           const scName = getValue()
           if (scName) {

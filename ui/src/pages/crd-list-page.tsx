@@ -35,7 +35,7 @@ export function CRDListPage() {
       columnHelper.accessor('spec.group', {
         header: 'Group',
         enableColumnFilter: true,
-        filterFn: 'arrIncludes',
+        filterFn: 'multiSelect',
         cell: ({ getValue }) => (
           <span className="text-sm font-mono">{getValue()}</span>
         ),

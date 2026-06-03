@@ -198,6 +198,12 @@ export function ResourceTable<T>({
   const table = useReactTable<T>({
     data: memoizedData,
     columns: enhancedColumns,
+    filterFns: {
+      multiSelect: (row, columnId, filterValue: string[]) => {
+        if (!filterValue?.length) return true
+        return filterValue.includes(row.getValue(columnId) as string)
+      },
+    },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),

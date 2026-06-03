@@ -63,7 +63,7 @@ export function PodListPage() {
         id: 'status',
         header: t('common.status'),
         enableColumnFilter: true,
-        filterFn: 'arrIncludes',
+        filterFn: 'multiSelect',
         cell: ({ row }) => {
           const status = getPodStatus(row.original)
           return (
@@ -128,7 +128,7 @@ export function PodListPage() {
         id: 'nodeName',
         header: t('pods.node'),
         enableColumnFilter: true,
-        filterFn: 'arrIncludes',
+        filterFn: 'multiSelect',
         cell: ({ row }) => {
           if (row.original.spec?.nodeName) {
             return (

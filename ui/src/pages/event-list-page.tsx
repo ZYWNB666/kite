@@ -31,7 +31,7 @@ export function EventListPage() {
           id: 'involvedObject',
           header: t('events.involvedObject', 'Involved Object'),
           enableColumnFilter: true,
-          filterFn: 'arrIncludes',
+          filterFn: 'multiSelect',
           cell: ({ row }) => {
             const obj = row.original.involvedObject
             if (!obj) return '-'
@@ -60,7 +60,7 @@ export function EventListPage() {
         id: 'type',
         header: t('events.type'),
         enableColumnFilter: true,
-        filterFn: 'arrIncludes',
+        filterFn: 'multiSelect',
         cell: ({ getValue }) => {
           const type = getValue() || ''
           const variant = type === 'Normal' ? 'default' : 'destructive'

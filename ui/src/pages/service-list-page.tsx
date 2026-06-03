@@ -80,7 +80,7 @@ export function ServiceListPage() {
       columnHelper.accessor('spec.type', {
         header: t('services.type'),
         enableColumnFilter: true,
-        filterFn: 'arrIncludes',
+        filterFn: 'multiSelect',
         cell: ({ getValue }) => {
           const type = getValue() || 'ClusterIP'
           return <Badge variant="outline">{type}</Badge>
