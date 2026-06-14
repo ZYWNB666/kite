@@ -56,7 +56,7 @@ jwtSecret: ""
 # This is the key used for encrypting sensitive data
 # Change this in production
 # Ignored if using existingSecret
-encryptKey: "hWfiwRCZUonvYBwxD2sZAQq0IoQphx6l1z6NGtMGZN0"
+encryptKey: "kite-default-encryption-key-change-in-production"
 
 # Superuser configuration
 # Used to create an initial superuser account on first startup
