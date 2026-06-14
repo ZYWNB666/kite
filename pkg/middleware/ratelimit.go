@@ -45,7 +45,7 @@ func getLoginLimiter(ip string) *rate.Limiter {
 		return v.limiter
 	}
 
-	limiter := rate.NewLimiter(1, 5) // 1 request/sec, burst of 5
+	limiter := rate.NewLimiter(rate.Every(3*time.Second), 3) // 1 request/3sec, burst of 3
 	loginVisitors[ip] = &visitor{limiter: limiter, lastSeen: time.Now()}
 	return limiter
 }

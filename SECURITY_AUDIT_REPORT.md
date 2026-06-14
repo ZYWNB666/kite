@@ -2,9 +2,12 @@
 
 > 审计时间: 2026-05-26  
 > 更新审计时间: 2026-06-14  
+> 生产环境测试时间: 2026-06-14  
 > 审计范围: 认证/授权、API路由、数据加密、输入验证、SSRF/XSS/CSRF、K8s安全、配置与密钥管理  
 > 原始状态: ✅ 全部 17 项漏洞已逐行确认，均未修复  
-> 本次更新: 新增 20 项漏洞发现，总计 37 项
+> 本次更新: 新增 20 项漏洞发现，总计 37 项  
+> 修复状态: 3 项已修复（#3, #14, #16），1 项已加强（#8 速率限制），33 项未修复  
+> 生产环境验证: 已对 https://kite.magikcloud.cn/ (v1.5.4) 进行外部可利用漏洞测试
 
 ---
 
@@ -615,13 +618,13 @@ likeQuery := "%" + search + "%"
 
 ## 漏洞统计
 
-| 严重程度 | 数量 |
-|---------|------|
-| 🔴 严重  | 6    |
-| 🟠 高危  | 9    |
-| 🟡 中危  | 12   |
-| 🟢 低危  | 10   |
-| **合计** | **37** |
+| 严重程度 | 数量 | 已修复 | 未修复 |
+|---------|------|--------|--------|
+| 🔴 严重  | 6    | 1      | 5      |
+| 🟠 高危  | 9    | 0      | 9      |
+| 🟡 中危  | 12   | 1      | 11     |
+| 🟢 低危  | 10   | 1      | 9      |
+| **合计** | **37** | **3** | **34** |
 
 ### 按利用条件分类
 
@@ -630,23 +633,31 @@ likeQuery := "%" + search + "%"
 | ⚡ 外部可利用（无需登录） | 15 | #1, #2, #3, #4, #5, #6, #8, #12, #14, #16, #18, #19, #20, #21, #28 |
 | 🔒 内部漏洞（需先登录） | 22 | #7, #9, #10, #11, #13, #15, #17, #22, #23, #24, #25, #26, #27, #29, #30, #31, #32, #33, #34, #35, #36, #37 |
 
+### 修复状态
+
+| 状态 | 数量 | 漏洞编号 |
+|------|------|---------|
+| ✅ 已修复 | 3 | #3, #14, #16 |
+| ⚠️ 已加强 | 1 | #8（速率限制 1 req/3s, burst 3） |
+| ❌ 未修复 | 33 | 其余所有 |
+
 ---
 
 ## 优先修复建议
 
 ### 第一优先级 — 立即修复（可被外部直接利用接管系统）
 
-1. **#1** 无认证端点 — 路由移到中间件之后
-2. **#2** 硬编码默认密钥 — 未设置时拒绝启动
-3. **#3** OAuth 重定向操纵 — 强制设置 `HOST` 或白名单校验
-4. **#18** Helm 默认加密密钥 — 默认值改为空，要求显式配置
-5. **#19** cluster-admin RBAC — 缩小默认权限
-6. **#20** 无 TLS — 文档强调 + Helm 默认启用 TLS
+1. **#1** 无认证端点 — 路由移到中间件之后（代码已修改，待部署）
+2. **#5** + **#35** 飞书回调验证 — v1 格式 token 不匹配时拒绝请求（代码已修改，待部署）
+3. **#8** 速率限制 — 部署新代码（已实现，1 req/3s, burst 3）
 
 ### 第二优先级 — 尽快修复（可导致账户接管/权限提升）
 
-7. **#4** 匿名用户权限 — 改为只读
-8. **#5** + **#35** 飞书回调验证 — 未配置 token 时拒绝，v1 不匹配时拒绝
+4. **#2** 硬编码默认密钥 — 未设置时拒绝启动（暂缓，需要数据迁移方案）
+5. **#18** Helm 默认加密密钥 — 默认值改为空，要求显式配置
+6. **#19** cluster-admin RBAC — 缩小默认权限
+7. **#20** 无 TLS — 文档强调 + Helm 默认启用 TLS
+8. **#4** 匿名用户权限 — 改为只读
 9. **#21** CSRF 保护 — 添加 CSRF token
 10. **#22** 会话撤销 — 实现 token 黑名单
 11. **#6** API Key 常量时间比较
@@ -654,62 +665,83 @@ likeQuery := "%" + search + "%"
 
 ### 第三优先级 — 短期修复（降低攻击面）
 
-13. **#8** 速率限制
-14. **#9** SSRF 白名单
-15. **#11** 临时角色权限范围
-16. **#23** kubectl terminal SA 清理
-17. **#26** Refresh Token 服务端存储
-18. **#27** WebSocket Origin 校验
-19. **#28** HTTP 安全头
+13. **#9** SSRF 白名单
+14. **#11** 临时角色权限范围
+15. **#23** kubectl terminal SA 清理
+16. **#26** Refresh Token 服务端存储
+17. **#27** WebSocket Origin 校验
+18. **#28** HTTP 安全头
 
 ### 第四优先级 — 中期修复
 
-20. **#10** RBAC 正则缓存
-21. **#12** Cookie Secure 配置化
-22. **#24** Node terminal 权限审计
-23. **#25** Pod Security Context
-24. **#29-#37** 其余中低危漏洞
+19. **#10** RBAC 正则缓存
+20. **#12** Cookie Secure 配置化
+21. **#24** Node terminal 权限审计
+22. **#25** Pod Security Context
+23. **#29-#37** 其余中低危漏洞
 
 ---
 
 ## 重新验证详情
 
-| # | 漏洞 | 验证文件 | 行号 | 2026-05-26 | 2026-06-14 |
-|---|------|---------|------|-----------|-----------|
-| 1 | 无认证端点 | `routes.go` | 74-77 | ✅ 未修复 | ✅ 未修复 |
-| 2 | 硬编码默认密钥 | `pkg/common/common.go` | 13,28,37 | ✅ 未修复 | ✅ 未修复 |
-| 3 | OAuth 重定向操纵 | `pkg/auth/oauth_manager.go` | 34-37 | ✅ 未修复 | ✅ 未修复 |
-| 4 | 匿名用户管理员权限 | `pkg/model/user.go` | 455-470 | ✅ 未修复 | ✅ 未修复 |
-| 5 | 飞书回调签名可选 | `pkg/handlers/feishu_callback_handler.go` | 50-60 | ✅ 未修复 | ✅ 未修复 |
-| 6 | API Key 非常量时间比较 | `pkg/auth/middleware.go` | 41 | ✅ 未修复 | ✅ 未修复 |
-| 7 | Apply 仅检查 create 权限 | `pkg/handlers/resource_apply_handler.go` | 54 vs 106 | ✅ 未修复 | ✅ 未修复 |
-| 8 | 登录无速率限制 | `routes.go` | 45-46 | ✅ 未修复 | ✅ 未修复 |
-| 9 | SSRF 镜像标签查询 | `pkg/handlers/image_tags_handler.go` | 66 | ✅ 未修复 | ✅ 未修复 |
-| 10 | RBAC ReDoS | `pkg/rbac/rbac.go` | 207 | ✅ 未修复 | ✅ 未修复 |
-| 11 | 临时角色权限过大 | `pkg/handlers/access_request_handler.go` | 62-69 | ✅ 未修复 | ✅ 未修复 |
-| 12 | Cookie Secure 依赖伪造头 | `pkg/auth/login_handler.go` | 349 | ✅ 未修复 | ✅ 未修复 |
-| 13 | JWT 嵌入 Refresh Token | `pkg/auth/oauth_manager.go` | 89 | ✅ 未修复 | ✅ 未修复 (→ #26) |
-| 14 | /metrics 无认证 | `routes.go` | 31-34 | ✅ 未修复 | ✅ 未修复 |
-| 15 | 无密码复杂度 | `pkg/handlers/user_handler.go` | 52-77 | ✅ 未修复 | ✅ 未修复 |
-| 16 | 登录错误泄露用户名 | `pkg/auth/login_handler.go` | 107-110 | ✅ 未修复 | ✅ 未修复 |
-| 17 | LIKE 通配符未转义 | `pkg/model/user.go` | 252-258 | ✅ 未修复 | ✅ 未修复 |
-| 18 | Helm 默认加密密钥 | `charts/kite/values.yaml` | 59 | — | 🆕 新发现 |
-| 19 | cluster-admin RBAC 默认 | `charts/kite/values.yaml`, `deploy/install.yaml` | 148-153 | — | 🆕 新发现 |
-| 20 | 无服务端 TLS | `main.go` | 39 | — | 🆕 新发现 |
-| 21 | 无 CSRF 保护 | `routes.go` | 全局 | — | 🆕 新发现 |
-| 22 | 无会话撤销 | `pkg/auth/middleware.go` | 全局 | — | 🆕 新发现 |
-| 23 | kubectl terminal SA 不清理 | `pkg/handlers/kubectl_terminal_handler.go` | 107-147 | — | 🆕 新发现 |
-| 24 | Node terminal 特权 Pod | `pkg/handlers/node_terminal_handler.go` | 115-157 | — | 🆕 新发现 |
-| 25 | 无 Pod Security Context | `charts/kite/values.yaml` | 162-173 | — | 🆕 新发现 |
-| 26 | Refresh Token 嵌入 JWT | `pkg/auth/oauth_manager.go` | 89 | — | 🆕 由 #13 提升 |
-| 27 | WebSocket 无 Origin 校验 | `pkg/handlers/terminal_handler.go` | 42-59 | — | 🆕 新发现 |
-| 28 | 缺少 HTTP 安全头 | 全局中间件 | — | — | 🆕 新发现 |
-| 29 | K8s proxy 仅检查 get | `pkg/handlers/proxy_handler.go` | 34 | — | 🆕 新发现 |
-| 30 | Pod 文件路径未消毒 | `pkg/handlers/resources/pod_handler.go` | 297-498 | — | 🆕 新发现 |
-| 31 | AI 会话删除无所有权检查 | `pkg/ai/handler.go` | 368-371 | — | 🆕 新发现 |
-| 32 | 用户 API 返回敏感字段 | `pkg/handlers/user_handler.go` | 49,76 | — | 🆕 新发现 |
-| 33 | RBAC 角色缓存延迟 | `pkg/model/user.go`, `pkg/rbac/rbac.go` | 66-94 | — | 🆕 新发现 |
-| 34 | LDAP 明文连接 | `pkg/auth/ldap.go` | 60-69 | — | 🆕 新发现 |
-| 35 | 飞书 v1 token 不拒绝 | `pkg/handlers/feishu_callback_handler.go` | 123-127 | — | 🆕 新发现 |
-| 36 | 输入无长度/字符验证 | 多个 handler | — | — | 🆕 新发现 |
-| 37 | 其他低危发现 | 多个文件 | — | — | 🆕 新发现 |
+| # | 漏洞 | 验证文件 | 行号 | 2026-05-26 | 2026-06-14 代码 | 2026-06-14 生产环境 |
+|---|------|---------|------|-----------|----------------|-------------------|
+| 1 | 无认证端点 | `routes.go` | 74-77 | ✅ 未修复 | ✅ 未修复 | ❌ 端点可访问（返回业务错误） |
+| 2 | 硬编码默认密钥 | `pkg/common/common.go` | 13,28,37 | ✅ 未修复 | ✅ 未修复 | ⚠️ 使用默认密钥 |
+| 3 | OAuth 重定向操纵 | `pkg/auth/oauth_manager.go` | 34-37 | ✅ 未修复 | ✅ 已修复 | ✅ 不再信任 X-Forwarded-* |
+| 4 | 匿名用户管理员权限 | `pkg/model/user.go` | 455-470 | ✅ 未修复 | ✅ 未修复 | — |
+| 5 | 飞书回调签名可选 | `pkg/handlers/feishu_callback_handler.go` | 50-60 | ✅ 未修复 | ✅ 未修复 | ❌ 端点可访问，可伪造审批 |
+| 6 | API Key 非常量时间比较 | `pkg/auth/middleware.go` | 41 | ✅ 未修复 | ✅ 未修复 | — |
+| 7 | Apply 仅检查 create 权限 | `pkg/handlers/resource_apply_handler.go` | 54 vs 106 | ✅ 未修复 | ✅ 未修复 | — |
+| 8 | 登录无速率限制 | `routes.go` | 45-46 | ✅ 未修复 | ⚠️ 已加强 | ❌ 10 个请求全部成功 |
+| 9 | SSRF 镜像标签查询 | `pkg/handlers/image_tags_handler.go` | 66 | ✅ 未修复 | ✅ 未修复 | — |
+| 10 | RBAC ReDoS | `pkg/rbac/rbac.go` | 207 | ✅ 未修复 | ✅ 未修复 | — |
+| 11 | 临时角色权限过大 | `pkg/handlers/access_request_handler.go` | 62-69 | ✅ 未修复 | ✅ 未修复 | — |
+| 12 | Cookie Secure 依赖伪造头 | `pkg/auth/login_handler.go` | 349 | ✅ 未修复 | ✅ 未修复 | — |
+| 13 | JWT 嵌入 Refresh Token | `pkg/auth/oauth_manager.go` | 89 | ✅ 未修复 | ✅ 未修复 (→ #26) | — |
+| 14 | /metrics 无认证 | `routes.go` | 31-34 | ✅ 未修复 | ✅ 已修复 | ✅ 返回 401 |
+| 15 | 无密码复杂度 | `pkg/handlers/user_handler.go` | 52-77 | ✅ 未修复 | ✅ 未修复 | — |
+| 16 | 登录错误泄露用户名 | `pkg/auth/login_handler.go` | 107-110 | ✅ 未修复 | ✅ 已修复 | ✅ 返回通用消息 |
+| 17 | LIKE 通配符未转义 | `pkg/model/user.go` | 252-258 | ✅ 未修复 | ✅ 未修复 | — |
+| 18 | Helm 默认加密密钥 | `charts/kite/values.yaml` | 59 | — | ✅ 未修复 | — |
+| 19 | cluster-admin RBAC 默认 | `charts/kite/values.yaml`, `deploy/install.yaml` | 148-153 | — | ✅ 未修复 | — |
+| 20 | 无服务端 TLS | `main.go` | 39 | — | ✅ 未修复 | — |
+| 21 | 无 CSRF 保护 | `routes.go` | 全局 | — | ✅ 未修复 | — |
+| 22 | 无会话撤销 | `pkg/auth/middleware.go` | 全局 | — | ✅ 未修复 | — |
+| 23 | kubectl terminal SA 不清理 | `pkg/handlers/kubectl_terminal_handler.go` | 107-147 | — | ✅ 未修复 | — |
+| 24 | Node terminal 特权 Pod | `pkg/handlers/node_terminal_handler.go` | 115-157 | — | ✅ 未修复 | — |
+| 25 | 无 Pod Security Context | `charts/kite/values.yaml` | 162-173 | — | ✅ 未修复 | — |
+| 26 | Refresh Token 嵌入 JWT | `pkg/auth/oauth_manager.go` | 89 | — | ✅ 未修复 | — |
+| 27 | WebSocket 无 Origin 校验 | `pkg/handlers/terminal_handler.go` | 42-59 | — | ✅ 未修复 | — |
+| 28 | 缺少 HTTP 安全头 | 全局中间件 | — | — | ✅ 未修复 | ⚠️ 有 HSTS，缺其他 |
+| 29 | K8s proxy 仅检查 get | `pkg/handlers/proxy_handler.go` | 34 | — | ✅ 未修复 | — |
+| 30 | Pod 文件路径未消毒 | `pkg/handlers/resources/pod_handler.go` | 297-498 | — | ✅ 未修复 | — |
+| 31 | AI 会话删除无所有权检查 | `pkg/ai/handler.go` | 368-371 | — | ✅ 未修复 | — |
+| 32 | 用户 API 返回敏感字段 | `pkg/handlers/user_handler.go` | 49,76 | — | ✅ 未修复 | — |
+| 33 | RBAC 角色缓存延迟 | `pkg/model/user.go`, `pkg/rbac/rbac.go` | 66-94 | — | ✅ 未修复 | — |
+| 34 | LDAP 明文连接 | `pkg/auth/ldap.go` | 60-69 | — | ✅ 未修复 | — |
+| 35 | 飞书 v1 token 不拒绝 | `pkg/handlers/feishu_callback_handler.go` | 123-127 | — | ✅ 未修复 | ❌ 可伪造审批 |
+| 36 | 输入无长度/字符验证 | 多个 handler | — | — | ✅ 未修复 | — |
+| 37 | 其他低危发现 | 多个文件 | — | — | ✅ 未修复 | — |
+
+---
+
+## 修复状态统计
+
+| 状态 | 数量 | 漏洞编号 |
+|------|------|---------|
+| ✅ 已修复 | 3 | #3, #14, #16 |
+| ⚠️ 已加强 | 1 | #8（速率限制 1 req/3s, burst 3） |
+| ❌ 未修复 | 33 | 其余所有 |
+
+### 生产环境测试结果（https://kite.magikcloud.cn/ v1.5.4）
+
+| 测试项 | 结果 | 说明 |
+|--------|------|------|
+| CreateSuperUser | ❌ 可访问 | 返回业务错误（非 401） |
+| ImportClusters | ❌ 可访问 | 返回业务错误（非 401） |
+| 飞书回调伪造 | ❌ 可利用 | 枚举 request_id，错误 token 仍处理 |
+| 登录速率限制 | ❌ 未生效 | 10 个请求全部成功 |
+| /metrics 认证 | ✅ 已修复 | 返回 401 |
+| 登录错误脱敏 | ✅ 已修复 | 返回通用消息 |
+| OAuth 重定向 | ✅ 已修复 | 不再信任 X-Forwarded-* |

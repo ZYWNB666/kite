@@ -73,9 +73,9 @@ func registerUserRoutes(r *gin.RouterGroup, authHandler *auth.AuthHandler) {
 func registerAdminRoutes(r *gin.RouterGroup, authHandler *auth.AuthHandler, cm *cluster.ClusterManager) {
 	adminAPI := r.Group("/api/v1/admin")
 	adminAPI.POST("/users/create_super_user", handlers.CreateSuperUser)
-	adminAPI.POST("/clusters/import", cm.ImportClustersFromKubeconfig)
 	adminAPI.Use(authHandler.RequireAuth(), authHandler.RequireAdmin())
 
+	adminAPI.POST("/clusters/import", cm.ImportClustersFromKubeconfig)
 	adminAPI.GET("/audit-logs", handlers.ListAuditLogs)
 
 	oauthProviderAPI := adminAPI.Group("/oauth-providers")
