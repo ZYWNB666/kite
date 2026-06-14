@@ -20,15 +20,15 @@ import (
 func setupAPIRouter(r *gin.RouterGroup, cm *cluster.ClusterManager) {
 	authHandler := auth.NewAuthHandler()
 
-	registerBaseRoutes(r)
+	registerBaseRoutes(r, authHandler)
 	registerAuthRoutes(r, authHandler)
 	registerUserRoutes(r, authHandler)
 	registerAdminRoutes(r, authHandler, cm)
 	registerProtectedRoutes(r, authHandler, cm)
 }
 
-func registerBaseRoutes(r *gin.RouterGroup) {
-	r.GET("/metrics", gin.WrapH(promhttp.HandlerFor(prometheus.Gatherers{
+func registerBaseRoutes(r *gin.RouterGroup, authHandler *auth.AuthHandler) {
+	r.GET("/metrics", authHandler.RequireAuth(), gin.WrapH(promhttp.HandlerFor(prometheus.Gatherers{
 		prometheus.DefaultGatherer,
 		ctrlmetrics.Registry,
 	}, promhttp.HandlerOpts{})))
@@ -42,8 +42,8 @@ func registerBaseRoutes(r *gin.RouterGroup) {
 func registerAuthRoutes(r *gin.RouterGroup, authHandler *auth.AuthHandler) {
 	authGroup := r.Group("/api/auth")
 	authGroup.GET("/providers", authHandler.GetProviders)
-	authGroup.POST("/login/password", authHandler.PasswordLogin)
-	authGroup.POST("/login/ldap", authHandler.LDAPLogin)
+	authGroup.POST("/login/password", middleware.LoginRateLimit(), authHandler.PasswordLogin)
+	authGroup.POST("/login/ldap", middleware.LoginRateLimit(), authHandler.LDAPLogin)
 	authGroup.GET("/login", authHandler.Login)
 	authGroup.GET("/callback", authHandler.Callback)
 	authGroup.POST("/logout", authHandler.Logout)

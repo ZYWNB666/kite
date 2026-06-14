@@ -27,7 +27,7 @@ func TestGetRequestHost(t *testing.T) {
 		}
 	})
 
-	t.Run("forwarded headers", func(t *testing.T) {
+	t.Run("forwarded headers ignored when HOST not set", func(t *testing.T) {
 		common.Host = ""
 		c, _ := gin.CreateTestContext(httptest.NewRecorder())
 		req := httptest.NewRequest(http.MethodGet, "http://internal.local", nil)
@@ -35,8 +35,8 @@ func TestGetRequestHost(t *testing.T) {
 		req.Header.Set("X-Forwarded-Host", "kite.example.com")
 		c.Request = req
 
-		if got := getRequestHost(c); got != "https://kite.example.com" {
-			t.Fatalf("getRequestHost() = %q, want %q", got, "https://kite.example.com")
+		if got := getRequestHost(c); got == "https://kite.example.com" {
+			t.Fatalf("getRequestHost() should not trust X-Forwarded-* headers, got %q", got)
 		}
 	})
 

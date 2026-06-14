@@ -34,7 +34,7 @@ var (
 	DBType               = "sqlite"
 	DBDSN                = "dev.db"
 
-	KiteEncryptKey = "kite-default-encryption-key-change-in-production"
+	KiteEncryptKey = ""
 
 	AllNamespaces = "_all"
 
@@ -95,7 +95,7 @@ func LoadEnvs() {
 	if key := os.Getenv("KITE_ENCRYPT_KEY"); key != "" {
 		KiteEncryptKey = key
 	} else {
-		klog.Warningf("KITE_ENCRYPT_KEY is not set, using default key, this is not secure for production!")
+		klog.Fatalf("KITE_ENCRYPT_KEY is not set. Set a random 32+ character encryption key before starting the application.")
 	}
 
 	if v := os.Getenv("ANONYMOUS_USER_ENABLED"); v == "true" {

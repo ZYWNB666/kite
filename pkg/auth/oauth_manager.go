@@ -31,17 +31,11 @@ func getRequestHost(c *gin.Context) string {
 	if common.Host != "" {
 		return common.Host
 	}
-	proto := c.Request.Header.Get("X-Forwarded-Proto")
-	host := c.Request.Header.Get("X-Forwarded-Host")
-	if proto != "" && host != "" {
-		return proto + "://" + host
+	if c.Request.TLS != nil && c.Request.Host != "" {
+		return "https://" + c.Request.Host
 	}
 	if c.Request.Host != "" {
-		scheme := "https"
-		if c.Request.TLS == nil {
-			scheme = "http"
-		}
-		return scheme + "://" + c.Request.Host
+		return "http://" + c.Request.Host
 	}
 
 	return "http://localhost"

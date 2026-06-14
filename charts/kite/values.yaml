@@ -34,8 +34,8 @@ fullnameOverride: ""
 debug: false
 
 # External Host for the application
-# Used in generate OAuth redirect URLs
-# Leave empty to obtain from request headers
+# Used to generate OAuth redirect URLs
+# REQUIRED when behind a TLS-terminating proxy (nginx, cloud LB)
 # Example: https://kite.zzde.me
 host: ""
 
@@ -56,7 +56,7 @@ jwtSecret: ""
 # This is the key used for encrypting sensitive data
 # Change this in production
 # Ignored if using existingSecret
-encryptKey: "kite-default-encryption-key-change-in-production"
+encryptKey: "hWfiwRCZUonvYBwxD2sZAQq0IoQphx6l1z6NGtMGZN0"
 
 # Superuser configuration
 # Used to create an initial superuser account on first startup

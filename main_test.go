@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/zxh326/kite/pkg/auth"
 	"github.com/zxh326/kite/pkg/common"
 	"github.com/zxh326/kite/pkg/version"
 )
@@ -32,7 +33,8 @@ func TestRegisterBaseRoutes(t *testing.T) {
 	common.EnableVersionCheck = false
 
 	r := gin.New()
-	registerBaseRoutes(&r.RouterGroup)
+	authHandler := auth.NewAuthHandler()
+	registerBaseRoutes(&r.RouterGroup, authHandler)
 
 	t.Run("healthz", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
