@@ -263,6 +263,7 @@ export const deleteResource = async <T extends ResourceType>(
 // Apply resource from YAML
 export interface ApplyResourceRequest {
   yaml: string
+  createOnly?: boolean
 }
 
 export interface ApplyResourceResponse {
@@ -273,10 +274,12 @@ export interface ApplyResourceResponse {
 }
 
 export const applyResource = async (
-  yaml: string
+  yaml: string,
+  createOnly?: boolean
 ): Promise<ApplyResourceResponse> => {
   return await apiClient.post<ApplyResourceResponse>('/resources/apply', {
     yaml,
+    ...(createOnly && { createOnly: true }),
   })
 }
 

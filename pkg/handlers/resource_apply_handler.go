@@ -11,6 +11,7 @@ import (
 	"github.com/zxh326/kite/pkg/rbac"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -25,7 +26,8 @@ func NewResourceApplyHandler() *ResourceApplyHandler {
 }
 
 type ApplyResourceRequest struct {
-	YAML string `json:"yaml" binding:"required"`
+	YAML       string `json:"yaml" binding:"required"`
+	CreateOnly bool   `json:"createOnly"`
 }
 
 // ApplyResource applies a YAML resource to the cluster
@@ -102,6 +104,11 @@ func (h *ResourceApplyHandler) ApplyResource(c *gin.Context) {
 		}
 		err = nil // Clear error after successful creation
 	case err == nil:
+		if req.CreateOnly {
+			err = apierrors.NewAlreadyExists(schema.GroupResource{Resource: resource}, obj.GetName())
+			c.JSON(http.StatusConflict, gin.H{"error": obj.GetKind() + " \"" + obj.GetName() + "\" already exists"})
+			return
+		}
 		obj.SetResourceVersion(existingObj.GetResourceVersion())
 		if err := cs.K8sClient.Update(ctx, obj); err != nil {
 			klog.Errorf("Failed to update resource: %v", err)

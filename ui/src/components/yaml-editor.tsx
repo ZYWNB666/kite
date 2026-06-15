@@ -264,6 +264,7 @@ export function YamlEditor<T extends ResourceType>({
                   quickSuggestionsDelay: 500,
                   links: false,
                   colorDecorators: false,
+                  renderWhitespace: 'all',
                 }}
               />
             </ErrorBoundary>

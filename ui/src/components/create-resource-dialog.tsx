@@ -71,7 +71,7 @@ function CreateResourceDialogContent({
 
     setIsLoading(true)
     try {
-      await applyResource(yamlContent)
+      await applyResource(yamlContent, true)
       toast.success(
         t('createResource.success', 'Resource created successfully')
       )
