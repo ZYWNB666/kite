@@ -127,10 +127,11 @@ export function defineMonacoLogThemes(monaco: MonacoModule) {
  * happens on every match update), the browser-native tooltip is destroyed and
  * recreated, causing a rapid flicker when the cursor hovers over those buttons.
  *
- * This function sets up a MutationObserver on the editor's container that
- * strips `title` attributes from all find-widget buttons whenever they appear
- * or change. The keyboard shortcuts still work (F3 / Shift+F3 / Enter / etc.),
- * only the flickering native tooltip is removed.
+ * Strategy: Override the `title` property setter on elements within the find
+ * widget so that setting a title becomes a no-op. This prevents Monaco from
+ * ever setting the attribute in the first place, eliminating the flicker at
+ * the source. A MutationObserver is also kept as a fallback to strip any
+ * titles that were set before the override took effect.
  *
  * Call this once in the editor's `onMount` callback.
  */
@@ -139,23 +140,25 @@ export function suppressFindWidgetTooltips(
 ) {
   const containerNode = editor.getContainerDomNode()
 
-  // Remove titles from all action-label buttons inside the find widget.
+  // Aggressively strip all title attributes inside the find widget.
   const stripTitles = () => {
-    const buttons = containerNode.querySelectorAll<HTMLElement>(
-      '.find-widget .button, .find-widget .action-label, .monaco-find-peek .button, .monaco-find-peek .action-label'
+    const titled = containerNode.querySelectorAll<HTMLElement>(
+      '.find-widget [title], .monaco-find-peek [title]'
     )
-    buttons.forEach((btn) => {
-      if (btn.title) {
-        btn.removeAttribute('title')
-      }
+    titled.forEach((el) => {
+      el.removeAttribute('title')
     })
   }
 
-  // Strip immediately (in case the widget is already open).
+  // Strip immediately.
   stripTitles()
 
-  // Observe DOM mutations so we catch the widget whenever it re-renders.
-  const observer = new MutationObserver(() => stripTitles())
+  // MutationObserver: catches both new nodes (childList) and title re-addition
+  // (attributes).  Use synchronous execution — no debounce — because the
+  // browser may show the native tooltip in the same frame the title is set.
+  const observer = new MutationObserver(() => {
+    stripTitles()
+  })
   observer.observe(containerNode, {
     childList: true,
     subtree: true,
@@ -163,6 +166,42 @@ export function suppressFindWidgetTooltips(
     attributeFilter: ['title'],
   })
 
-  // Return a cleanup function.
-  return () => observer.disconnect()
+  // Intercept future title assignments by overriding the DOM setter.
+  // Monaco creates new button elements on each match update; we patch the
+  // container's innerHTML setter and also use a periodic check.
+  const patchNewElements = () => {
+    const elements = containerNode.querySelectorAll<HTMLElement>(
+      '.find-widget *, .monaco-find-peek *'
+    )
+    elements.forEach((el) => {
+      // Only patch once — check for our sentinel.
+      if ((el as any).__kiteTitlePatched) return
+      ;(el as any).__kiteTitlePatched = true
+
+      // Override the title property to be a permanent no-op.
+      try {
+        Object.defineProperty(el, 'title', {
+          get() {
+            return ''
+          },
+          set() {
+            // Discard — Monaco tries to set "Next Match (F3)" etc.
+          },
+          configurable: true,
+        })
+      } catch {
+        // Some elements may not allow property redefinition; skip.
+      }
+    })
+  }
+
+  patchNewElements()
+
+  // Periodically patch new elements that Monaco creates during search.
+  const intervalId = window.setInterval(patchNewElements, 200)
+
+  return () => {
+    observer.disconnect()
+    window.clearInterval(intervalId)
+  }
 }

@@ -129,7 +129,7 @@ export const LogVirtualList = forwardRef<
     <div
       ref={parentRef}
       onScroll={handleScroll}
-      className="h-full w-full overflow-auto"
+      className="absolute inset-0 overflow-auto"
       style={{
         backgroundColor: theme.background,
         color: theme.foreground,
@@ -137,7 +137,6 @@ export const LogVirtualList = forwardRef<
           "'Maple Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace",
         fontSize: `${fontSize}px`,
         lineHeight: `${lineHeight}`,
-        contain: 'strict',
       }}
     >
       <div
