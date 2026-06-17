@@ -60,7 +60,17 @@ export interface LogViewerProps {
   onClose?: () => void
 }
 
-const ANSI_CSS = generateAnsiCss()
+const ANSI_CSS = generateAnsiCss() + `
+  .log-highlight {
+    background-color: rgba(255, 213, 0, 0.35) !important;
+    color: inherit !important;
+    border-radius: 2px;
+    padding: 0 1px;
+  }
+  .log-highlight:hover {
+    background-color: rgba(255, 213, 0, 0.6) !important;
+  }
+`
 const TERMINAL_THEME_KEYS = Object.keys(TERMINAL_THEMES) as TerminalTheme[]
 const TERMINAL_THEME_ENTRIES = Object.entries(TERMINAL_THEMES) as Array<
   [TerminalTheme, (typeof TERMINAL_THEMES)[TerminalTheme]]
@@ -93,6 +103,8 @@ export function LogViewer({
   const [timestamps, setTimestamps] = useState(false)
   const [previous, setPrevious] = useState(false)
   const [filterTerm, setFilterTerm] = useState('')
+  const [useRegex, setUseRegex] = useState(false)
+  const [caseSensitive, setCaseSensitive] = useState(false)
   const [showScrollToBottom, setShowScrollToBottom] = useState(false)
   const [isReconnecting, setIsReconnecting] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -199,7 +211,9 @@ export function LogViewer({
     version,
   } = useLogBuffer({
     maxLines: 10000,
-    filterTerm,
+    searchTerm: filterTerm,
+    useRegex,
+    caseSensitive,
   })
 
   const logsOptions = useMemo(
@@ -247,7 +261,7 @@ export function LogViewer({
     }
   }, [])
 
-  // Note: filterTerm is now handled client-side by useLogBuffer — no reconnect needed.
+  // Search highlighting is handled client-side by useLogBuffer — no reconnect needed.
 
   // Stop previous stream when critical parameters change
   useEffect(() => {
@@ -367,7 +381,7 @@ export function LogViewer({
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                 <span>
                   {visibleCount} lines
-                  {filterTerm.length > 0 && ` (filtered from ${totalReceived})`}
+                  {filterTerm.length > 0 && ` (highlighting: ${filterTerm}${useRegex ? ' (regex)' : ''})`}
                 </span>
                 <ConnectionIndicator
                   isConnected={isConnected}
@@ -389,11 +403,31 @@ export function LogViewer({
               <IconSearch className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 ref={filterInputRef}
-                placeholder={'Filter logs...'}
+                placeholder={useRegex ? 'Search (regex)...' : 'Search...'}
                 value={filterTerm}
                 onChange={(e) => setFilterTerm(e.target.value)}
-                className="pl-8 w-full pr-8"
+                className="pl-8 w-full pr-20"
               />
+              <div className="absolute right-1 top-1.5 flex items-center gap-0.5">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={`h-7 px-1.5 text-xs ${caseSensitive ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'}`}
+                  onClick={() => setCaseSensitive((v) => !v)}
+                  title="Case sensitive"
+                >
+                  Aa
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={`h-7 px-1.5 text-xs font-mono ${useRegex ? 'bg-accent text-accent-foreground' : 'text-muted-foreground'}`}
+                  onClick={() => setUseRegex((v) => !v)}
+                  title="Use regex"
+                >
+                  .*
+                </Button>
+              </div>
             </div>
 
             {/* Container Selector */}

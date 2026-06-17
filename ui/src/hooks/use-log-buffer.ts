@@ -14,8 +14,12 @@ export interface LogEntry {
 export interface LogBufferOptions {
   /** Maximum number of lines kept in memory. Older lines are dropped. */
   maxLines?: number
-  /** Optional case-insensitive substring filter applied to raw text. */
-  filterTerm?: string
+  /** Search term for highlighting matches (not filtering). Empty = no highlight. */
+  searchTerm?: string
+  /** Whether to treat searchTerm as a regular expression. */
+  useRegex?: boolean
+  /** Whether the search is case-sensitive. */
+  caseSensitive?: boolean
   /** Called whenever the buffer content is cleared. */
   onClear?: () => void
 }
@@ -216,7 +220,7 @@ function buildClassFromCodes(codes: number[], currentClass: string): string {
  *   - stats: `totalReceived`, `visibleCount`, `version`, `hasData`.
  */
 export function useLogBuffer(options: LogBufferOptions = {}) {
-  const { maxLines = 10000, filterTerm = '', onClear } = options
+  const { maxLines = 10000, searchTerm = '', useRegex = false, caseSensitive = false, onClear } = options
 
   const [state, dispatch] = useReducer(reducer, {
     version: 0,
@@ -237,46 +241,92 @@ export function useLogBuffer(options: LogBufferOptions = {}) {
   const pendingRef = useRef<string[]>([])
   // RAF handle.
   const rafRef = useRef<number | null>(null)
-  // Current filter (lower-cased) kept in a ref so the flush closure is stable.
-  const filterRef = useRef(filterTerm)
-  filterRef.current = filterTerm.toLowerCase()
+  // Search refs kept in refs so the flush closure is stable.
+  const searchRef = useRef(searchTerm)
+  searchRef.current = searchTerm
+  const useRegexRef = useRef(useRegex)
+  useRegexRef.current = useRegex
+  const caseSensitiveRef = useRef(caseSensitive)
+  caseSensitiveRef.current = caseSensitive
   // onClear kept in ref to avoid re-subscribing.
   const onClearRef = useRef(onClear)
   onClearRef.current = onClear
+
+  /**
+   * Apply search highlighting to an HTML string by wrapping matches in <mark>.
+   * Operates only on text nodes (not inside HTML tags) to avoid breaking the
+   * pre-rendered ANSI spans.
+   */
+  const highlightHtml = useCallback((html: string): string => {
+    const term = searchRef.current
+    if (!term) return html
+
+    let regex: RegExp
+    if (useRegexRef.current) {
+      try {
+        regex = new RegExp(term, caseSensitiveRef.current ? 'g' : 'gi')
+      } catch {
+        // Invalid regex — no highlighting.
+        return html
+      }
+    } else {
+      // Escape regex special chars for literal search.
+      const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      regex = new RegExp(escaped, caseSensitiveRef.current ? 'g' : 'gi')
+    }
+
+    // Split by HTML tags so we only highlight text between tags.
+    // This is a simple split — safe because our ansiToHtml output is
+    // well-formed with <span>...</span> structure.
+    const parts = html.split(/(<[^>]*>)/)
+    let result = ''
+    for (const part of parts) {
+      if (part.startsWith('<')) {
+        // It's a tag, pass through unchanged.
+        result += part
+      } else {
+        // It's text — escape HTML, then highlight matches.
+        // But wait — the text is already escaped by ansiToHtml. So we can
+        // apply regex directly, then wrap matches in <mark>.
+        // We need to be careful: the text may contain &lt; &gt; &amp; entities.
+        // We operate on the escaped text and wrap matches.
+        result += part.replace(regex, (match) => `<mark class="log-highlight">${match}</mark>`)
+      }
+    }
+    return result
+  }, [])
 
   /**
    * Rebuild the visible entries array from the raw buffer applying the filter.
    * Called inside the RAF flush.
    */
   const rebuildEntries = useCallback(() => {
-    const filter = filterRef.current
     const raws = rawBufferRef.current
     const htmls = htmlBufferRef.current
     const len = raws.length
+    const hasSearch = !!searchRef.current
 
-    if (!filter) {
-      // Fast path: no filter, map directly (but assign stable ids).
-      // We reuse ids from the previous entries array when possible to keep
-      // React keys stable across flushes.
-      const prev = entriesRef.current
-      const out: LogEntry[] = new Array(len)
-      for (let i = 0; i < len; i++) {
-        const prevEntry = i < prev.length ? prev[i] : undefined
-        out[i] = prevEntry && prevEntry.raw === raws[i]
-          ? prevEntry
-          : { id: idCounterRef.current++, raw: raws[i], html: htmls[i] }
-      }
-      entriesRef.current = out
-    } else {
-      const out: LogEntry[] = []
-      for (let i = 0; i < len; i++) {
-        if (raws[i].toLowerCase().includes(filter)) {
-          out.push({ id: idCounterRef.current++, raw: raws[i], html: htmls[i] })
+    // No filtering — all lines are visible. Highlight is applied on top of
+    // the pre-rendered ANSI HTML.
+    const prev = entriesRef.current
+    const out: LogEntry[] = new Array(len)
+    for (let i = 0; i < len; i++) {
+      const prevEntry = i < prev.length ? prev[i] : undefined
+      if (prevEntry && prevEntry.raw === raws[i]) {
+        // Reuse existing entry, but re-apply highlight if search changed.
+        out[i] = hasSearch
+          ? { ...prevEntry, html: highlightHtml(htmls[i]) }
+          : prevEntry
+      } else {
+        out[i] = {
+          id: idCounterRef.current++,
+          raw: raws[i],
+          html: hasSearch ? highlightHtml(htmls[i]) : htmls[i],
         }
       }
-      entriesRef.current = out
     }
-  }, [])
+    entriesRef.current = out
+  }, [highlightHtml])
 
   /**
    * Flush the pending batch into the ring buffer and trigger a re-render.
@@ -358,11 +408,12 @@ export function useLogBuffer(options: LogBufferOptions = {}) {
   /**
    * Rebuild visible entries when the filter changes (no re-stream needed).
    */
+  // Rebuild visible entries when the search options change.
   useEffect(() => {
     rebuildEntries()
     dispatch({ type: 'REFILTER' })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterTerm])
+  }, [searchTerm, useRegex, caseSensitive])
 
   // Cleanup on unmount: cancel any pending RAF.
   useEffect(() => {

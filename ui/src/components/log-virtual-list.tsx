@@ -83,6 +83,7 @@ export const LogVirtualList = forwardRef<
   }, [lineHeight])
 
   // Auto-scroll to bottom when new lines arrive AND user was already at bottom.
+  // Only trigger on count change (new lines), NOT on version change (filter rebuild).
   useLayoutEffect(() => {
     if (!stickToBottomRef.current) return
     if (count === 0) return
@@ -93,7 +94,7 @@ export const LogVirtualList = forwardRef<
       virtualizer.scrollToIndex(count - 1, { align: 'end' })
     })
     return () => cancelAnimationFrame(raf)
-  }, [count, version, virtualizer])
+  }, [count, virtualizer])
 
   // Reset scroll tracker when entries are cleared.
   useEffect(() => {
@@ -103,11 +104,12 @@ export const LogVirtualList = forwardRef<
     }
   }, [count])
 
-  // Ensure the virtualizer re-measures after mount when the scroll element
-  // becomes available. Without this, the first render may have a null scroll
-  // element and produce zero virtual items.
+  // Ensure the virtualizer re-measures once after mount when the scroll element
+  // becomes available. Only runs once — not on every count change.
+  const didMeasureRef = useRef(false)
   useEffect(() => {
-    if (parentRef.current && count > 0) {
+    if (!didMeasureRef.current && parentRef.current && count > 0) {
+      didMeasureRef.current = true
       virtualizer.measure()
     }
   }, [count, virtualizer])
