@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 import { MonacoDiffEditor } from '@/lib/monaco-loader'
 import {
   defineMonacoBackgroundThemes,
+  suppressFindWidgetTooltips,
   useMonacoBackgroundColor,
 } from '@/lib/monaco-theme'
 import { Button } from '@/components/ui/button'
@@ -83,6 +84,8 @@ export function YamlDiffViewer({
 
   const handleEditorDidMount = (editor: monacoEditor.IStandaloneDiffEditor) => {
     editorRef.current = editor
+    suppressFindWidgetTooltips(editor.getOriginalEditor())
+    suppressFindWidgetTooltips(editor.getModifiedEditor())
   }
 
   useEffect(() => {

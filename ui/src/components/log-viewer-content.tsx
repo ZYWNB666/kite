@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { OnMount } from '@monaco-editor/react'
 import {
   IconClearAll,
   IconDownload,
@@ -11,20 +10,13 @@ import {
   IconX,
 } from '@tabler/icons-react'
 import { Container, Pod } from 'kubernetes-types/core/v1'
-import type { editor } from 'monaco-editor'
 import { useTranslation } from 'react-i18next'
 
-import { TERMINAL_THEMES, TerminalTheme } from '@/types/themes'
-import {
-  AnsiState,
-  generateAnsiCss,
-  getAnsiClassNames,
-  parseAnsi,
-} from '@/lib/ansi-parser'
+import { useLogBuffer } from '@/hooks/use-log-buffer'
 import { useLogsWebSocket } from '@/lib/api'
+import { generateAnsiCss } from '@/lib/ansi-parser'
 import { toSimpleContainer } from '@/lib/k8s'
-import { MonacoEditor } from '@/lib/monaco-loader'
-import { defineMonacoLogThemes } from '@/lib/monaco-theme'
+import { TERMINAL_THEMES, TerminalTheme } from '@/types/themes'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -50,6 +42,10 @@ import {
 import { Switch } from '@/components/ui/switch'
 
 import { ConnectionIndicator } from './connection-indicator'
+import {
+  LogVirtualList,
+  LogVirtualListHandle,
+} from './log-virtual-list'
 import { NetworkSpeedIndicator } from './network-speed-indicator'
 import { ContainerSelector } from './selector/container-selector'
 import { PodSelector } from './selector/pod-selector'
@@ -121,12 +117,8 @@ export function LogViewer({
     const saved = localStorage.getItem('log-viewer-font-size')
     return saved ? parseInt(saved, 10) : 14
   })
-  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null)
-  const [logCount, setLogCount] = useState(0) // Track log count for re-rendering
-  const ansiStateRef = useRef<AnsiState>({})
-  const decorationIdsRef = useRef<string[]>([])
-  const normalizedFilterTermRef = useRef('')
-  const pendingLogsRef = useRef<string[]>([])
+  const editorRef = useRef<LogVirtualListHandle | null>(null)
+  const filterInputRef = useRef<HTMLInputElement | null>(null)
   const sortedPods = useMemo(() => {
     if (!pods) {
       return undefined
@@ -144,10 +136,6 @@ export function LogViewer({
   const [selectPodName, setSelectPodName] = useState<string | undefined>(
     podName || pods?.[0]?.metadata?.name || undefined
   )
-
-  useEffect(() => {
-    normalizedFilterTermRef.current = filterTerm.toLocaleLowerCase()
-  }, [filterTerm])
 
   useEffect(() => {
     if (podName) {
@@ -200,143 +188,19 @@ export function LogViewer({
     handleThemeChange(TERMINAL_THEME_KEYS[nextIndex])
   }, [logTheme, handleThemeChange])
 
-  const writeLogToEditor = useCallback((log: string) => {
-    if (!editorRef.current) {
-      pendingLogsRef.current.push(log)
-      return
-    }
-
-    const model = editorRef.current.getModel()
-    if (!model) {
-      pendingLogsRef.current.push(log)
-      return
-    }
-
-    const { segments, finalState } = parseAnsi(log, ansiStateRef.current)
-    ansiStateRef.current = finalState
-
-    const plainText = segments.map((s) => s.text).join('')
-
-    if (normalizedFilterTermRef.current) {
-      if (
-        !plainText.toLocaleLowerCase().includes(normalizedFilterTermRef.current)
-      ) {
-        return
-      }
-    }
-
-    const lineCount = model.getLineCount()
-    const lineMaxColumn = model.getLineMaxColumn(lineCount)
-    const prefix = model.getValueLength() === 0 ? '' : '\n'
-
-    const textToInsert = `${prefix}${plainText}`
-    model.applyEdits([
-      {
-        range: {
-          startColumn: lineMaxColumn,
-          endColumn: lineMaxColumn,
-          startLineNumber: lineCount,
-          endLineNumber: lineCount,
-        },
-        text: textToInsert,
-        forceMoveMarkers: true,
-      },
-    ])
-
-    const newDecorations: editor.IModelDeltaDecoration[] = []
-
-    // Starting position for decorations
-    let currentLine = lineCount
-    let currentColumn = lineMaxColumn
-
-    if (prefix === '\n') {
-      currentLine++
-      currentColumn = 1
-    }
-
-    segments.forEach((segment) => {
-      const lines = segment.text.split('\n')
-      const endLine = currentLine + lines.length - 1
-      const endColumn =
-        lines.length === 1
-          ? currentColumn + lines[0].length
-          : lines[lines.length - 1].length + 1
-
-      const className = getAnsiClassNames(segment.styles)
-      if (className) {
-        newDecorations.push({
-          range: {
-            startLineNumber: currentLine,
-            startColumn: currentColumn,
-            endLineNumber: endLine,
-            endColumn: endColumn,
-          },
-          options: {
-            inlineClassName: className,
-          },
-        })
-      }
-
-      currentLine = endLine
-      currentColumn = endColumn
-    })
-
-    if (newDecorations.length > 0) {
-      const newIds = model.deltaDecorations([], newDecorations)
-      decorationIdsRef.current.push(...newIds)
-    }
-
-    const visibleRange = editorRef.current.getVisibleRanges()[0]
-    if (visibleRange?.endLineNumber + 2 >= lineCount) {
-      editorRef.current.revealLine(model.getLineCount())
-      setShowScrollToBottom(false)
-    } else {
-      setShowScrollToBottom(true)
-    }
-
-    setLogCount((count) => count + 1)
-  }, [])
-
-  // Handle editor mount
-  const handleEditorMount: OnMount = useCallback(
-    (editor) => {
-      editorRef.current = editor
-
-      // Configure search widget
-      editor.updateOptions({
-        find: {
-          addExtraSpaceOnTop: false,
-          autoFindInSelection: 'never',
-          seedSearchStringFromSelection: 'never',
-        },
-      })
-
-      const pendingLogs = pendingLogsRef.current
-      pendingLogsRef.current = []
-      pendingLogs.forEach((log) => writeLogToEditor(log))
-    },
-    [writeLogToEditor]
-  )
-
-  const appendLog = useCallback(
-    (log: string) => {
-      writeLogToEditor(log)
-    },
-    [writeLogToEditor]
-  )
-
-  const cleanLog = useCallback(() => {
-    setLogCount(0)
-    ansiStateRef.current = {}
-    decorationIdsRef.current = []
-    pendingLogsRef.current = []
-    if (editorRef.current) {
-      const model = editorRef.current.getModel()
-      if (model) {
-        model.setValue('')
-      }
-    }
-  }, [])
+  // High-performance log buffer: ring buffer + RAF batching + ANSI pre-render.
+  const {
+    entries,
+    append,
+    clear: clearBuffer,
+    downloadText,
+    totalReceived,
+    visibleCount,
+    version,
+  } = useLogBuffer({
+    maxLines: 10000,
+    filterTerm,
+  })
 
   const logsOptions = useMemo(
     () => ({
@@ -346,8 +210,8 @@ export function LogViewer({
       previous,
       enabled: !!selectPodName,
       labelSelector,
-      onNewLog: appendLog,
-      onClear: cleanLog,
+      onNewLog: append,
+      onClear: clearBuffer,
     }),
     [
       selectedContainer,
@@ -356,8 +220,8 @@ export function LogViewer({
       previous,
       selectPodName,
       labelSelector,
-      appendLog,
-      cleanLog,
+      append,
+      clearBuffer,
     ]
   )
 
@@ -383,18 +247,7 @@ export function LogViewer({
     }
   }, [])
 
-  // When filterTerm changes, debounce and reconnect so all log lines are re-filtered
-  const refetchRef = useRef(refetch)
-  refetchRef.current = refetch
-  const isFirstFilterEffect = useRef(true)
-  useEffect(() => {
-    if (isFirstFilterEffect.current) {
-      isFirstFilterEffect.current = false
-      return
-    }
-    const timer = setTimeout(() => refetchRef.current(), 500)
-    return () => clearTimeout(timer)
-  }, [filterTerm])
+  // Note: filterTerm is now handled client-side by useLogBuffer — no reconnect needed.
 
   // Stop previous stream when critical parameters change
   useEffect(() => {
@@ -427,30 +280,23 @@ export function LogViewer({
   }, [isLoading])
 
   const downloadLogs = () => {
-    const model = editorRef?.current?.getModel()
-    if (model) {
-      const content = model.getValue()
-      const blob = new Blob([content], { type: 'text/plain' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      const podFileName = selectPodName || 'all-pods'
-      a.download = `${podFileName}-${selectedContainer || 'pod'}-logs.txt`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    }
+    const content = downloadText()
+    if (!content) return
+    const blob = new Blob([content], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const podFileName = selectPodName || 'all-pods'
+    a.download = `${podFileName}-${selectedContainer || 'pod'}-logs.txt`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   }
 
   const scrollToBottom = useCallback(() => {
-    if (editorRef.current) {
-      const model = editorRef.current.getModel()
-      if (model) {
-        editorRef.current.revealLine(model.getLineCount())
-        setShowScrollToBottom(false)
-      }
-    }
+    editorRef.current?.scrollToBottom()
+    setShowScrollToBottom(false)
   }, [])
 
   // Handle fullscreen toggle
@@ -475,10 +321,11 @@ export function LogViewer({
   // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl/Cmd + F to open Monaco search
+      // Ctrl/Cmd + F to focus the filter input (replaces Monaco search)
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
         e.preventDefault()
-        editorRef.current?.getAction('actions.find')?.run()
+        filterInputRef.current?.focus()
+        filterInputRef.current?.select()
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         toggleFullscreen()
@@ -519,7 +366,8 @@ export function LogViewer({
             <CardDescription>
               <div className="flex items-center gap-4 text-sm text-muted-foreground">
                 <span>
-                  {logCount} lines {filterTerm.length > 0 && `(filtered)`}
+                  {visibleCount} lines
+                  {filterTerm.length > 0 && ` (filtered from ${totalReceived})`}
                 </span>
                 <ConnectionIndicator
                   isConnected={isConnected}
@@ -540,6 +388,7 @@ export function LogViewer({
             <div className="relative">
               <IconSearch className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
+                ref={filterInputRef}
                 placeholder={'Filter logs...'}
                 value={filterTerm}
                 onChange={(e) => setFilterTerm(e.target.value)}
@@ -768,7 +617,7 @@ export function LogViewer({
               variant="outline"
               size="sm"
               onClick={downloadLogs}
-              disabled={logCount === 0}
+              disabled={visibleCount === 0}
             >
               <IconDownload className="h-4 w-4" />
             </Button>
@@ -800,52 +649,18 @@ export function LogViewer({
       </CardHeader>
 
       <CardContent className="flex-1 p-0 relative">
-        <MonacoEditor
-          height={isFullscreen ? 'calc(100dvh - 60px)' : 'calc(100dvh - 255px)'}
-          theme={`log-theme-${logTheme}`}
-          loading={
-            <div
-              className="flex h-full items-center justify-center"
-              style={{
-                height: isFullscreen
-                  ? 'calc(100dvh - 60px)'
-                  : 'calc(100dvh - 255px)',
-              }}
-            >
-              <div className="text-center opacity-60">Loading editor...</div>
-            </div>
-          }
-          beforeMount={(monaco) => {
-            defineMonacoLogThemes(monaco)
+        <LogVirtualList
+          ref={editorRef}
+          entries={entries}
+          version={version}
+          theme={{
+            background: currentTheme.background,
+            foreground: currentTheme.foreground,
           }}
-          onMount={handleEditorMount}
-          options={{
-            readOnly: true,
-            minimap: { enabled: false },
-            scrollBeyondLastLine: false,
-            fontSize,
-            wordWrap: wordWrap ? 'on' : 'off',
-            lineHeight: 1.7,
-            insertSpaces: true,
-            fontFamily:
-              "'Maple Mono',Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace",
-            lineNumbers: showLineNumbers ? 'on' : 'off',
-            glyphMargin: false,
-            folding: false,
-            renderLineHighlight: 'gutter',
-            scrollbar: {
-              vertical: 'visible',
-              horizontal: 'visible',
-              useShadows: false,
-              verticalScrollbarSize: 10,
-              horizontalScrollbarSize: 10,
-            },
-            overviewRulerLanes: 0,
-            hideCursorInOverviewRuler: true,
-            overviewRulerBorder: false,
-            automaticLayout: true,
-            colorDecorators: false,
-          }}
+          fontSize={fontSize}
+          wordWrap={wordWrap}
+          showLineNumbers={showLineNumbers}
+          lineHeight={Math.round(fontSize * 1.7)}
         />
         {showScrollToBottom && (
           <div

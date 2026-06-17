@@ -1,6 +1,7 @@
 import { MonacoEditor } from '@/lib/monaco-loader'
 import {
   defineMonacoBackgroundThemes,
+  suppressFindWidgetTooltips,
   useMonacoBackgroundColor,
 } from '@/lib/monaco-theme'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -53,6 +54,9 @@ export function TextViewer({
                   lightThemeName,
                   backgroundColor,
                 })
+              }}
+              onMount={(editor) => {
+                suppressFindWidgetTooltips(editor)
               }}
               options={{
                 readOnly: true,

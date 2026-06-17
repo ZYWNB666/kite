@@ -118,3 +118,51 @@ export function defineMonacoLogThemes(monaco: MonacoModule) {
     )
   }
 }
+
+/**
+ * Fix the Monaco find-widget tooltip flicker.
+ *
+ * The find widget's navigation buttons (▲▼, etc.) use native `title` attributes
+ * for keyboard-shortcut hints. When the widget re-renders during search (which
+ * happens on every match update), the browser-native tooltip is destroyed and
+ * recreated, causing a rapid flicker when the cursor hovers over those buttons.
+ *
+ * This function sets up a MutationObserver on the editor's container that
+ * strips `title` attributes from all find-widget buttons whenever they appear
+ * or change. The keyboard shortcuts still work (F3 / Shift+F3 / Enter / etc.),
+ * only the flickering native tooltip is removed.
+ *
+ * Call this once in the editor's `onMount` callback.
+ */
+export function suppressFindWidgetTooltips(
+  editor: import('monaco-editor').editor.IStandaloneCodeEditor
+) {
+  const containerNode = editor.getContainerDomNode()
+
+  // Remove titles from all action-label buttons inside the find widget.
+  const stripTitles = () => {
+    const buttons = containerNode.querySelectorAll<HTMLElement>(
+      '.find-widget .button, .find-widget .action-label, .monaco-find-peek .button, .monaco-find-peek .action-label'
+    )
+    buttons.forEach((btn) => {
+      if (btn.title) {
+        btn.removeAttribute('title')
+      }
+    })
+  }
+
+  // Strip immediately (in case the widget is already open).
+  stripTitles()
+
+  // Observe DOM mutations so we catch the widget whenever it re-renders.
+  const observer = new MutationObserver(() => stripTitles())
+  observer.observe(containerNode, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['title'],
+  })
+
+  // Return a cleanup function.
+  return () => observer.disconnect()
+}

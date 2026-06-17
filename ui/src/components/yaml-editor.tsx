@@ -8,6 +8,7 @@ import { ResourceType, ResourceTypeMap } from '@/types/api'
 import { MonacoEditor } from '@/lib/monaco-loader'
 import {
   defineMonacoBackgroundThemes,
+  suppressFindWidgetTooltips,
   useMonacoBackgroundColor,
 } from '@/lib/monaco-theme'
 import { Button } from '@/components/ui/button'
@@ -151,6 +152,7 @@ export function YamlEditor<T extends ResourceType>({
 
   const handleEditorDidMount = (editor: monacoEditor.IStandaloneCodeEditor) => {
     editorRef.current = editor
+    suppressFindWidgetTooltips(editor)
   }
 
   const effectiveReadOnly = readOnly || !isEditing

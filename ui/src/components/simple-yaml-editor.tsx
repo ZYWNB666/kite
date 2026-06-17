@@ -1,6 +1,7 @@
 import { MonacoEditor } from '@/lib/monaco-loader'
 import {
   defineMonacoBackgroundThemes,
+  suppressFindWidgetTooltips,
   useMonacoBackgroundColor,
 } from '@/lib/monaco-theme'
 
@@ -48,6 +49,9 @@ export function SimpleYamlEditor({
             lightThemeName: `custom-vs-${colorTheme}`,
             backgroundColor,
           })
+        }}
+        onMount={(editor) => {
+          suppressFindWidgetTooltips(editor)
         }}
         theme={
           actualTheme === 'dark'
