@@ -103,6 +103,15 @@ export const LogVirtualList = forwardRef<
     }
   }, [count])
 
+  // Ensure the virtualizer re-measures after mount when the scroll element
+  // becomes available. Without this, the first render may have a null scroll
+  // element and produce zero virtual items.
+  useEffect(() => {
+    if (parentRef.current && count > 0) {
+      virtualizer.measure()
+    }
+  }, [count, virtualizer])
+
   useImperativeHandle(
     ref,
     () => ({
@@ -129,14 +138,15 @@ export const LogVirtualList = forwardRef<
     <div
       ref={parentRef}
       onScroll={handleScroll}
-      className="absolute inset-0 overflow-auto"
+      className="w-full overflow-auto"
       style={{
+        height: '100%',
         backgroundColor: theme.background,
         color: theme.foreground,
         fontFamily:
           "'Maple Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace",
         fontSize: `${fontSize}px`,
-        lineHeight: `${lineHeight}`,
+        lineHeight: `${lineHeight}px`,
       }}
     >
       <div

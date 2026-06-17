@@ -648,7 +648,7 @@ export function LogViewer({
         </div>
       </CardHeader>
 
-      <CardContent className="flex-1 p-0 relative overflow-hidden min-h-0"
+      <CardContent className="p-0 relative overflow-hidden"
         style={{
           height: isFullscreen ? 'calc(100dvh - 60px)' : 'calc(100dvh - 255px)',
         }}
