@@ -18,8 +18,6 @@ export interface LogVirtualListHandle {
 
 interface LogVirtualListProps {
   entries: LogEntry[]
-  /** Bumped whenever the buffer commits a batch — used to trigger auto-scroll. */
-  version: number
   theme: {
     background: string
     foreground: string
@@ -40,7 +38,6 @@ interface LogVirtualListProps {
  * Auto-scroll-to-bottom behavior:
  *  - If the user is near the bottom when new lines arrive, we stick to bottom.
  *  - If the user has scrolled up, we do NOT auto-scroll (so they can read).
- *  - A `version` prop bump triggers a scroll check.
  */
 export const LogVirtualList = forwardRef<
   LogVirtualListHandle,
@@ -48,7 +45,6 @@ export const LogVirtualList = forwardRef<
 >(function LogVirtualList(
   {
     entries,
-    version,
     theme,
     fontSize,
     wordWrap,
@@ -83,7 +79,7 @@ export const LogVirtualList = forwardRef<
   }, [lineHeight])
 
   // Auto-scroll to bottom when new lines arrive AND user was already at bottom.
-  // Only trigger on count change (new lines), NOT on version change (filter rebuild).
+  // Only trigger on count change (new lines).
   useLayoutEffect(() => {
     if (!stickToBottomRef.current) return
     if (count === 0) return

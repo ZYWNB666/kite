@@ -206,9 +206,7 @@ export function LogViewer({
     append,
     clear: clearBuffer,
     downloadText,
-    totalReceived,
     visibleCount,
-    version,
   } = useLogBuffer({
     maxLines: 10000,
     searchTerm: filterTerm,
@@ -690,7 +688,6 @@ export function LogViewer({
         <LogVirtualList
           ref={editorRef}
           entries={entries}
-          version={version}
           theme={{
             background: currentTheme.background,
             foreground: currentTheme.foreground,
