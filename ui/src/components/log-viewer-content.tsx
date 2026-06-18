@@ -65,8 +65,8 @@ const TERMINAL_THEME_ENTRIES = Object.entries(TERMINAL_THEMES) as Array<
   [TerminalTheme, (typeof TERMINAL_THEMES)[TerminalTheme]]
 >
 
-/** Lines kept in xterm scrollback buffer */
-const SCROLLBACK = 50000
+/** Max lines kept in xterm scrollback buffer */
+const SCROLLBACK = 3000
 
 function buildXtermTheme(t: (typeof TERMINAL_THEMES)[TerminalTheme]) {
   return {
@@ -202,6 +202,7 @@ export function LogViewer({
       convertEol: true,
       scrollback: SCROLLBACK,
       allowTransparency: false,
+      allowProposedApi: true,
       overviewRulerWidth: 10,
     })
 
@@ -279,6 +280,13 @@ export function LogViewer({
     // Single write per frame — xterm handles ANSI codes natively, no parsing needed
     xtermRef.current.write(pending.join('\r\n') + '\r\n')
     lineCountRef.current += pending.length
+    // If we exceeded the scrollback limit, trim old lines from the buffer.
+    // xterm drops old lines automatically when scrollback is exceeded,
+    // but we also update our counter so the displayed count stays accurate.
+    const buf = xtermRef.current.buffer.active
+    if (buf.length > SCROLLBACK) {
+      lineCountRef.current = buf.length
+    }
     setLineCount(lineCountRef.current)
   }, [])
 
