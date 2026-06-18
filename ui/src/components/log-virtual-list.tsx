@@ -56,6 +56,8 @@ export const LogVirtualList = forwardRef<
   const parentRef = useRef<HTMLDivElement | null>(null)
   const stickToBottomRef = useRef(true)
   const lastEntryCountRef = useRef(0)
+  // Flag to suppress scroll handling during programmatic scrolls.
+  const isProgrammaticScrollRef = useRef(false)
 
   const count = entries.length
 
@@ -64,13 +66,13 @@ export const LogVirtualList = forwardRef<
     getScrollElement: () => parentRef.current,
     estimateSize: () => lineHeight,
     overscan: 20,
-    // Stable keys via entry.id — but virtualizer uses index; that's fine
-    // because rows are append-only / trimmed from the front.
     getItemKey: (index) => entries[index]?.id ?? index,
   })
 
   // Track whether the user is at (or near) the bottom of the scroll area.
+  // Ignore scroll events triggered by our own scrollToIndex calls.
   const handleScroll = useCallback(() => {
+    if (isProgrammaticScrollRef.current) return
     const el = parentRef.current
     if (!el) return
     const distanceFromBottom =
@@ -79,7 +81,6 @@ export const LogVirtualList = forwardRef<
   }, [lineHeight])
 
   // Auto-scroll to bottom when new lines arrive AND user was already at bottom.
-  // Only trigger on count change (new lines).
   useLayoutEffect(() => {
     if (!stickToBottomRef.current) return
     if (count === 0) return
@@ -87,7 +88,14 @@ export const LogVirtualList = forwardRef<
     lastEntryCountRef.current = count
     // Use rAF to ensure DOM has been updated by the virtualizer.
     const raf = requestAnimationFrame(() => {
+      isProgrammaticScrollRef.current = true
       virtualizer.scrollToIndex(count - 1, { align: 'end' })
+      // Reset the flag after the scroll settles (next frame + small buffer).
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          isProgrammaticScrollRef.current = false
+        })
+      })
     })
     return () => cancelAnimationFrame(raf)
   }, [count, virtualizer])
@@ -116,7 +124,13 @@ export const LogVirtualList = forwardRef<
       scrollToBottom: () => {
         stickToBottomRef.current = true
         if (count > 0) {
+          isProgrammaticScrollRef.current = true
           virtualizer.scrollToIndex(count - 1, { align: 'end' })
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              isProgrammaticScrollRef.current = false
+            })
+          })
         }
       },
       isAtBottom: () => stickToBottomRef.current,
