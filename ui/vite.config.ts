@@ -27,13 +27,13 @@ function getManualChunk(id: string) {
 
   if (
     normalizedId.includes('/src/components/terminal-content.tsx') ||
+    normalizedId.includes('/src/components/log-viewer-content.tsx') ||
     normalizedId.includes('/node_modules/@xterm/')
   ) {
     return 'terminal'
   }
 
   if (
-    normalizedId.includes('/src/components/log-viewer-content.tsx') ||
     normalizedId.includes('/src/lib/ansi-parser.ts')
   ) {
     return 'log-viewer'

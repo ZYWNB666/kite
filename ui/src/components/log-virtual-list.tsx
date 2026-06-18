@@ -56,8 +56,6 @@ export const LogVirtualList = forwardRef<
   const parentRef = useRef<HTMLDivElement | null>(null)
   const stickToBottomRef = useRef(true)
   const lastEntryCountRef = useRef(0)
-  // Flag to suppress scroll handling during programmatic scrolls.
-  const isProgrammaticScrollRef = useRef(false)
 
   const count = entries.length
 
@@ -69,16 +67,25 @@ export const LogVirtualList = forwardRef<
     getItemKey: (index) => entries[index]?.id ?? index,
   })
 
-  // Track whether the user is at (or near) the bottom of the scroll area.
-  // Ignore scroll events triggered by our own scrollToIndex calls.
+  // Detect when user returns to bottom via scroll position.
+  // Only ENABLES auto-scroll — user scroll-up is detected by onWheel/onTouchStart
+  // which fire ONLY for real user input, never for programmatic scrollToIndex calls.
   const handleScroll = useCallback(() => {
-    if (isProgrammaticScrollRef.current) return
     const el = parentRef.current
     if (!el) return
     const distanceFromBottom =
       el.scrollHeight - el.scrollTop - el.clientHeight
-    stickToBottomRef.current = distanceFromBottom < lineHeight * 2
+    if (distanceFromBottom < lineHeight * 2) {
+      stickToBottomRef.current = true
+    }
   }, [lineHeight])
+
+  // User started scrolling up — immediately stop auto-scroll.
+  // onWheel and onTouchStart only fire on real user gestures, never on
+  // programmatic scrollToIndex, so there is no race condition.
+  const handleUserScrollIntent = useCallback(() => {
+    stickToBottomRef.current = false
+  }, [])
 
   // Auto-scroll to bottom when new lines arrive AND user was already at bottom.
   useLayoutEffect(() => {
@@ -86,16 +93,8 @@ export const LogVirtualList = forwardRef<
     if (count === 0) return
     if (count === lastEntryCountRef.current) return
     lastEntryCountRef.current = count
-    // Use rAF to ensure DOM has been updated by the virtualizer.
     const raf = requestAnimationFrame(() => {
-      isProgrammaticScrollRef.current = true
       virtualizer.scrollToIndex(count - 1, { align: 'end' })
-      // Reset the flag after the scroll settles (next frame + small buffer).
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          isProgrammaticScrollRef.current = false
-        })
-      })
     })
     return () => cancelAnimationFrame(raf)
   }, [count, virtualizer])
@@ -108,8 +107,7 @@ export const LogVirtualList = forwardRef<
     }
   }, [count])
 
-  // Ensure the virtualizer re-measures once after mount when the scroll element
-  // becomes available. Only runs once — not on every count change.
+  // Ensure the virtualizer re-measures once after mount.
   const didMeasureRef = useRef(false)
   useEffect(() => {
     if (!didMeasureRef.current && parentRef.current && count > 0) {
@@ -124,13 +122,7 @@ export const LogVirtualList = forwardRef<
       scrollToBottom: () => {
         stickToBottomRef.current = true
         if (count > 0) {
-          isProgrammaticScrollRef.current = true
           virtualizer.scrollToIndex(count - 1, { align: 'end' })
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              isProgrammaticScrollRef.current = false
-            })
-          })
         }
       },
       isAtBottom: () => stickToBottomRef.current,
@@ -150,6 +142,8 @@ export const LogVirtualList = forwardRef<
     <div
       ref={parentRef}
       onScroll={handleScroll}
+      onWheel={handleUserScrollIntent}
+      onTouchStart={handleUserScrollIntent}
       className="w-full overflow-auto"
       style={{
         height: '100%',
