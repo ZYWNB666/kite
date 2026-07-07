@@ -88,7 +88,7 @@ export function ResourceTable<T>({
     setPagination,
     refreshInterval,
     setRefreshInterval,
-    selectedNamespace,
+    selectedNamespaces,
     effectiveNamespace,
     useSSE,
     handleNamespaceChange,
@@ -100,6 +100,14 @@ export function ResourceTable<T>({
     defaultHiddenColumns,
   })
   const [isDeleting, setIsDeleting] = useState(false)
+  // When multiple namespaces are selected (not _all), fetch _all and filter
+  // client-side. When a single namespace or _all is selected, no client filter.
+  const clientFilterNamespaces =
+    !clusterScope &&
+    selectedNamespaces.length > 1 &&
+    !selectedNamespaces.includes('_all')
+      ? selectedNamespaces
+      : undefined
   const {
     resourceType: resolvedResourceType,
     data,
@@ -112,6 +120,7 @@ export function ResourceTable<T>({
     resourceName,
     resourceType,
     namespace: effectiveNamespace,
+    clientFilterNamespaces,
     useSSE,
     refreshInterval,
   })
@@ -158,7 +167,10 @@ export function ResourceTable<T>({
 
     // Only add namespace column if not cluster scope, showing all namespaces,
     // and there isn't already a namespace column in the provided columns
-    if (!clusterScope && selectedNamespace === '_all') {
+    if (
+      !clusterScope &&
+      (selectedNamespaces.includes('_all') || selectedNamespaces.length > 1)
+    ) {
       // Check if namespace column already exists in the provided columns
       const hasNamespaceColumn = columns.some((col) => {
         // Check if the column accesses namespace data
@@ -196,7 +208,7 @@ export function ResourceTable<T>({
       }
     }
     return baseColumns
-  }, [columns, clusterScope, selectedNamespace, t])
+  }, [columns, clusterScope, selectedNamespaces, t])
 
   const memoizedData = useMemo(() => (data || []) as T[], [data])
 
@@ -350,8 +362,14 @@ export function ResourceTable<T>({
           </h3>
           <p className="text-muted-foreground">
             Retrieving data
-            {!clusterScope && selectedNamespace
-              ? ` from ${selectedNamespace === '_all' ? 'All Namespaces' : `namespace ${selectedNamespace}`}`
+            {!clusterScope && selectedNamespaces.length > 0
+              ? ` from ${
+                  selectedNamespaces.includes('_all')
+                    ? 'All Namespaces'
+                    : selectedNamespaces.length === 1
+                      ? `namespace ${selectedNamespaces[0]}`
+                      : `${selectedNamespaces.length} namespaces`
+                }`
               : ''}
           </p>
         </div>
@@ -382,7 +400,13 @@ export function ResourceTable<T>({
               ? `No results match your search query: "${searchQuery}"`
               : clusterScope
                 ? `There are no ${displayResourceName} found`
-                : `There are no ${displayResourceName} in the ${selectedNamespace} namespace`}
+                : `There are no ${displayResourceName} in ${
+                    selectedNamespaces.includes('_all')
+                      ? 'any namespace'
+                      : selectedNamespaces.length === 1
+                        ? `namespace ${selectedNamespaces[0]}`
+                        : `the ${selectedNamespaces.length} selected namespaces`
+                  }`}
           </p>
           {searchQuery && (
             <Button
@@ -414,7 +438,7 @@ export function ResourceTable<T>({
         onCreateClick={onCreateClick}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
-        selectedNamespace={selectedNamespace}
+        selectedNamespaces={selectedNamespaces}
         handleNamespaceChange={handleNamespaceChange}
         useSSE={useSSE}
         isConnected={isConnected}

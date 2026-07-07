@@ -31,15 +31,34 @@ export function ServiceListPage() {
 
   const [namespace, setNamespace] = useState<string | undefined>(() => {
     const stored = localStorage.getItem(
+      getClusterScopedStorageKey('selectedNamespaces')
+    )
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored)
+        if (Array.isArray(parsed)) {
+          if (parsed.includes('_all') || parsed.length > 1) return undefined
+          return parsed[0]
+        }
+      } catch {
+        // fall through to legacy
+      }
+    }
+    const legacy = localStorage.getItem(
       getClusterScopedStorageKey('selectedNamespace')
     )
-    return stored || 'default'
+    return legacy === '_all' ? undefined : legacy || 'default'
   })
 
   useEffect(() => {
     const handler = (e: Event) => {
-      const detail = (e as CustomEvent<{ namespace: string }>).detail
-      setNamespace(detail.namespace === '_all' ? undefined : detail.namespace)
+      const detail = (e as CustomEvent<{ namespaces: string[] }>).detail
+      const nss = detail.namespaces || []
+      if (nss.includes('_all') || nss.length > 1) {
+        setNamespace(undefined)
+      } else {
+        setNamespace(nss[0] || 'default')
+      }
     }
     window.addEventListener('kite:namespace-change', handler)
     return () => window.removeEventListener('kite:namespace-change', handler)

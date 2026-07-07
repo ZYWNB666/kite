@@ -43,8 +43,8 @@ interface ResourceTableToolbarProps<T> {
   onCreateClick?: () => void
   searchQuery: string
   setSearchQuery: (value: string) => void
-  selectedNamespace?: string
-  handleNamespaceChange: (value: string) => void
+  selectedNamespaces: string[]
+  handleNamespaceChange: (value: string[]) => void
   useSSE: boolean
   isConnected: boolean
   refreshInterval: number
@@ -64,7 +64,7 @@ export function ResourceTableToolbar<T>({
   onCreateClick,
   searchQuery,
   setSearchQuery,
-  selectedNamespace,
+  selectedNamespaces,
   handleNamespaceChange,
   useSSE,
   isConnected,
@@ -129,7 +129,7 @@ export function ResourceTableToolbar<T>({
           </Select>
           {!clusterScope && (
             <NamespaceSelector
-              selectedNamespace={selectedNamespace}
+              selectedNamespaces={selectedNamespaces}
               handleNamespaceChange={handleNamespaceChange}
               showAll={true}
             />

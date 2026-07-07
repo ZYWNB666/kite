@@ -27,6 +27,13 @@ interface SimpleTableProps<T> {
     showPageInfo?: boolean
     currentPage?: number
     onPageChange?: (page: number) => void
+    /**
+     * Total record count for server-side pagination. When provided, `data`
+     * is treated as the already-paginated current page (no slicing), and
+     * `totalPages`/page-info are derived from `total`. When omitted, the
+     * table falls back to client-side pagination over the full `data` array.
+     */
+    total?: number
   }
 }
 
@@ -51,6 +58,7 @@ export function SimpleTable<T>({
       enabled: pagination?.enabled ?? false,
       pageSize: pagination?.pageSize ?? 10,
       showPageInfo: pagination?.showPageInfo ?? true,
+      total: pagination?.total,
     }),
     [pagination]
   )
@@ -65,7 +73,22 @@ export function SimpleTable<T>({
       }
     }
 
-    const { pageSize } = paginationConfig
+    const { pageSize, total } = paginationConfig
+    // Server-side pagination: data is already the current page; derive totals
+    // from the provided `total` instead of slicing the array.
+    if (typeof total === 'number') {
+      const totalPages = Math.max(1, Math.ceil(total / pageSize))
+      const startIndex = (currentPage - 1) * pageSize
+      const endIndex = Math.min(startIndex + data.length, total)
+      return {
+        paginatedData: data,
+        totalPages,
+        startIndex: data.length === 0 ? 0 : startIndex + 1,
+        endIndex,
+      }
+    }
+
+    // Client-side pagination: slice the full data array locally.
     const totalPages = Math.ceil(data.length / pageSize)
     const startIndex = (currentPage - 1) * pageSize
     const endIndex = Math.min(startIndex + pageSize, data.length)
@@ -156,7 +179,8 @@ export function SimpleTable<T>({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           {paginationConfig.showPageInfo && (
             <div className="text-sm text-muted-foreground">
-              Showing {startIndex} - {endIndex} of {data.length} entries
+              Showing {startIndex} - {endIndex} of{' '}
+              {paginationConfig.total ?? data.length} entries
             </div>
           )}
 

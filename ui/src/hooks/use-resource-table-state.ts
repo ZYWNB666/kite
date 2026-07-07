@@ -77,28 +77,59 @@ export function useResourceTableState({
     }
   })
   const [refreshInterval, setRefreshInterval] = useState(5000)
-  const [selectedNamespace, setSelectedNamespace] = useState<
-    string | undefined
+  const [selectedNamespaces, setSelectedNamespaces] = useState<
+    string[]
   >(() => {
-    const storedNamespace = localStorage.getItem(
+    if (clusterScope) return []
+    const stored = localStorage.getItem(
+      getClusterScopedStorageKey('selectedNamespaces')
+    )
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored)
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed
+      } catch {
+        // fall through to legacy migration
+      }
+    }
+    // Migrate legacy single-value storage
+    const legacy = localStorage.getItem(
       getClusterScopedStorageKey('selectedNamespace')
     )
-    return clusterScope ? undefined : storedNamespace || 'default'
+    return legacy ? [legacy] : ['default']
   })
   const [useSSE, setUseSSE] = useState(false)
 
-  const effectiveNamespace = clusterScope ? undefined : selectedNamespace
+  // The namespace to send to the API. When exactly one namespace is selected
+  // (and it's not _all), we query that specific namespace for efficiency.
+  // When multiple or _all is selected, we query _all and filter on the client.
+  const effectiveNamespace = clusterScope
+    ? undefined
+    : selectedNamespaces.length === 1 && selectedNamespaces[0] !== '_all'
+      ? selectedNamespaces[0]
+      : '_all'
 
   useEffect(() => {
-    if (clusterScope || selectedNamespace !== undefined) {
+    if (clusterScope || selectedNamespaces.length > 0) {
       return
     }
 
-    const storedNamespace = localStorage.getItem(
-      getClusterScopedStorageKey('selectedNamespace')
+    const stored = localStorage.getItem(
+      getClusterScopedStorageKey('selectedNamespaces')
     )
-    setSelectedNamespace(storedNamespace || 'default')
-  }, [clusterScope, selectedNamespace])
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setSelectedNamespaces(parsed)
+          return
+        }
+      } catch {
+        // ignore
+      }
+    }
+    setSelectedNamespaces(['default'])
+  }, [clusterScope, selectedNamespaces])
 
   useEffect(() => {
     const storageKey = getClusterScopedStorageKey(
@@ -142,12 +173,25 @@ export function useResourceTableState({
     setPagination((prev) => ({ ...prev, pageIndex: 0 }))
   }, [columnFilters, searchQuery])
 
-  const handleNamespaceChange = useCallback((value: string) => {
-    localStorage.setItem(getClusterScopedStorageKey('selectedNamespace'), value)
-    setSelectedNamespace(value)
+  const handleNamespaceChange = useCallback((value: string[]) => {
+    const normalized = value.length === 0 ? ['default'] : value
+    localStorage.setItem(
+      getClusterScopedStorageKey('selectedNamespaces'),
+      JSON.stringify(normalized)
+    )
+    // Also update legacy key for components still reading it
+    localStorage.setItem(
+      getClusterScopedStorageKey('selectedNamespace'),
+      normalized.includes('_all') ? '_all' : normalized[0]
+    )
+    setSelectedNamespaces(normalized)
     setPagination((prev) => ({ ...prev, pageIndex: 0 }))
     setSearchQuery('')
-    window.dispatchEvent(new CustomEvent('kite:namespace-change', { detail: { namespace: value } }))
+    window.dispatchEvent(
+      new CustomEvent('kite:namespace-change', {
+        detail: { namespaces: normalized },
+      })
+    )
   }, [])
 
   const handleUseSSEChange = useCallback((pressed: boolean) => {
@@ -187,7 +231,7 @@ export function useResourceTableState({
     setPagination,
     refreshInterval,
     setRefreshInterval,
-    selectedNamespace,
+    selectedNamespaces,
     effectiveNamespace,
     useSSE,
     handleNamespaceChange,
