@@ -53,28 +53,34 @@ export function NamespaceSelector({
 
   const isAllSelected = selectedSet.has(ALL)
 
-  const toggle = (ns: string) => {
+  // Clicking the checkbox: toggle (add/remove) the namespace in the current
+  // selection (multi-select behaviour).
+  const toggleCheckbox = (ns: string) => {
     if (singleSelect) {
       handleNamespaceChange([ns])
       setOpen(false)
       return
     }
     if (ns === ALL) {
-      // Selecting "All" replaces everything
       handleNamespaceChange([ALL])
       return
     }
-    // Toggle individual namespace
     if (isAllSelected) {
-      // Switching from _all to specific: start fresh with just this one
       handleNamespaceChange([ns])
       return
     }
     const next = selectedSet.has(ns)
       ? selectedNamespaces.filter((n) => n !== ns)
       : [...selectedNamespaces, ns]
-    // Never allow empty — fall back to default
     handleNamespaceChange(next.length === 0 ? ['default'] : next)
+  }
+
+  // Clicking the label text: single-select (replace entire selection).
+  const selectSingle = (ns: string) => {
+    handleNamespaceChange([ns])
+    if (singleSelect) {
+      setOpen(false)
+    }
   }
 
   const removeNamespace = (e: React.MouseEvent, ns: string) => {
@@ -164,10 +170,21 @@ export function NamespaceSelector({
                   {showAll && (
                     <CommandItem
                       value="_all All Namespaces"
-                      onSelect={() => toggle(ALL)}
+                      onSelect={() => selectSingle(ALL)}
                       className="flex items-center"
                     >
-                      <CheckIcon checked={isAllSelected} />
+                      <span
+                        role="checkbox"
+                        aria-checked={isAllSelected}
+                        className="pointer-events-auto flex shrink-0 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          e.preventDefault()
+                          toggleCheckbox(ALL)
+                        }}
+                      >
+                        <CheckIcon checked={isAllSelected} />
+                      </span>
                       <span className="truncate font-medium">
                         All Namespaces
                       </span>
@@ -181,10 +198,21 @@ export function NamespaceSelector({
                       <CommandItem
                         key={name}
                         value={name}
-                        onSelect={() => toggle(name)}
+                        onSelect={() => selectSingle(name)}
                         className="flex items-center"
                       >
-                        <CheckIcon checked={checked} />
+                        <span
+                          role="checkbox"
+                          aria-checked={checked}
+                          className="pointer-events-auto flex shrink-0 cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            e.preventDefault()
+                            toggleCheckbox(name)
+                          }}
+                        >
+                          <CheckIcon checked={checked} />
+                        </span>
                         <span
                           className="truncate flex-1 min-w-0"
                           title={name}
