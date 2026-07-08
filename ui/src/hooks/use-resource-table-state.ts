@@ -99,6 +99,7 @@ export function useResourceTableState({
     return legacy ? [legacy] : ['default']
   })
   const [useSSE, setUseSSE] = useState(false)
+  const [useRegex, setUseRegex] = useState(false)
 
   // The namespace to send to the API. When exactly one namespace is selected
   // (and it's not _all), we query that specific namespace for efficiency.
@@ -207,6 +208,10 @@ export function useResourceTableState({
     })
   }, [])
 
+  const handleUseRegexChange = useCallback((pressed: boolean) => {
+    setUseRegex(pressed)
+  }, [])
+
   const handleRefreshIntervalChange = useCallback((value: number) => {
     setRefreshInterval(value)
     if (value > 0) {
@@ -234,8 +239,10 @@ export function useResourceTableState({
     selectedNamespaces,
     effectiveNamespace,
     useSSE,
+    useRegex,
     handleNamespaceChange,
     handleUseSSEChange,
+    handleUseRegexChange,
     handleRefreshIntervalChange,
   }
 }

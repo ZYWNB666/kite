@@ -288,7 +288,9 @@
     "deleteSuccess": "成功删除 {{name}}",
     "deleteFailed": "删除 {{name}} 失败：{{error}}",
     "watch": "监听",
-    "namespace": "命名空间"
+    "namespace": "命名空间",
+    "regexSearch": "正则搜索",
+    "regexSearchPlaceholder": "正则搜索 {{resourceName}}..."
   },
   "rbac": {
     "title": "角色管理",

@@ -91,8 +91,10 @@ export function ResourceTable<T>({
     selectedNamespaces,
     effectiveNamespace,
     useSSE,
+    useRegex,
     handleNamespaceChange,
     handleUseSSEChange,
+    handleUseRegexChange,
     handleRefreshIntervalChange,
   } = useResourceTableState({
     resourceName,
@@ -261,15 +263,42 @@ export function ResourceTable<T>({
     manualPagination: false,
     // Improve filtering performance and consistency
     globalFilterFn: (row, _columnId, value) => {
-      if (searchQueryFilter) {
-        return searchQueryFilter(row.original as T, String(value).toLowerCase())
+      const searchValue = String(value)
+
+      // Regex mode: match all visible cells against the regex pattern.
+      // Falls back to substring match if the pattern is invalid.
+      if (useRegex && searchValue) {
+        let regex: RegExp
+        try {
+          regex = new RegExp(searchValue, 'i')
+        } catch {
+          // Invalid regex — fall back to substring match
+          const lower = searchValue.toLowerCase()
+          if (searchQueryFilter) {
+            return searchQueryFilter(row.original as T, lower)
+          }
+          return row.getVisibleCells().some((cell) => {
+            const cellValue = String(cell.getValue() || '').toLowerCase()
+            return cellValue.includes(lower)
+          })
+        }
+        return row.getVisibleCells().some((cell) => {
+          const cellValue = String(cell.getValue() || '')
+          return regex.test(cellValue)
+        })
       }
-      const searchValue = String(value).toLowerCase()
+
+      // Normal substring mode
+      if (searchQueryFilter) {
+        return searchQueryFilter(row.original as T, searchValue.toLowerCase())
+      }
+
+      const lower = searchValue.toLowerCase()
 
       // Search across all visible columns
       return row.getVisibleCells().some((cell) => {
         const cellValue = String(cell.getValue() || '').toLowerCase()
-        return cellValue.includes(searchValue)
+        return cellValue.includes(lower)
       })
     },
     // Add this to prevent unnecessary pagination resets
@@ -445,6 +474,8 @@ export function ResourceTable<T>({
         refreshInterval={refreshInterval}
         onUseSSEChange={handleUseSSEChange}
         onRefreshIntervalChange={handleRefreshIntervalChange}
+        useRegex={useRegex}
+        onUseRegexChange={handleUseRegexChange}
         selectedRowCount={table.getSelectedRowModel().rows.length}
         onOpenDeleteDialog={() => setDeleteDialogOpen(true)}
       />

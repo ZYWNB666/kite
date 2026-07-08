@@ -269,7 +269,9 @@
     "deleteSuccess": "Deleted {{name}} successfully",
     "deleteFailed": "Failed to delete {{name}}: {{error}}",
     "watch": "Watch",
-    "namespace": "Namespace"
+    "namespace": "Namespace",
+    "regexSearch": "Regex search",
+    "regexSearchPlaceholder": "Regex search {{resourceName}}..."
   },
   "rbac": {
     "noPermissionCluster": "User {{user}} does not have permission to {{verb}} {{resource}} on cluster {{cluster}}",

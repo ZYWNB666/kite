@@ -3,6 +3,7 @@ import { ColumnDef, Table } from '@tanstack/react-table'
 import {
   Plus,
   RefreshCw,
+  Regex,
   Search,
   Settings2,
   Trash2,
@@ -50,6 +51,8 @@ interface ResourceTableToolbarProps<T> {
   refreshInterval: number
   onUseSSEChange: (pressed: boolean) => void
   onRefreshIntervalChange: (value: number) => void
+  useRegex: boolean
+  onUseRegexChange: (pressed: boolean) => void
   selectedRowCount: number
   onOpenDeleteDialog: () => void
 }
@@ -71,6 +74,8 @@ export function ResourceTableToolbar<T>({
   refreshInterval,
   onUseSSEChange,
   onRefreshIntervalChange,
+  useRegex,
+  onUseRegexChange,
   selectedRowCount,
   onOpenDeleteDialog,
 }: ResourceTableToolbarProps<T>) {
@@ -224,12 +229,29 @@ export function ResourceTableToolbar<T>({
             <div className="relative min-w-0 flex-1 sm:w-[280px]">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder={`Search ${resourceName}...`}
+                placeholder={
+                  useRegex
+                    ? t('resourceTable.regexSearchPlaceholder', {
+                        defaultValue: `Regex search ${resourceName}...`,
+                      })
+                    : `Search ${resourceName}...`
+                }
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-4"
               />
             </div>
+            <Toggle
+              pressed={useRegex}
+              variant="outline"
+              className="px-2 text-muted-foreground data-[state=on]:text-foreground"
+              aria-label={t('resourceTable.regexSearch', {
+                defaultValue: 'Regex search',
+              })}
+              onPressedChange={onUseRegexChange}
+            >
+              <Regex className="h-4 w-4" />
+            </Toggle>
             {searchQuery && (
               <Button
                 variant="ghost"
