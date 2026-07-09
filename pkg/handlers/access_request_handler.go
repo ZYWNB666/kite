@@ -315,11 +315,21 @@ func RevokeAccess(c *gin.Context) {
 	if req.RoleID != nil {
 		deleteTempRole(*req.RoleID)
 	}
+
+	// Capture ExpiresAt before saving (SaveAccessRequest overwrites UpdatedAt,
+	// and collectAccessUsageHistory needs the original ExpiresAt for old data fallback)
+	endForSummary := req.ExpiresAt
+
 	req.Status = model.AccessRequestExpired
 	req.RoleID = nil
 	if err := model.SaveAccessRequest(req); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save"})
 		return
+	}
+
+	// Restore captured ExpiresAt for the async summary (req is mutated by Save)
+	if endForSummary != nil {
+		req.ExpiresAt = endForSummary
 	}
 
 	// Update the Feishu card to show expired status
@@ -482,6 +492,11 @@ func expireAccessRequests() {
 		if req.RoleID != nil {
 			deleteTempRole(*req.RoleID)
 		}
+
+		// Capture ExpiresAt before saving (SaveAccessRequest overwrites UpdatedAt,
+		// and collectAccessUsageHistory needs the original ExpiresAt for old data fallback)
+		endForSummary := req.ExpiresAt
+
 		req.Status = model.AccessRequestExpired
 		req.RoleID = nil
 		if err := model.SaveAccessRequest(req); err != nil {
@@ -489,6 +504,11 @@ func expireAccessRequests() {
 			continue
 		}
 		klog.Infof("access_request: expired request #%d (%s → %s)", req.ID, req.RequesterName, req.Namespace)
+
+		// Restore captured ExpiresAt for the async summary (req is mutated by Save)
+		if endForSummary != nil {
+			req.ExpiresAt = endForSummary
+		}
 
 		// Update the Feishu card to show expired status
 		go updateCardToResult(req)

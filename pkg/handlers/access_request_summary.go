@@ -33,7 +33,16 @@ func summarizeAndNotifyAccessUsage(req *model.AccessRequest) {
 		return
 	}
 	if len(histories) == 0 {
-		klog.Infof("access_request summary: no operations for request #%d, skipping", req.ID)
+		startStr := "nil"
+		if req.ApprovedAt != nil {
+			startStr = req.ApprovedAt.Format("01-02 15:04:05")
+		}
+		endStr := "nil"
+		if req.ExpiresAt != nil {
+			endStr = req.ExpiresAt.Format("01-02 15:04:05")
+		}
+		klog.Infof("access_request summary: no operations for request #%d (user=%d, cluster=%s, ns=%s, range=[%s, %s]), skipping",
+			req.ID, req.RequesterID, req.Cluster, req.Namespace, startStr, endStr)
 		return
 	}
 
@@ -59,7 +68,7 @@ func summarizeAndNotifyAccessUsage(req *model.AccessRequest) {
 1. 概述用户执行了哪些类型的操作（创建、更新、删除等）及其数量
 2. 明确标注是否存在高危操作，包括但不限于：
    - 删除操作（delete）
-   - 涉及 kube-system 等系统命名空间的操作
+   - 涉及 model-serving、envoy-gateway-system、kube-system等命名空间的操作
    - AI 触发的自动操作
    - 失败的操作
 3. 如果存在高危操作，请在开头用 ⚠️ 标注
@@ -106,8 +115,17 @@ func collectAccessUsageHistory(req *model.AccessRequest) ([]model.ResourceHistor
 	// Time range: from approval time to expiry time
 	startTime := req.ApprovedAt
 	if startTime == nil {
-		// Fallback: use UpdatedAt (which was set during approval save)
-		startTime = &req.UpdatedAt
+		// Fallback for old data (ApprovedAt was added later):
+		// Reconstruct approval time as ExpiresAt - DurationHours.
+		// This is more reliable than UpdatedAt which gets overwritten on every save.
+		if req.ExpiresAt != nil && req.DurationHours > 0 {
+			t := req.ExpiresAt.Add(-time.Duration(req.DurationHours) * time.Hour)
+			startTime = &t
+		} else {
+			// Last resort: use CreatedAt (request submission time)
+			t := req.CreatedAt
+			startTime = &t
+		}
 	}
 	endTime := req.ExpiresAt
 	if endTime == nil {
