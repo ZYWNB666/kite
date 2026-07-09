@@ -62,17 +62,22 @@ func summarizeAndNotifyAccessUsage(req *model.AccessRequest) {
 		return
 	}
 
-	systemPrompt := `你是 Kubernetes 安全审计助手。请根据用户在临时权限期间的操作记录，生成一份简洁的使用总结。
+	systemPrompt := `你是 Kubernetes 安全审计助手。请根据用户在临时权限期间的操作记录，生成一份详细的使用总结。
 
 要求：
 1. 概述用户执行了哪些类型的操作（创建、更新、删除等）及其数量
-2. 明确标注是否存在高危操作，包括但不限于：
+2. 详细描述每个操作的具体内容：
+   - 对于 create/apply 操作：说明创建了什么资源，关键配置（镜像、副本数、端口、环境变量、资源限制等）
+   - 对于 update/patch 操作：对比变更前后的 YAML，明确指出具体改了哪些字段（如镜像版本、副本数、配置项等）
+   - 对于 delete 操作：说明删除了什么资源
+3. 明确标注是否存在高危操作，包括但不限于：
    - 删除操作（delete）
    - 涉及 model-serving、envoy-gateway-system、kube-system等命名空间的操作
    - AI 触发的自动操作
    - 失败的操作
-3. 如果存在高危操作，请在开头用 ⚠️ 标注
-4. 用中文回复，简洁明了，不要超过 500 字`
+   - 修改了安全相关字段（如 securityContext、hostNetwork、privileged 等）
+4. 如果存在高危操作，请在开头用 ⚠️ 标注
+5. 用中文回复，内容要详尽完整，不要省略操作细节`
 
 	userMessage := buildUsagePrompt(req, histories, stats)
 
@@ -191,15 +196,15 @@ func buildUsageStats(histories []model.ResourceHistory) string {
 	return sb.String()
 }
 
-// buildUsagePrompt constructs the user message for the AI, including a concise
-// summary of each operation (without full YAML to save tokens).
+// buildUsagePrompt constructs the user message for the AI, including the full
+// operation details with YAML diffs so the AI can describe what changed.
 func buildUsagePrompt(req *model.AccessRequest, histories []model.ResourceHistory, stats string) string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("用户 %s 获得了对集群 %s 命名空间 %s 的临时访问权限。\n",
 		req.RequesterName, req.Cluster, req.Namespace))
 	sb.WriteString(fmt.Sprintf("授权时长：%d 小时\n\n", req.DurationHours))
 	sb.WriteString(fmt.Sprintf("操作统计：\n%s\n\n", stats))
-	sb.WriteString("操作明细：\n")
+	sb.WriteString("操作明细（含变更内容）：\n")
 
 	// Limit to 50 operations to control prompt length
 	maxShow := 50
@@ -211,21 +216,45 @@ func buildUsagePrompt(req *model.AccessRequest, histories []model.ResourceHistor
 		status := "成功"
 		if !h.Success {
 			status = "失败"
+			if h.ErrorMessage != "" {
+				status = fmt.Sprintf("失败: %s", h.ErrorMessage)
+			}
 		}
 		src := ""
 		if h.OperationSource == "ai" {
 			src = " [AI]"
 		}
-		sb.WriteString(fmt.Sprintf("%d. [%s] %s %s/%s (ns: %s)%s — %s\n",
-			i+1,
-			h.CreatedAt.Format("01-02 15:04"),
-			h.OperationType,
-			h.ResourceType,
-			h.ResourceName,
-			h.Namespace,
-			src,
-			status,
-		))
+		sb.WriteString(fmt.Sprintf("\n--- 操作 %d ---\n", i+1))
+		sb.WriteString(fmt.Sprintf("时间: %s\n", h.CreatedAt.Format("01-02 15:04:05")))
+		sb.WriteString(fmt.Sprintf("操作: %s\n", h.OperationType))
+		sb.WriteString(fmt.Sprintf("资源: %s/%s (命名空间: %s)%s\n", h.ResourceType, h.ResourceName, h.Namespace, src))
+		sb.WriteString(fmt.Sprintf("结果: %s\n", status))
+
+		// Include YAML content for create/apply/update/patch operations
+		if h.OperationType == "create" || h.OperationType == "apply" {
+			if h.ResourceYAML != "" {
+				sb.WriteString("创建的资源配置:\n")
+				sb.WriteString(h.ResourceYAML)
+				sb.WriteString("\n")
+			}
+		} else if h.OperationType == "update" || h.OperationType == "patch" {
+			if h.PreviousYAML != "" {
+				sb.WriteString("变更前配置:\n")
+				sb.WriteString(h.PreviousYAML)
+				sb.WriteString("\n")
+			}
+			if h.ResourceYAML != "" {
+				sb.WriteString("变更后配置:\n")
+				sb.WriteString(h.ResourceYAML)
+				sb.WriteString("\n")
+			}
+		} else if h.OperationType == "delete" {
+			if h.PreviousYAML != "" {
+				sb.WriteString("被删除的资源配置:\n")
+				sb.WriteString(h.PreviousYAML)
+				sb.WriteString("\n")
+			}
+		}
 	}
 
 	return sb.String()
