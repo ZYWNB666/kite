@@ -154,7 +154,7 @@ func HandleFeishuCardCallback(c *gin.Context) {
 		requestIDStr = ""
 	}
 	requestID, parseErr := strconv.ParseUint(requestIDStr, 10, 32)
-	if parseErr != nil || (actionType != "approve" && actionType != "reject") {
+	if parseErr != nil || (actionType != "approve" && actionType != "reject" && actionType != "renew") {
 		c.JSON(http.StatusOK, gin.H{"toast": map[string]interface{}{
 			"type":    "error",
 			"content": "无效的操作",
@@ -171,15 +171,28 @@ func HandleFeishuCardCallback(c *gin.Context) {
 		return
 	}
 
-	if req.Status != model.AccessRequestPending {
-		c.JSON(http.StatusOK, gin.H{"toast": map[string]interface{}{
-			"type":    "info",
-			"content": fmt.Sprintf("该申请已处理（状态：%s）", localizeStatus(req.Status)),
-		}})
-		return
+	// Validate status based on action type
+	if actionType == "renew" {
+		// Renewal only applies to approved (still active) requests
+		if req.Status != model.AccessRequestApproved {
+			c.JSON(http.StatusOK, gin.H{"toast": map[string]interface{}{
+				"type":    "info",
+				"content": fmt.Sprintf("无法续期（当前状态：%s）", localizeStatus(req.Status)),
+			}})
+			return
+		}
+	} else {
+		// approve / reject only apply to pending requests
+		if req.Status != model.AccessRequestPending {
+			c.JSON(http.StatusOK, gin.H{"toast": map[string]interface{}{
+				"type":    "info",
+				"content": fmt.Sprintf("该申请已处理（状态：%s）", localizeStatus(req.Status)),
+			}})
+			return
+		}
 	}
 
-	// Only the designated approver may act
+	// Only the designated approver may act (applies to approve, reject, and renew)
 	if !isApproverMatched(req.ApproverUID, operatorOpenID, operatorUserID, actionOpenID) {
 		klog.Warningf(
 			"feishu callback: approver mismatch req=%d expected=%q operator_open=%q operator_user=%q action_open=%q",
@@ -197,9 +210,11 @@ func HandleFeishuCardCallback(c *gin.Context) {
 	}
 
 	now := time.Now()
+	renewHours := 0
 	if actionType == "approve" {
 		expiresAt := now.Add(time.Duration(req.DurationHours) * time.Hour)
 		req.ExpiresAt = &expiresAt
+		req.ApprovedAt = &now
 		req.Status = model.AccessRequestApproved
 
 		if err := createTempRole(req); err != nil {
@@ -209,6 +224,40 @@ func HandleFeishuCardCallback(c *gin.Context) {
 				"content": "授权失败，请联系管理员",
 			}})
 			return
+		}
+	} else if actionType == "renew" {
+		// Parse renewal hours from action value
+		hoursStr, _ := callbackValueToString(action.Value["hours"])
+		var renewErr error
+		renewHours, renewErr = strconv.Atoi(hoursStr)
+		if renewErr != nil || renewHours <= 0 {
+			c.JSON(http.StatusOK, gin.H{"toast": map[string]interface{}{
+				"type":    "error",
+				"content": "无效的续期时长",
+			}})
+			return
+		}
+
+		// Extend expiry: add renewal hours to the current expiry time (or now if already past)
+		base := now
+		if req.ExpiresAt != nil && req.ExpiresAt.After(now) {
+			base = *req.ExpiresAt
+		}
+		newExpiry := base.Add(time.Duration(renewHours) * time.Hour)
+		req.ExpiresAt = &newExpiry
+		req.ExpiringSoonNotified = false // reset so a new expiring-soon notification can fire
+
+		// Ensure the temp role still exists (it should, since status is approved)
+		if req.RoleID == nil {
+			// Role was somehow deleted, recreate it
+			if err := createTempRole(req); err != nil {
+				klog.Errorf("feishu callback: recreate temp role for renewal %d: %v", req.ID, err)
+				c.JSON(http.StatusOK, gin.H{"toast": map[string]interface{}{
+					"type":    "error",
+					"content": "续期失败，请联系管理员",
+				}})
+				return
+			}
 		}
 	} else {
 		req.Status = model.AccessRequestRejected
@@ -229,6 +278,9 @@ func HandleFeishuCardCallback(c *gin.Context) {
 	if actionType == "approve" {
 		toastMsg = fmt.Sprintf("已批准 %s 访问命名空间 %s（%s后过期）",
 			req.RequesterName, req.Namespace, feishu.FormatDuration(req.DurationHours))
+	} else if actionType == "renew" {
+		toastMsg = fmt.Sprintf("已为 %s 续期 %d 小时（新到期时间：%s）",
+			req.RequesterName, renewHours, req.ExpiresAt.Format("01-02 15:04"))
 	} else {
 		toastMsg = fmt.Sprintf("已拒绝 %s 的申请", req.RequesterName)
 	}

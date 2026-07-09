@@ -54,3 +54,6 @@ kite
 .vscode/*
 temp/
 .claude/settings.local.json
+.kilo/*
+.mimocode/
+.pnpm-home/

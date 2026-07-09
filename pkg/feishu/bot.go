@@ -146,6 +146,47 @@ func (c *BotClient) PatchCard(messageID string, card map[string]interface{}) err
 	return nil
 }
 
+// ReplyCard replies to an existing message (by message_id) with an interactive card.
+// The reply is posted in the thread/topic of the original message.
+func (c *BotClient) ReplyCard(messageID string, card map[string]interface{}) error {
+	token, err := c.GetAppAccessToken()
+	if err != nil {
+		return err
+	}
+	cardJSON, _ := json.Marshal(card)
+	payload := map[string]interface{}{
+		"msg_type":        "interactive",
+		"content":         string(cardJSON),
+		"reply_in_thread": true,
+	}
+	b, _ := json.Marshal(payload)
+	req, err := http.NewRequest(http.MethodPost,
+		feishuBase+"/im/v1/messages/"+messageID+"/reply",
+		bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("feishu reply card: %w", err)
+	}
+	defer resp.Body.Close()
+	var result struct {
+		Code int    `json:"code"`
+		Msg  string `json:"msg"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return fmt.Errorf("feishu decode reply response: %w", err)
+	}
+	if result.Code != 0 {
+		return fmt.Errorf("feishu reply card: code=%d msg=%s", result.Code, result.Msg)
+	}
+	return nil
+}
+
 // VerifyCardSignature verifies the X-Lark-Signature header for card action callbacks.
 // Feishu signature = lowercase_hex(sha256(timestamp + nonce + verification_token + body)).
 func VerifyCardSignature(timestamp, nonce, token, body, signature string) bool {
@@ -185,14 +226,14 @@ func BuildRequestCard(requestID uint, requesterName, cluster, namespace string, 
 						"is_short": true,
 						"text": map[string]interface{}{
 							"tag":     "lark_md",
-							"content": fmt.Sprintf("**集群**\n`%s`", cluster),
+							"content": fmt.Sprintf("**集群**\n%s", cluster),
 						},
 					},
 					map[string]interface{}{
 						"is_short": true,
 						"text": map[string]interface{}{
 							"tag":     "lark_md",
-							"content": fmt.Sprintf("**命名空间**\n`%s`", namespace),
+							"content": fmt.Sprintf("**命名空间**\n%s", namespace),
 						},
 					},
 					map[string]interface{}{
@@ -287,14 +328,14 @@ func BuildResultCard(requestID uint, requesterName, cluster, namespace string, d
 					"is_short": true,
 					"text": map[string]interface{}{
 						"tag":     "lark_md",
-						"content": fmt.Sprintf("**集群**\n`%s`", cluster),
+						"content": fmt.Sprintf("**集群**\n%s", cluster),
 					},
 				},
 				map[string]interface{}{
 					"is_short": true,
 					"text": map[string]interface{}{
 						"tag":     "lark_md",
-						"content": fmt.Sprintf("**命名空间**\n`%s`", namespace),
+						"content": fmt.Sprintf("**命名空间**\n%s", namespace),
 					},
 				},
 				map[string]interface{}{
@@ -374,4 +415,208 @@ func formatDuration(hours int) string {
 		return fmt.Sprintf("%d 天", days)
 	}
 	return fmt.Sprintf("%d 天 %d 小时", days, remaining)
+}
+
+// BuildSummaryCard creates an interactive card for an AI-generated access usage summary.
+// It is posted as a thread reply to the original request card.
+func BuildSummaryCard(requestID uint, requesterName, cluster, namespace string, durationHours int, summary string, stats string) map[string]interface{} {
+	durationStr := formatDuration(durationHours)
+	return map[string]interface{}{
+		"config": map[string]interface{}{
+			"wide_screen_mode": true,
+		},
+		"header": map[string]interface{}{
+			"template": "grey",
+			"title": map[string]interface{}{
+				"tag":     "plain_text",
+				"content": "📋 权限使用总结",
+			},
+		},
+		"elements": []interface{}{
+			map[string]interface{}{
+				"tag": "div",
+				"fields": []interface{}{
+					map[string]interface{}{
+						"is_short": true,
+						"text": map[string]interface{}{
+							"tag":     "lark_md",
+							"content": fmt.Sprintf("**申请人**\n%s", requesterName),
+						},
+					},
+					map[string]interface{}{
+						"is_short": true,
+						"text": map[string]interface{}{
+							"tag":     "lark_md",
+							"content": fmt.Sprintf("**集群**\n%s", cluster),
+						},
+					},
+					map[string]interface{}{
+						"is_short": true,
+						"text": map[string]interface{}{
+							"tag":     "lark_md",
+							"content": fmt.Sprintf("**命名空间**\n%s", namespace),
+						},
+					},
+					map[string]interface{}{
+						"is_short": true,
+						"text": map[string]interface{}{
+							"tag":     "lark_md",
+							"content": fmt.Sprintf("**授权时长**\n%s", durationStr),
+						},
+					},
+				},
+			},
+			map[string]interface{}{
+				"tag": "hr",
+			},
+			map[string]interface{}{
+				"tag": "div",
+				"text": map[string]interface{}{
+					"tag":     "lark_md",
+					"content": fmt.Sprintf("**操作统计**\n%s", stats),
+				},
+			},
+			map[string]interface{}{
+				"tag": "div",
+				"text": map[string]interface{}{
+					"tag":     "lark_md",
+					"content": fmt.Sprintf("**AI 分析**\n%s", summary),
+				},
+			},
+			map[string]interface{}{
+				"tag": "note",
+				"elements": []interface{}{
+					map[string]interface{}{
+						"tag":     "plain_text",
+						"content": fmt.Sprintf("申请编号 #%d · 权限已过期", requestID),
+					},
+				},
+			},
+		},
+	}
+}
+
+// BuildExpiringSoonCard creates an interactive card notifying that a permission
+// is about to expire, with renewal buttons. Posted as a thread reply.
+func BuildExpiringSoonCard(requestID uint, requesterName, cluster, namespace string, expiresAt string) map[string]interface{} {
+	return map[string]interface{}{
+		"config": map[string]interface{}{
+			"wide_screen_mode": true,
+		},
+		"header": map[string]interface{}{
+			"template": "orange",
+			"title": map[string]interface{}{
+				"tag":     "plain_text",
+				"content": "⏰ 权限即将到期",
+			},
+		},
+		"elements": []interface{}{
+			map[string]interface{}{
+				"tag": "div",
+				"fields": []interface{}{
+					map[string]interface{}{
+						"is_short": true,
+						"text": map[string]interface{}{
+							"tag":     "lark_md",
+							"content": fmt.Sprintf("**申请人**\n%s", requesterName),
+						},
+					},
+					map[string]interface{}{
+						"is_short": true,
+						"text": map[string]interface{}{
+							"tag":     "lark_md",
+							"content": fmt.Sprintf("**集群**\n%s", cluster),
+						},
+					},
+					map[string]interface{}{
+						"is_short": true,
+						"text": map[string]interface{}{
+							"tag":     "lark_md",
+							"content": fmt.Sprintf("**命名空间**\n%s", namespace),
+						},
+					},
+					map[string]interface{}{
+						"is_short": true,
+						"text": map[string]interface{}{
+							"tag":     "lark_md",
+							"content": fmt.Sprintf("**到期时间**\n%s", expiresAt),
+						},
+					},
+				},
+			},
+			map[string]interface{}{
+				"tag": "div",
+				"text": map[string]interface{}{
+					"tag":     "lark_md",
+					"content": "⚠️ 权限将在 10 分钟后到期，如需继续使用请审批续期：",
+				},
+			},
+			map[string]interface{}{
+				"tag": "action",
+				"actions": []interface{}{
+					map[string]interface{}{
+						"tag":  "button",
+						"type": "primary",
+						"text": map[string]interface{}{
+							"tag":     "plain_text",
+							"content": "续期 1h",
+						},
+						"value": map[string]interface{}{
+							"action":     "renew",
+							"request_id": fmt.Sprintf("%d", requestID),
+							"hours":      "1",
+						},
+					},
+					map[string]interface{}{
+						"tag":  "button",
+						"type": "primary",
+						"text": map[string]interface{}{
+							"tag":     "plain_text",
+							"content": "续期 2h",
+						},
+						"value": map[string]interface{}{
+							"action":     "renew",
+							"request_id": fmt.Sprintf("%d", requestID),
+							"hours":      "2",
+						},
+					},
+					map[string]interface{}{
+						"tag":  "button",
+						"type": "primary",
+						"text": map[string]interface{}{
+							"tag":     "plain_text",
+							"content": "续期 4h",
+						},
+						"value": map[string]interface{}{
+							"action":     "renew",
+							"request_id": fmt.Sprintf("%d", requestID),
+							"hours":      "4",
+						},
+					},
+					map[string]interface{}{
+						"tag":  "button",
+						"type": "primary",
+						"text": map[string]interface{}{
+							"tag":     "plain_text",
+							"content": "续期 8h",
+						},
+						"value": map[string]interface{}{
+							"action":     "renew",
+							"request_id": fmt.Sprintf("%d", requestID),
+							"hours":      "8",
+						},
+					},
+				},
+			},
+			map[string]interface{}{
+				"tag": "note",
+				"elements": []interface{}{
+					map[string]interface{}{
+						"tag":     "plain_text",
+						"content": fmt.Sprintf("申请编号 #%d · 仅审批人可操作续期", requestID),
+					},
+				},
+			},
+		},
+	}
 }

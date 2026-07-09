@@ -321,6 +321,13 @@ func RevokeAccess(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save"})
 		return
 	}
+
+	// Update the Feishu card to show expired status
+	go updateCardToResult(req)
+
+	// Generate AI usage summary and post to Feishu thread
+	go summarizeAndNotifyAccessUsage(req)
+
 	c.JSON(http.StatusOK, gin.H{"message": "access revoked"})
 }
 
@@ -420,9 +427,48 @@ func StartAccessRequestExpiryWorker() {
 		ticker := time.NewTicker(time.Minute)
 		defer ticker.Stop()
 		for range ticker.C {
+			notifyExpiringSoonRequests()
 			expireAccessRequests()
 		}
 	}()
+}
+
+// notifyExpiringSoonRequests sends a Feishu thread reply with renewal buttons
+// for approved requests that will expire within 10 minutes.
+func notifyExpiringSoonRequests() {
+	reqs, err := model.ListExpiringSoonRequests(10 * time.Minute)
+	if err != nil {
+		klog.Errorf("access_request expiring-soon worker: %v", err)
+		return
+	}
+	for i := range reqs {
+		req := &reqs[i]
+
+		bot, setting, err := getFeishuBot()
+		if err != nil || bot == nil || req.MessageID == "" || setting.GroupChatID == "" {
+			// Mark as notified even if Feishu is not configured, to avoid retrying every minute
+			req.ExpiringSoonNotified = true
+			_ = model.SaveAccessRequest(req)
+			continue
+		}
+
+		expiresAtStr := "-"
+		if req.ExpiresAt != nil {
+			expiresAtStr = req.ExpiresAt.Format("01-02 15:04")
+		}
+		card := feishu.BuildExpiringSoonCard(req.ID, req.RequesterName, req.Cluster, req.Namespace, expiresAtStr)
+
+		if err := bot.ReplyCard(req.MessageID, card); err != nil {
+			klog.Warningf("access_request expiring-soon: failed to reply card for request %d: %v", req.ID, err)
+			continue
+		}
+
+		req.ExpiringSoonNotified = true
+		if err := model.SaveAccessRequest(req); err != nil {
+			klog.Errorf("access_request expiring-soon: failed to save notified flag for request %d: %v", req.ID, err)
+		}
+		klog.Infof("access_request: sent expiring-soon notification for request #%d (%s → %s)", req.ID, req.RequesterName, req.Namespace)
+	}
 }
 
 func expireAccessRequests() {
@@ -440,7 +486,14 @@ func expireAccessRequests() {
 		req.RoleID = nil
 		if err := model.SaveAccessRequest(req); err != nil {
 			klog.Errorf("access_request expiry: save %d: %v", req.ID, err)
+			continue
 		}
 		klog.Infof("access_request: expired request #%d (%s → %s)", req.ID, req.RequesterName, req.Namespace)
+
+		// Update the Feishu card to show expired status
+		go updateCardToResult(req)
+
+		// Generate AI usage summary and post to Feishu thread
+		go summarizeAndNotifyAccessUsage(req)
 	}
 }

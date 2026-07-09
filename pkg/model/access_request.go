@@ -16,19 +16,21 @@ const (
 // AccessRequest records a namespace permission request submitted by a user.
 type AccessRequest struct {
 	Model
-	RequesterID   uint       `json:"requesterId" gorm:"index;not null"`
-	RequesterName string     `json:"requesterName" gorm:"type:varchar(100)"`
-	Cluster       string     `json:"cluster" gorm:"type:varchar(255)"`
-	Namespace     string     `json:"namespace" gorm:"type:varchar(255);not null"`
-	DurationHours int        `json:"durationHours" gorm:"not null"`
-	Reason        string     `json:"reason" gorm:"type:text"`
-	ApproverUID   string     `json:"approverUid" gorm:"type:varchar(255)"` // Feishu open_id of approver
-	ApproverName  string     `json:"approverName" gorm:"type:varchar(100)"`
-	Status        string     `json:"status" gorm:"type:varchar(20);index;not null;default:'pending'"`
-	ExpiresAt     *time.Time `json:"expiresAt"`
-	MessageID     string     `json:"messageId" gorm:"type:varchar(255)"` // Feishu message_id for card update
-	RoleID        *uint      `json:"roleId"`                             // temp role ID, deleted on revoke/expire
-	ReviewNote    string     `json:"reviewNote" gorm:"type:text"`
+	RequesterID          uint       `json:"requesterId" gorm:"index;not null"`
+	RequesterName        string     `json:"requesterName" gorm:"type:varchar(100)"`
+	Cluster              string     `json:"cluster" gorm:"type:varchar(255)"`
+	Namespace            string     `json:"namespace" gorm:"type:varchar(255);not null"`
+	DurationHours        int        `json:"durationHours" gorm:"not null"`
+	Reason               string     `json:"reason" gorm:"type:text"`
+	ApproverUID          string     `json:"approverUid" gorm:"type:varchar(255)"` // Feishu open_id of approver
+	ApproverName         string     `json:"approverName" gorm:"type:varchar(100)"`
+	Status               string     `json:"status" gorm:"type:varchar(20);index;not null;default:'pending'"`
+	ExpiresAt            *time.Time `json:"expiresAt"`
+	ApprovedAt           *time.Time `json:"approvedAt"`                                                      // when the request was approved (for usage query)
+	ExpiringSoonNotified bool       `json:"expiringSoonNotified" gorm:"type:boolean;not null;default:false"` // whether the expiring-soon notification has been sent
+	MessageID            string     `json:"messageId" gorm:"type:varchar(255)"`                              // Feishu message_id for card update
+	RoleID               *uint      `json:"roleId"`                                                          // temp role ID, deleted on revoke/expire
+	ReviewNote           string     `json:"reviewNote" gorm:"type:text"`
 }
 
 // FeishuNotificationSetting stores the Feishu bot configuration (singleton, id=1).
@@ -119,5 +121,16 @@ func ListExpiredActiveRequests() ([]AccessRequest, error) {
 	var reqs []AccessRequest
 	err := DB.Where("status = ? AND expires_at IS NOT NULL AND expires_at <= ?",
 		AccessRequestApproved, time.Now()).Find(&reqs).Error
+	return reqs, err
+}
+
+// ListExpiringSoonRequests returns approved requests that will expire within the
+// given threshold and have not yet been notified.
+func ListExpiringSoonRequests(threshold time.Duration) ([]AccessRequest, error) {
+	now := time.Now()
+	deadline := now.Add(threshold)
+	var reqs []AccessRequest
+	err := DB.Where("status = ? AND expires_at IS NOT NULL AND expires_at > ? AND expires_at <= ? AND expiring_soon_notified = ?",
+		AccessRequestApproved, now, deadline, false).Find(&reqs).Error
 	return reqs, err
 }
