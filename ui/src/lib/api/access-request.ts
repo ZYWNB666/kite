@@ -87,6 +87,9 @@ export const fetchAllAccessRequests = (): Promise<{ requests: AccessRequest[] }>
 export const revokeAccess = (id: number): Promise<{ message: string }> =>
   apiClient.put<{ message: string }>(`/admin/access-requests/${id}/revoke`, {})
 
+export const approveAccess = (id: number): Promise<AccessRequest> =>
+  apiClient.put<AccessRequest>(`/admin/access-requests/${id}/approve`, {})
+
 // Feishu Settings
 export const fetchFeishuSetting = (): Promise<FeishuSetting> =>
   fetchAPI<FeishuSetting>('/admin/feishu-setting/')
@@ -149,6 +152,14 @@ export const useRevokeAccess = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: revokeAccess,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['all-access-requests'] }),
+  })
+}
+
+export const useApproveAccess = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: approveAccess,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['all-access-requests'] }),
   })
 }

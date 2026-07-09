@@ -14,6 +14,7 @@ import (
 	"github.com/zxh326/kite/pkg/cluster"
 	"github.com/zxh326/kite/pkg/common"
 	"github.com/zxh326/kite/pkg/kube"
+	"github.com/zxh326/kite/pkg/model"
 	promclient "github.com/zxh326/kite/pkg/prometheus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -58,6 +59,32 @@ type NodeHandler struct {
 func NewNodeHandler() *NodeHandler {
 	return &NodeHandler{
 		GenericResourceHandler: NewGenericResourceHandler[*corev1.Node, *corev1.NodeList](common.Nodes),
+	}
+}
+
+// recordNodeAudit logs a node operation (drain/cordon/uncordon/taint/untaint) to the audit history.
+func (h *NodeHandler) recordNodeAudit(c *gin.Context, nodeName, opType string, success bool, errMsg string) {
+	cs, ok := c.MustGet("cluster").(*cluster.ClientSet)
+	if !ok {
+		return
+	}
+	user, ok := c.MustGet("user").(model.User)
+	if !ok {
+		return
+	}
+	history := model.ResourceHistory{
+		ClusterName:     cs.Name,
+		ResourceType:    string(common.Nodes),
+		ResourceName:    nodeName,
+		Namespace:       "",
+		OperationType:   opType,
+		OperationSource: "manual",
+		Success:         success,
+		ErrorMessage:    errMsg,
+		OperatorID:      user.ID,
+	}
+	if err := model.DB.Create(&history).Error; err != nil {
+		klog.Errorf("Failed to create node audit history: %v", err)
 	}
 }
 
@@ -120,10 +147,12 @@ func (h *NodeHandler) DrainNode(c *gin.Context) {
 	}
 
 	if err := drainer.DeleteOrEvictPods(podDeleteList.Pods()); err != nil {
+		h.recordNodeAudit(c, nodeName, "drain", false, err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to drain node: " + err.Error()})
 		return
 	}
 
+	h.recordNodeAudit(c, nodeName, "drain", true, "")
 	c.JSON(http.StatusOK, gin.H{
 		"message":  fmt.Sprintf("Node %s drained successfully", nodeName),
 		"node":     node.Name,
@@ -152,6 +181,7 @@ func (h *NodeHandler) CordonNode(c *gin.Context) {
 	cs := c.MustGet("cluster").(*cluster.ClientSet)
 
 	if err := h.markNodeSchedulable(ctx, cs.K8sClient, nodeName, false); err != nil {
+		h.recordNodeAudit(c, nodeName, "cordon", false, err.Error())
 		if errors.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Node not found"})
 			return
@@ -161,6 +191,7 @@ func (h *NodeHandler) CordonNode(c *gin.Context) {
 		}
 	}
 
+	h.recordNodeAudit(c, nodeName, "cordon", true, "")
 	c.JSON(http.StatusOK, gin.H{
 		"message": fmt.Sprintf("Node %s cordoned successfully", nodeName),
 	})
@@ -173,6 +204,7 @@ func (h *NodeHandler) UncordonNode(c *gin.Context) {
 	cs := c.MustGet("cluster").(*cluster.ClientSet)
 
 	if err := h.markNodeSchedulable(ctx, cs.K8sClient, nodeName, true); err != nil {
+		h.recordNodeAudit(c, nodeName, "uncordon", false, err.Error())
 		if errors.IsNotFound(err) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Node not found"})
 			return
@@ -181,6 +213,7 @@ func (h *NodeHandler) UncordonNode(c *gin.Context) {
 			return
 		}
 	}
+	h.recordNodeAudit(c, nodeName, "uncordon", true, "")
 	c.JSON(http.StatusOK, gin.H{
 		"message": fmt.Sprintf("Node %s uncordoned successfully", nodeName),
 	})
@@ -238,10 +271,12 @@ func (h *NodeHandler) TaintNode(c *gin.Context) {
 
 	// Update the node
 	if err := cs.K8sClient.Update(ctx, &node); err != nil {
+		h.recordNodeAudit(c, nodeName, "taint", false, err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to taint node: " + err.Error()})
 		return
 	}
 
+	h.recordNodeAudit(c, nodeName, "taint", true, "")
 	c.JSON(http.StatusOK, gin.H{
 		"message": fmt.Sprintf("Node %s tainted successfully", nodeName),
 		"node":    node.Name,
@@ -293,10 +328,12 @@ func (h *NodeHandler) UntaintNode(c *gin.Context) {
 
 	// Update the node
 	if err := cs.K8sClient.Update(ctx, &node); err != nil {
+		h.recordNodeAudit(c, nodeName, "untaint", false, err.Error())
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to untaint node: " + err.Error()})
 		return
 	}
 
+	h.recordNodeAudit(c, nodeName, "untaint", true, "")
 	c.JSON(http.StatusOK, gin.H{
 		"message":         fmt.Sprintf("Taint with key '%s' removed from node %s successfully", untaintRequest.Key, nodeName),
 		"node":            node.Name,

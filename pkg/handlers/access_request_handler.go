@@ -104,6 +104,28 @@ func deleteTempRole(roleID uint) {
 	rbac.TriggerSync()
 }
 
+// recordAccessRequestAudit logs an access request action (approve/revoke) to the
+// ResourceHistory table so it shows up in the Audit page.
+func recordAccessRequestAudit(c *gin.Context, req *model.AccessRequest, action string) {
+	currentUser, ok := c.MustGet("user").(model.User)
+	if !ok {
+		return
+	}
+	history := model.ResourceHistory{
+		ClusterName:     req.Cluster,
+		ResourceType:    "AccessRequest",
+		ResourceName:    fmt.Sprintf("#%d-%s", req.ID, req.RequesterName),
+		Namespace:       req.Namespace,
+		OperationType:   action,
+		OperationSource: "manual",
+		Success:         true,
+		OperatorID:      currentUser.ID,
+	}
+	if err := model.DB.Create(&history).Error; err != nil {
+		klog.Warningf("access_request: failed to record audit for request %d action %s: %v", req.ID, action, err)
+	}
+}
+
 func updateCardToResult(req *model.AccessRequest) {
 	bot, setting, err := getFeishuBot()
 	if err != nil || bot == nil || req.MessageID == "" || setting.GroupChatID == "" {
@@ -296,6 +318,47 @@ func ListAllAccessRequests(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"requests": reqs})
 }
 
+// ApproveAccess handles PUT /api/v1/admin/access-requests/:id/approve
+func ApproveAccess(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	req, err := model.GetAccessRequest(uint(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "request not found"})
+		return
+	}
+	if req.Status != model.AccessRequestPending {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "only pending requests can be approved"})
+		return
+	}
+
+	now := time.Now()
+	expiresAt := now.Add(time.Duration(req.DurationHours) * time.Hour)
+	req.ExpiresAt = &expiresAt
+	req.ApprovedAt = &now
+	req.Status = model.AccessRequestApproved
+
+	if err := createTempRole(req); err != nil {
+		klog.Errorf("access_request: approve failed to create temp role for request %d: %v", req.ID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create temp role"})
+		return
+	}
+
+	if err := model.SaveAccessRequest(req); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save"})
+		return
+	}
+
+	// Record audit + update Feishu card
+	recordAccessRequestAudit(c, req, "approve")
+	go updateCardToResult(req)
+
+	c.JSON(http.StatusOK, req)
+}
+
 // RevokeAccess handles PUT /api/v1/admin/access-requests/:id/revoke
 func RevokeAccess(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
@@ -335,7 +398,8 @@ func RevokeAccess(c *gin.Context) {
 	// Update the Feishu card to show expired status
 	go updateCardToResult(req)
 
-	// Generate AI usage summary and post to Feishu thread
+	// Record audit + generate AI usage summary and post to Feishu thread
+	recordAccessRequestAudit(c, req, "revoke")
 	go summarizeAndNotifyAccessUsage(req)
 
 	c.JSON(http.StatusOK, gin.H{"message": "access revoked"})

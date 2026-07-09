@@ -131,6 +131,7 @@ func registerAdminRoutes(r *gin.RouterGroup, authHandler *auth.AuthHandler, cm *
 	// Access request admin endpoints
 	accessRequestAdminAPI := adminAPI.Group("/access-requests")
 	accessRequestAdminAPI.GET("/", handlers.ListAllAccessRequests)
+	accessRequestAdminAPI.PUT("/:id/approve", handlers.ApproveAccess)
 	accessRequestAdminAPI.PUT("/:id/revoke", handlers.RevokeAccess)
 
 	// Feishu notification setting

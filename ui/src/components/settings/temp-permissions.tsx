@@ -8,6 +8,7 @@ import {
   AccessRequest,
   AccessRequestStatus,
   useAllAccessRequests,
+  useApproveAccess,
   useRevokeAccess,
 } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
@@ -73,6 +74,7 @@ export function TempPermissionsManagement() {
   const { t } = useTranslation()
   const { data: requests = [], isLoading, error } = useAllAccessRequests()
   const revokeMutation = useRevokeAccess()
+  const approveMutation = useApproveAccess()
 
   const columns = useMemo<ColumnDef<AccessRequest>[]>(
     () => [
@@ -137,6 +139,23 @@ export function TempPermissionsManagement() {
   const actions = useMemo<Action<AccessRequest>[]>(
     () => [
       {
+        label: t('tempPermissions.approve', '审批通过'),
+        shouldDisable: (r) => r.status !== 'pending',
+        onClick: async (r) => {
+          if (r.status !== 'pending') return
+          try {
+            await approveMutation.mutateAsync(r.id)
+            toast.success(
+              t('tempPermissions.approveSuccess', '已批准 {{name}} 的权限申请', {
+                name: r.requesterName,
+              })
+            )
+          } catch {
+            toast.error(t('tempPermissions.approveError', '审批失败'))
+          }
+        },
+      },
+      {
         label: t('tempPermissions.revoke', '吊销权限'),
         shouldDisable: (r) => r.status !== 'approved',
         onClick: async (r) => {
@@ -155,7 +174,7 @@ export function TempPermissionsManagement() {
         },
       },
     ],
-    [t, revokeMutation]
+    [t, revokeMutation, approveMutation]
   )
 
   return (

@@ -308,6 +308,9 @@ func BuildResultCard(requestID uint, requesterName, cluster, namespace string, d
 	case "withdrawn":
 		template = "grey"
 		statusText = "↩️ 已撤回"
+	case "expired":
+		template = "grey"
+		statusText = "⏰ 已过期"
 	default:
 		template = "grey"
 		statusText = status
