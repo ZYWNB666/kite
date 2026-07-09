@@ -203,6 +203,7 @@ func BuildRequestCard(requestID uint, requesterName, cluster, namespace string, 
 	return map[string]interface{}{
 		"config": map[string]interface{}{
 			"wide_screen_mode": true,
+			"update_multi":     true,
 		},
 		"header": map[string]interface{}{
 			"template": "blue",
@@ -377,7 +378,7 @@ func BuildResultCard(requestID uint, requesterName, cluster, namespace string, d
 		},
 	})
 	return map[string]interface{}{
-		"config": map[string]interface{}{"wide_screen_mode": true},
+		"config": map[string]interface{}{"wide_screen_mode": true, "update_multi": true},
 		"header": map[string]interface{}{
 			"template": template,
 			"title": map[string]interface{}{
@@ -427,6 +428,7 @@ func BuildSummaryCard(requestID uint, requesterName, cluster, namespace string, 
 	return map[string]interface{}{
 		"config": map[string]interface{}{
 			"wide_screen_mode": true,
+			"update_multi":     true,
 		},
 		"header": map[string]interface{}{
 			"template": "grey",
@@ -505,6 +507,7 @@ func BuildExpiringSoonCard(requestID uint, requesterName, cluster, namespace str
 	return map[string]interface{}{
 		"config": map[string]interface{}{
 			"wide_screen_mode": true,
+			"update_multi":     true,
 		},
 		"header": map[string]interface{}{
 			"template": "orange",
