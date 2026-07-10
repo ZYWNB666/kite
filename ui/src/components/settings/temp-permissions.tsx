@@ -70,6 +70,17 @@ function formatDuration(hours: number): string {
   return rem === 0 ? `${days} 天` : `${days} 天 ${rem} 小时`
 }
 
+function formatRiskLevel(level: string): React.ReactNode {
+  const map: Record<string, { label: string; className: string }> = {
+    low: { label: '🟢 低', className: 'text-green-600 dark:text-green-400' },
+    medium: { label: '🟡 中', className: 'text-yellow-600 dark:text-yellow-400' },
+    high: { label: '🔴 高', className: 'text-red-600 dark:text-red-400' },
+  }
+  const item = map[level]
+  if (!item) return <span className="text-xs text-muted-foreground">{level || '-'}</span>
+  return <span className={`text-xs font-medium ${item.className}`}>{item.label}</span>
+}
+
 export function TempPermissionsManagement() {
   const { t } = useTranslation()
   const { data: requests = [], isLoading, error } = useAllAccessRequests()
@@ -98,6 +109,11 @@ export function TempPermissionsManagement() {
         cell: ({ row: { original: r } }) => (
           <span className="text-sm">{formatDuration(r.durationHours)}</span>
         ),
+      },
+      {
+        id: 'riskLevel',
+        header: t('tempPermissions.table.riskLevel', '预估风险'),
+        cell: ({ row: { original: r } }) => formatRiskLevel(r.riskLevel),
       },
       {
         id: 'status',

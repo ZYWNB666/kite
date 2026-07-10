@@ -57,6 +57,25 @@ func isApproverMatched(expectedUID string, candidates ...string) bool {
 	return false
 }
 
+// isConfiguredApprover checks whether the operator is in the configured approver list.
+func isConfiguredApprover(setting *model.FeishuNotificationSetting, candidates ...string) bool {
+	approvers := setting.GetApprovers()
+	if len(approvers) == 0 {
+		// No approver list configured — allow anyone (open mode)
+		return true
+	}
+	approverSet := make(map[string]bool, len(approvers))
+	for _, a := range approvers {
+		approverSet[a.OpenID] = true
+	}
+	for _, c := range candidates {
+		if c != "" && approverSet[c] {
+			return true
+		}
+	}
+	return false
+}
+
 // feishuCardCallback handles both old (card.action.trigger_v1) and new (card.action.trigger v2.0) formats,
 // as well as URL verification challenges.
 type feishuCardCallback struct {
@@ -192,21 +211,40 @@ func HandleFeishuCardCallback(c *gin.Context) {
 		}
 	}
 
-	// Only the designated approver may act (applies to approve, reject, and renew)
-	if !isApproverMatched(req.ApproverUID, operatorOpenID, operatorUserID, actionOpenID) {
-		klog.Warningf(
-			"feishu callback: approver mismatch req=%d expected=%q operator_open=%q operator_user=%q action_open=%q",
-			req.ID,
-			req.ApproverUID,
-			operatorOpenID,
-			operatorUserID,
-			actionOpenID,
-		)
-		c.JSON(http.StatusOK, gin.H{"toast": map[string]interface{}{
-			"type":    "error",
-			"content": "您无权操作此申请",
-		}})
-		return
+	// For approve/reject: any configured approver can act.
+	// For renew: only the designated approver can act.
+	if actionType == "renew" {
+		if !isApproverMatched(req.ApproverUID, operatorOpenID, operatorUserID, actionOpenID) {
+			klog.Warningf(
+				"feishu callback: renew approver mismatch req=%d expected=%q operator_open=%q operator_user=%q action_open=%q",
+				req.ID,
+				req.ApproverUID,
+				operatorOpenID,
+				operatorUserID,
+				actionOpenID,
+			)
+			c.JSON(http.StatusOK, gin.H{"toast": map[string]interface{}{
+				"type":    "error",
+				"content": "您无权操作此申请",
+			}})
+			return
+		}
+	} else {
+		// approve / reject: check operator is in the configured approver list
+		if !isConfiguredApprover(setting, operatorOpenID, operatorUserID, actionOpenID) {
+			klog.Warningf(
+				"feishu callback: approver not in list req=%d operator_open=%q operator_user=%q action_open=%q",
+				req.ID,
+				operatorOpenID,
+				operatorUserID,
+				actionOpenID,
+			)
+			c.JSON(http.StatusOK, gin.H{"toast": map[string]interface{}{
+				"type":    "error",
+				"content": "您无权操作此申请",
+			}})
+			return
+		}
 	}
 
 	now := time.Now()

@@ -21,6 +21,7 @@ type AccessRequest struct {
 	Cluster              string     `json:"cluster" gorm:"type:varchar(255)"`
 	Namespace            string     `json:"namespace" gorm:"type:varchar(255);not null"`
 	DurationHours        int        `json:"durationHours" gorm:"not null"`
+	RiskLevel            string     `json:"riskLevel" gorm:"type:varchar(50);not null;default:'low'"`
 	Reason               string     `json:"reason" gorm:"type:text"`
 	ApproverUID          string     `json:"approverUid" gorm:"type:varchar(255)"` // Feishu open_id of approver
 	ApproverName         string     `json:"approverName" gorm:"type:varchar(100)"`

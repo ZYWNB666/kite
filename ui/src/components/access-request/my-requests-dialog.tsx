@@ -60,6 +60,15 @@ function formatDuration(hours: number): string {
   return rem === 0 ? `${days} 天` : `${days} 天 ${rem} 小时`
 }
 
+function formatRiskLevel(level: string): string {
+  const map: Record<string, string> = {
+    low: '🟢 低',
+    medium: '🟡 中',
+    high: '🔴 高',
+  }
+  return map[level] || level || '-'
+}
+
 function formatExpiry(expiresAt?: string): string {
   if (!expiresAt) return '-'
   const d = new Date(expiresAt)
@@ -112,6 +121,7 @@ function RequestRow({ req }: RequestRowProps) {
           </div>
           <p className="text-xs text-muted-foreground">
             {t('accessRequest.fields.duration', '时长')}：{formatDuration(req.durationHours)}
+            {` · ${t('accessRequest.fields.riskLevel', '预估风险')}：${formatRiskLevel(req.riskLevel)}`}
             {req.approverName ? ` · ${t('accessRequest.fields.approver', '审批人')}：${req.approverName}` : ''}
           </p>
           {req.status === 'approved' && req.expiresAt && (

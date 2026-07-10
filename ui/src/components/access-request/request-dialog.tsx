@@ -47,6 +47,12 @@ const DURATION_OPTIONS = [
   { label: '4 小时', value: 4 },
 ]
 
+const RISK_OPTIONS = [
+  { label: '🟢 低风险', value: 'low' },
+  { label: '🟡 中风险', value: 'medium' },
+  { label: '🔴 高风险', value: 'high' },
+]
+
 interface AccessRequestDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -71,6 +77,7 @@ export function AccessRequestDialog({
   const [selectedNamespaces, setSelectedNamespaces] = useState<string[]>([])
   const [nsPopoverOpen, setNsPopoverOpen] = useState(false)
   const [durationHours, setDurationHours] = useState<number>(4)
+  const [riskLevel, setRiskLevel] = useState<string>('low')
   const [reason, setReason] = useState('')
   const [approverUid, setApproverUid] = useState('')
 
@@ -78,6 +85,7 @@ export function AccessRequestDialog({
     setSelectedCluster('')
     setSelectedNamespaces([])
     setDurationHours(4)
+    setRiskLevel('low')
     setReason('')
     setApproverUid('')
   }
@@ -115,6 +123,7 @@ export function AccessRequestDialog({
         cluster: selectedCluster,
         namespaces: selectedNamespaces,
         durationHours,
+        riskLevel,
         reason: reason.trim(),
         approverUid,
         approverName: selectedApprover?.name,
@@ -250,6 +259,29 @@ export function AccessRequestDialog({
               <SelectContent>
                 {DURATION_OPTIONS.map((opt) => (
                   <SelectItem key={opt.value} value={String(opt.value)}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Risk Level */}
+          <div className="grid gap-1.5">
+            <Label htmlFor="ar-risk">
+              {t('accessRequest.fields.riskLevel', '预估风险')}{' '}
+              <span className="text-destructive">*</span>
+            </Label>
+            <Select
+              value={riskLevel}
+              onValueChange={setRiskLevel}
+            >
+              <SelectTrigger id="ar-risk">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {RISK_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
                     {opt.label}
                   </SelectItem>
                 ))}

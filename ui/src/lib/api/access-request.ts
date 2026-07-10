@@ -21,6 +21,7 @@ export interface AccessRequest {
   cluster: string
   namespace: string
   durationHours: number
+  riskLevel: string
   reason: string
   approverUid: string
   approverName: string
@@ -50,6 +51,7 @@ export interface CreateAccessRequestBody {
   cluster: string
   namespaces: string[]
   durationHours: number
+  riskLevel: string
   reason: string
   approverUid: string
   approverName?: string
