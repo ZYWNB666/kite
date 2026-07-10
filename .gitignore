@@ -57,3 +57,5 @@ temp/
 .kilo/*
 .mimocode/
 .pnpm-home/
+node_modules/
+CLAUDE.md

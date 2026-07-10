@@ -599,19 +599,6 @@ func BuildExpiringSoonCard(requestID uint, requesterName, cluster, namespace str
 							"hours":      "4",
 						},
 					},
-					map[string]interface{}{
-						"tag":  "button",
-						"type": "primary",
-						"text": map[string]interface{}{
-							"tag":     "plain_text",
-							"content": "续期 8h",
-						},
-						"value": map[string]interface{}{
-							"action":     "renew",
-							"request_id": fmt.Sprintf("%d", requestID),
-							"hours":      "8",
-						},
-					},
 				},
 			},
 			map[string]interface{}{

@@ -45,12 +45,6 @@ const DURATION_OPTIONS = [
   { label: '1 小时', value: 1 },
   { label: '2 小时', value: 2 },
   { label: '4 小时', value: 4 },
-  { label: '8 小时', value: 8 },
-  { label: '12 小时', value: 12 },
-  { label: '1 天', value: 24 },
-  { label: '2 天', value: 48 },
-  { label: '3 天', value: 72 },
-  { label: '7 天', value: 168 },
 ]
 
 interface AccessRequestDialogProps {
