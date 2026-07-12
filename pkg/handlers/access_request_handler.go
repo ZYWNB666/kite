@@ -105,22 +105,28 @@ func deleteTempRole(roleID uint) {
 	rbac.TriggerSync()
 }
 
-// recordAccessRequestAudit logs an access request action (approve/revoke) to the
+// recordAccessRequestAudit logs an access request action (approve/reject/revoke/renew) to the
 // ResourceHistory table so it shows up in the Audit page.
 func recordAccessRequestAudit(c *gin.Context, req *model.AccessRequest, action string) {
 	currentUser, ok := c.MustGet("user").(model.User)
 	if !ok {
 		return
 	}
+	recordAccessRequestAuditByID(req, action, currentUser.ID, "manual")
+}
+
+// recordAccessRequestAuditByID logs an access request action with explicit operator ID and source.
+// Used by feishu callback handler which has no Gin user context.
+func recordAccessRequestAuditByID(req *model.AccessRequest, action string, operatorID uint, source string) {
 	history := model.ResourceHistory{
 		ClusterName:     req.Cluster,
 		ResourceType:    "AccessRequest",
 		ResourceName:    fmt.Sprintf("#%d-%s", req.ID, req.RequesterName),
 		Namespace:       req.Namespace,
 		OperationType:   action,
-		OperationSource: "manual",
+		OperationSource: source,
 		Success:         true,
-		OperatorID:      currentUser.ID,
+		OperatorID:      operatorID,
 	}
 	if err := model.DB.Create(&history).Error; err != nil {
 		klog.Warningf("access_request: failed to record audit for request %d action %s: %v", req.ID, action, err)

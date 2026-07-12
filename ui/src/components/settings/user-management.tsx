@@ -227,11 +227,11 @@ export function UserManagement() {
                 </Avatar.Root>
               </button>
               <div className="flex flex-col min-w-0">
-                <span className="font-medium truncate">
+                <span className="font-medium whitespace-nowrap">
                   {row.original.username}
                 </span>
                 {row.original.name && (
-                  <span className="text-sm text-muted-foreground truncate">
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">
                     {row.original.name}
                   </span>
                 )}
@@ -253,8 +253,15 @@ export function UserManagement() {
         header: t('userManagement.table.provider', 'Provider'),
         accessorFn: (row) => row.provider || '-',
         enableSorting: false,
-        cell: ({ getValue }) => (
-          <div className="code">{String(getValue() || '-')}</div>
+        cell: ({ row: { original: user } }) => (
+          <div className="space-y-0.5">
+            <div className="code">{String(user.provider || '-')}</div>
+            {user.provider && user.provider !== 'password' && user.sub && (
+              <div className="text-xs text-muted-foreground font-mono break-all">
+                {user.sub}
+              </div>
+            )}
+          </div>
         ),
       },
       {
@@ -288,11 +295,20 @@ export function UserManagement() {
         header: t('userManagement.table.roles', 'Roles'),
         accessorFn: (row) => row.roles?.map((r) => r.name).join(', '),
         enableSorting: false,
-        cell: ({ getValue }) => (
-          <div className="text-sm text-muted-foreground">
-            {String(getValue() || '-')}
-          </div>
-        ),
+        cell: ({ row: { original: user } }) => {
+          if (!user.roles || user.roles.length === 0) {
+            return <span className="text-sm text-muted-foreground">-</span>
+          }
+          return (
+            <div className="flex flex-wrap gap-1 max-w-[300px]">
+              {user.roles.map((r) => (
+                <Badge key={r.id} variant="secondary" className="text-xs">
+                  {r.name}
+                </Badge>
+              ))}
+            </div>
+          )
+        },
       },
     ],
     [getStatusBadge, t]

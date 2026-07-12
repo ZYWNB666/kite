@@ -443,6 +443,7 @@ export interface UserItem {
   enabled?: boolean
   avatar_url?: string
   name?: string
+  sub?: string
   roles?: Role[]
 }
 

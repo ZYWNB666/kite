@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/zxh326/kite/pkg/feishu"
 	"github.com/zxh326/kite/pkg/model"
+	"github.com/zxh326/kite/pkg/rbac"
 	"k8s.io/klog/v2"
 )
 
@@ -57,23 +58,20 @@ func isApproverMatched(expectedUID string, candidates ...string) bool {
 	return false
 }
 
-// isConfiguredApprover checks whether the operator is in the configured approver list.
-func isConfiguredApprover(setting *model.FeishuNotificationSetting, candidates ...string) bool {
-	approvers := setting.GetApprovers()
-	if len(approvers) == 0 {
-		// No approver list configured — allow anyone (open mode)
-		return true
+// isKiteAdminByOpenID looks up a kite user by Feishu open_id (stored in the
+// users.sub column for OAuth users) and checks whether the user has the admin role.
+func isKiteAdminByOpenID(openID string) (*model.User, bool) {
+	if openID == "" {
+		return nil, false
 	}
-	approverSet := make(map[string]bool, len(approvers))
-	for _, a := range approvers {
-		approverSet[a.OpenID] = true
+	var user model.User
+	if err := model.DB.Where("sub = ? AND provider != ?", openID, "password").First(&user).Error; err != nil {
+		return nil, false
 	}
-	for _, c := range candidates {
-		if c != "" && approverSet[c] {
-			return true
-		}
+	if !rbac.UserHasRole(user, model.DefaultAdminRole.Name) {
+		return nil, false
 	}
-	return false
+	return &user, true
 }
 
 // feishuCardCallback handles both old (card.action.trigger_v1) and new (card.action.trigger v2.0) formats,
@@ -211,14 +209,23 @@ func HandleFeishuCardCallback(c *gin.Context) {
 		}
 	}
 
-	// For approve/reject: any configured approver can act.
-	// For renew: only the designated approver can act.
-	if actionType == "renew" {
-		if !isApproverMatched(req.ApproverUID, operatorOpenID, operatorUserID, actionOpenID) {
+	// Permission check — two-tier approver model:
+	//   1. Primary approver (req.ApproverUID): the designated approver, can do all actions.
+	//   2. Secondary approver (kite admin): any kite user with admin role who has logged
+	//      in via Feishu OAuth — acts as fallback when the primary approver is unavailable.
+	//   Non-approvers are rejected.
+	isPrimaryApprover := isApproverMatched(req.ApproverUID, operatorOpenID, operatorUserID, actionOpenID)
+	isSecondaryApprover := false
+	operatorName := ""
+	var operatorUserIDForAudit uint
+
+	if !isPrimaryApprover {
+		// Check if the operator is a kite admin (via Feishu open_id → users.sub lookup)
+		adminUser, isAdmin := isKiteAdminByOpenID(operatorOpenID)
+		if !isAdmin {
 			klog.Warningf(
-				"feishu callback: renew approver mismatch req=%d expected=%q operator_open=%q operator_user=%q action_open=%q",
+				"feishu callback: non-approver rejected req=%d operator_open=%q operator_user=%q action_open=%q",
 				req.ID,
-				req.ApproverUID,
 				operatorOpenID,
 				operatorUserID,
 				actionOpenID,
@@ -229,21 +236,12 @@ func HandleFeishuCardCallback(c *gin.Context) {
 			}})
 			return
 		}
-	} else {
-		// approve / reject: check operator is in the configured approver list
-		if !isConfiguredApprover(setting, operatorOpenID, operatorUserID, actionOpenID) {
-			klog.Warningf(
-				"feishu callback: approver not in list req=%d operator_open=%q operator_user=%q action_open=%q",
-				req.ID,
-				operatorOpenID,
-				operatorUserID,
-				actionOpenID,
-			)
-			c.JSON(http.StatusOK, gin.H{"toast": map[string]interface{}{
-				"type":    "error",
-				"content": "您无权操作此申请",
-			}})
-			return
+		isSecondaryApprover = true
+		operatorUserIDForAudit = adminUser.ID
+		if adminUser.Name != "" {
+			operatorName = adminUser.Name
+		} else {
+			operatorName = adminUser.Username
 		}
 	}
 
@@ -268,7 +266,7 @@ func HandleFeishuCardCallback(c *gin.Context) {
 		hoursStr, _ := callbackValueToString(action.Value["hours"])
 		var renewErr error
 		renewHours, renewErr = strconv.Atoi(hoursStr)
-		if renewErr != nil || renewHours <= 0 {
+		if renewErr != nil || renewHours <= 0 || (renewHours != 1 && renewHours != 2 && renewHours != 4) {
 			c.JSON(http.StatusOK, gin.H{"toast": map[string]interface{}{
 				"type":    "error",
 				"content": "无效的续期时长",
@@ -311,6 +309,39 @@ func HandleFeishuCardCallback(c *gin.Context) {
 	}
 
 	go updateCardToResult(req)
+
+	// Record audit for feishu callback actions
+	auditSource := "feishu_callback"
+	if isPrimaryApprover {
+		// Primary approver — operator ID unknown (no kite session), log with 0
+		recordAccessRequestAuditByID(req, actionType, 0, auditSource)
+	} else {
+		recordAccessRequestAuditByID(req, actionType, operatorUserIDForAudit, auditSource)
+	}
+
+	// If a secondary approver (kite admin, not the designated one) performed this action,
+	// post a notice in the Feishu thread.
+	if isSecondaryApprover {
+		go func(req *model.AccessRequest, name, act string) {
+			bot, _, err := getFeishuBot()
+			if err != nil || bot == nil || req.MessageID == "" {
+				return
+			}
+			var verb string
+			switch act {
+			case "approve":
+				verb = "通过审批"
+			case "reject":
+				verb = "拒绝申请"
+			case "renew":
+				verb = "续期"
+			}
+			notice := fmt.Sprintf("此次审批由 Kite 管理员 %s %s，请合理使用权限。", name, verb)
+			if err := bot.ReplyText(req.MessageID, notice); err != nil {
+				klog.Warningf("feishu callback: failed to post secondary approver notice for request %d: %v", req.ID, err)
+			}
+		}(req, operatorName, actionType)
+	}
 
 	var toastMsg string
 	if actionType == "approve" {

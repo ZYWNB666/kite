@@ -196,6 +196,45 @@ func VerifyCardSignature(timestamp, nonce, token, body, signature string) bool {
 	return expected == signature
 }
 
+// ReplyText sends a text message as a thread reply to an existing message.
+func (c *BotClient) ReplyText(messageID, text string) error {
+	token, err := c.GetAppAccessToken()
+	if err != nil {
+		return err
+	}
+	content, _ := json.Marshal(map[string]string{"text": text})
+	payload := map[string]interface{}{
+		"msg_type":        "text",
+		"content":         string(content),
+		"reply_in_thread": true,
+	}
+	b, _ := json.Marshal(payload)
+	req, err := http.NewRequest(http.MethodPost,
+		feishuBase+"/im/v1/messages/"+messageID+"/reply",
+		bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("feishu reply text: %w", err)
+	}
+	defer resp.Body.Close()
+	var result struct {
+		Code int    `json:"code"`
+		Msg  string `json:"msg"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return fmt.Errorf("feishu decode reply response: %w", err)
+	}
+	if result.Code != 0 {
+		return fmt.Errorf("feishu reply text: code=%d msg=%s", result.Code, result.Msg)
+	}
+	return nil
+}
+
 // BuildRequestCard creates the interactive card payload for a new access request.
 func BuildRequestCard(requestID uint, requesterName, cluster, namespace string, durationHours int, riskLevel, reason, approverOpenID, approverName string) map[string]interface{} {
 	durationStr := formatDuration(durationHours)
@@ -635,7 +674,7 @@ func BuildExpiringSoonCard(requestID uint, requesterName, cluster, namespace str
 				"elements": []interface{}{
 					map[string]interface{}{
 						"tag":     "plain_text",
-						"content": fmt.Sprintf("申请编号 #%d · 仅审批人可操作续期", requestID),
+						"content": fmt.Sprintf("申请编号 #%d · 审批人或管理员可操作续期", requestID),
 					},
 				},
 			},

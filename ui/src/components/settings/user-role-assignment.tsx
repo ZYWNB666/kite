@@ -73,14 +73,14 @@ export function UserRoleAssignment({ open, onOpenChange, subject }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md max-h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>{t('common.assignRoles', 'Assign Roles')}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-2 py-2">
+        <div className="flex-1 overflow-y-auto space-y-2 py-2 pr-1">
           {roles.map((r: Role) => (
             <div key={r.id} className="flex items-center justify-between">
-              <div>
+              <div className="min-w-0 pr-2">
                 <div className="font-medium">{r.name}</div>
                 {r.description && (
                   <div className="text-sm text-muted-foreground">
@@ -88,7 +88,7 @@ export function UserRoleAssignment({ open, onOpenChange, subject }: Props) {
                   </div>
                 )}
               </div>
-              <div>
+              <div className="shrink-0">
                 <Checkbox
                   checked={!!selected[r.id]}
                   onCheckedChange={() => toggle(r.id)}
