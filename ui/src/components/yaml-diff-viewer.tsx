@@ -304,6 +304,7 @@ export function YamlDiffViewer({
               renderOverviewRuler: true,
               overviewRulerBorder: true,
               overviewRulerLanes: 2,
+              ignoreTrimWhitespace: false,
             }}
             onMount={handleEditorDidMount}
             original={leftContent}
