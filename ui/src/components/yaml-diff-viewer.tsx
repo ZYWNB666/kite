@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { IconLoader, IconTextWrap, IconTextWrapDisabled } from '@tabler/icons-react'
+import { IconLoader, IconTextWrap, IconTextWrapDisabled, IconIndentIncrease } from '@tabler/icons-react'
 import * as yaml from 'js-yaml'
 import type { editor as monacoEditor } from 'monaco-editor'
 import { useTranslation } from 'react-i18next'
@@ -81,6 +81,7 @@ export function YamlDiffViewer({
   const editorRef = useRef<monacoEditor.IStandaloneDiffEditor | null>(null)
   const [diffMode, setDiffMode] = useState<DiffMode>('previous-vs-modified')
   const [wordWrap, setWordWrap] = useState<'on' | 'off'>('off')
+  const [showRawDiff, setShowRawDiff] = useState(false)
 
   const handleEditorDidMount = (editor: monacoEditor.IStandaloneDiffEditor) => {
     editorRef.current = editor
@@ -132,6 +133,13 @@ export function YamlDiffViewer({
 
   // Determine which content to show based on diff mode
   const getDiffContent = () => {
+    if (showRawDiff) {
+      // Raw mode: skip yaml.load→dump normalization to preserve whitespace
+      if (diffMode === 'current-vs-modified' && current) {
+        return { original: current, modified: modified }
+      }
+      return { original: original, modified: modified }
+    }
     if (diffMode === 'current-vs-modified' && current) {
       return {
         original: removeStatusField(current),
@@ -160,6 +168,19 @@ export function YamlDiffViewer({
           <DialogTitle className="flex items-center justify-between">
             <span className="text-lg font-bold">{title}</span>
             <div className="flex items-center gap-2 mr-4">
+              {/* Raw diff toggle button — skips YAML normalization to show whitespace changes */}
+              <Button
+                variant={showRawDiff ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setShowRawDiff(!showRawDiff)}
+                title={t('yamlEditor.rawDiff', '原始模式：显示空白差异')}
+              >
+                <IconIndentIncrease className="w-4 h-4" />
+                <span className="ml-1 hidden sm:inline">
+                  {t('yamlEditor.rawDiff', '原始模式')}
+                </span>
+              </Button>
+
               {/* Word wrap toggle button */}
               <Button
                 variant="outline"
@@ -305,6 +326,7 @@ export function YamlDiffViewer({
               overviewRulerBorder: true,
               overviewRulerLanes: 2,
               ignoreTrimWhitespace: false,
+              renderWhitespace: showRawDiff ? 'all' : 'selection',
             }}
             onMount={handleEditorDidMount}
             original={leftContent}
