@@ -45,6 +45,11 @@ host: ""
 # Example: "/kite"
 basePath: ""
 
+# Container timezone (IANA timezone name). The Go binary embeds the tzdata
+# database, so no system zoneinfo is required.
+# Example: "Asia/Shanghai"
+timezone: ""
+
 # Set to true to enable the anonymous user with full-admin access
 # Be careful with this setting in production
 anonymousUserEnabled: false

@@ -64,6 +64,18 @@ func InitDB() {
 				}
 				mysqlDSN = mysqlDSN + separator + "parseTime=true"
 			}
+			// Ensure loc is set so that MySQL DATETIME values are read/written
+			// using the process timezone (time.Local). Without this the driver
+			// defaults to UTC, causing an 8-hour skew when the container TZ is
+			// Asia/Shanghai — which made the expiring-soon notification display
+			// an incorrect "到期时间" (showing UTC instead of local time).
+			if !strings.Contains(mysqlDSN, "loc=") {
+				separator := "?"
+				if strings.Contains(mysqlDSN, "?") {
+					separator = "&"
+				}
+				mysqlDSN = mysqlDSN + separator + "loc=Local"
+			}
 			DB, err = gorm.Open(mysql.Open(mysqlDSN), cfg)
 			if err != nil {
 				panic("failed to connect database: " + err.Error())

@@ -135,3 +135,19 @@ func ListExpiringSoonRequests(threshold time.Duration) ([]AccessRequest, error) 
 		AccessRequestApproved, now, deadline, false).Find(&reqs).Error
 	return reqs, err
 }
+
+// ClaimExpiringSoonNotification atomically marks a single request as notified
+// using a conditional UPDATE (WHERE expiring_soon_notified = false). This
+// eliminates the read-modify-write race that caused duplicate "即将到期"
+// notifications when multiple worker ticks or replicas ran concurrently.
+// Returns true if this caller won the claim, false if another caller already
+// claimed it.
+func ClaimExpiringSoonNotification(id uint) (bool, error) {
+	result := DB.Model(&AccessRequest{}).
+		Where("id = ? AND expiring_soon_notified = ?", id, false).
+		Update("expiring_soon_notified", true)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
+}

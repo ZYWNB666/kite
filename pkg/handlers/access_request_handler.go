@@ -517,6 +517,12 @@ func StartAccessRequestExpiryWorker() {
 
 // notifyExpiringSoonRequests sends a Feishu thread reply with renewal buttons
 // for approved requests that will expire within 10 minutes.
+//
+// Race-safety: we first SELECT candidate rows (expiring_soon_notified=false),
+// then for each row atomically flip the flag via
+// ClaimExpiringSoonNotification (UPDATE … WHERE flag=false). Only the caller
+// that flips 0→1 (RowsAffected==1) sends the card. This guarantees each
+// request gets exactly one notification even under concurrent ticks / replicas.
 func notifyExpiringSoonRequests() {
 	reqs, err := model.ListExpiringSoonRequests(10 * time.Minute)
 	if err != nil {
@@ -526,11 +532,21 @@ func notifyExpiringSoonRequests() {
 	for i := range reqs {
 		req := &reqs[i]
 
+		// Atomically claim the notification slot. If another tick/replica
+		// already claimed it, skip — this is what prevents duplicates.
+		claimed, err := model.ClaimExpiringSoonNotification(req.ID)
+		if err != nil {
+			klog.Errorf("access_request expiring-soon: claim failed for request %d: %v", req.ID, err)
+			continue
+		}
+		if !claimed {
+			continue // already claimed by another tick/replica
+		}
+
 		bot, setting, err := getFeishuBot()
 		if err != nil || bot == nil || req.MessageID == "" || setting.GroupChatID == "" {
-			// Mark as notified even if Feishu is not configured, to avoid retrying every minute
-			req.ExpiringSoonNotified = true
-			_ = model.SaveAccessRequest(req)
+			// Already claimed (flag is now true), so we won't retry. Log it.
+			klog.Infof("access_request expiring-soon: claimed #%d but Feishu not configured, skipping", req.ID)
 			continue
 		}
 
@@ -542,13 +558,12 @@ func notifyExpiringSoonRequests() {
 
 		if err := bot.ReplyCard(req.MessageID, card); err != nil {
 			klog.Warningf("access_request expiring-soon: failed to reply card for request %d: %v", req.ID, err)
+			// Release the claim so a later tick can retry sending.
+			req.ExpiringSoonNotified = false
+			_ = model.SaveAccessRequest(req)
 			continue
 		}
 
-		req.ExpiringSoonNotified = true
-		if err := model.SaveAccessRequest(req); err != nil {
-			klog.Errorf("access_request expiring-soon: failed to save notified flag for request %d: %v", req.ID, err)
-		}
 		klog.Infof("access_request: sent expiring-soon notification for request #%d (%s → %s)", req.ID, req.RequesterName, req.Namespace)
 	}
 }

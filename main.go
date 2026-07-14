@@ -15,6 +15,10 @@ import (
 	"github.com/zxh326/kite/pkg/common"
 	"github.com/zxh326/kite/pkg/version"
 	"k8s.io/klog/v2"
+
+	// Embed the IANA timezone database so that time.LoadLocation("Asia/Shanghai")
+	// etc. work inside distroless/scratch images that lack /usr/share/zoneinfo.
+	_ "time/tzdata"
 )
 
 func main() {

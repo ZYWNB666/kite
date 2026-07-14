@@ -136,4 +136,18 @@ func LoadEnvs() {
 		OAuthDefaultRole = strings.TrimSpace(v)
 		klog.Infof("OAuth default role set to: %s", OAuthDefaultRole)
 	}
+
+	// Honour the standard TZ environment variable so that time.Now() and all
+	// time formatting reflect the desired timezone (e.g. Asia/Shanghai).
+	// This is critical for access-request expiry notifications whose
+	// "到期时间" display must match the users' local clock. Without this,
+	// distroless containers default to UTC.
+	if tz := os.Getenv("TZ"); tz != "" {
+		if loc, err := time.LoadLocation(tz); err == nil {
+			time.Local = loc
+			klog.Infof("Timezone set to %s", tz)
+		} else {
+			klog.Warningf("Invalid TZ %q: %v, falling back to %v", tz, err, time.Local)
+		}
+	}
 }

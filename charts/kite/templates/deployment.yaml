@@ -73,6 +73,10 @@ spec:
             - name: KITE_BASE
               value: {{ .Values.basePath }}
             {{- end }}
+            {{- if .Values.timezone }}
+            - name: TZ
+              value: {{ .Values.timezone | quote }}
+            {{- end }}
           {{- with .Values.extraEnvs }}
           {{- toYaml . | nindent 12 }}
           {{- end }}
