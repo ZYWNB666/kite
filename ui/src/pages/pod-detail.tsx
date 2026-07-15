@@ -378,6 +378,28 @@ export function PodDetail(props: { namespace: string; name: string }) {
                         {pod.status?.hostIP || 'Not assigned'}
                       </p>
                     </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">
+                        Service Account
+                      </Label>
+                      <p className="text-sm font-medium app-link">
+                        <Link
+                          to={`/serviceaccounts/${namespace}/${pod.spec?.serviceAccountName || 'default'}`}
+                        >
+                          {pod.spec?.serviceAccountName || 'default'}
+                        </Link>
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">
+                        QoS Class
+                      </Label>
+                      <p className="text-sm">
+                        <Badge variant="outline">
+                          {pod.status?.qosClass || 'Not assigned'}
+                        </Badge>
+                      </p>
+                    </div>
                     <OwnerInfoDisplay metadata={pod.metadata} />
                     <div>
                       <Label className="text-xs text-muted-foreground">
@@ -417,6 +439,62 @@ export function PodDetail(props: { namespace: string; name: string }) {
                     labels={pod.metadata?.labels || {}}
                     annotations={pod.metadata?.annotations || {}}
                   />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Scheduling &amp; Placement</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Node Selector
+                    </Label>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {Object.entries(pod.spec?.nodeSelector || {}).map(
+                        ([key, value]) => (
+                          <Badge
+                            key={key}
+                            variant="outline"
+                            className="font-mono font-normal"
+                          >
+                            {key}={value}
+                          </Badge>
+                        )
+                      )}
+                      {Object.keys(pod.spec?.nodeSelector || {}).length ===
+                        0 && (
+                        <span className="text-sm text-muted-foreground">
+                          No node selector
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">
+                      Tolerations
+                    </Label>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {(pod.spec?.tolerations || []).map(
+                        (toleration, index) => (
+                          <Badge
+                            key={`${toleration.key || 'any'}-${toleration.effect || 'any'}-${index}`}
+                            variant="secondary"
+                            className="font-mono font-normal"
+                            title={formatToleration(toleration)}
+                          >
+                            {formatToleration(toleration)}
+                          </Badge>
+                        )
+                      )}
+                      {(pod.spec?.tolerations || []).length === 0 && (
+                        <span className="text-sm text-muted-foreground">
+                          No tolerations
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
@@ -467,23 +545,34 @@ export function PodDetail(props: { namespace: string; name: string }) {
                   <CardContent>
                     <div className="space-y-2">
                       {pod.status.conditions.map((condition, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center gap-3 p-2 border rounded"
-                        >
-                          <Badge
-                            variant={
-                              condition.status === 'True'
-                                ? 'default'
-                                : 'secondary'
-                            }
-                          >
-                            {condition.type}
-                          </Badge>
-                          <span className="text-sm">{condition.message}</span>
-                          <span className="text-xs text-muted-foreground ml-auto">
-                            {formatDate(condition.lastTransitionTime || '')}
-                          </span>
+                        <div key={index} className="rounded border p-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="outline">{condition.type}</Badge>
+                            <Badge
+                              variant={
+                                condition.status === 'True'
+                                  ? 'default'
+                                  : 'secondary'
+                              }
+                            >
+                              {condition.status}
+                            </Badge>
+                            {condition.reason && (
+                              <span className="text-xs font-medium">
+                                {condition.reason}
+                              </span>
+                            )}
+                            <span className="ml-auto text-xs text-muted-foreground">
+                              {condition.lastTransitionTime
+                                ? formatDate(condition.lastTransitionTime)
+                                : 'Unknown transition time'}
+                            </span>
+                          </div>
+                          {condition.message && (
+                            <p className="mt-2 text-sm text-muted-foreground">
+                              {condition.message}
+                            </p>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -564,6 +653,20 @@ export function PodDetail(props: { namespace: string; name: string }) {
       </Dialog>
     </>
   )
+}
+
+function formatToleration(
+  toleration: NonNullable<NonNullable<Pod['spec']>['tolerations']>[number]
+) {
+  const key = toleration.key || '*'
+  const operator = toleration.operator || 'Equal'
+  const value = toleration.value ? `=${toleration.value}` : ''
+  const effect = toleration.effect ? `:${toleration.effect}` : ''
+  const seconds =
+    toleration.tolerationSeconds !== undefined
+      ? ` (${toleration.tolerationSeconds}s)`
+      : ''
+  return `${key}${operator === 'Exists' ? ' exists' : value}${effect}${seconds}`
 }
 
 const isVersionAtLeast = (version: string | undefined, target: string) => {

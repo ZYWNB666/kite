@@ -33,7 +33,10 @@ import {
 
 import { ErrorMessage } from './error-message'
 import { ResourceTableToolbar } from './resource-table-toolbar'
+import { ResourceTableView } from './resource-table-view'
 
+// The shared filter is intentionally reusable across unrelated resource shapes.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const multiSelectFilter: FilterFn<any> = (
   row,
   columnId,
@@ -44,7 +47,6 @@ export const multiSelectFilter: FilterFn<any> = (
 }
 multiSelectFilter.autoRemove = (val: unknown) =>
   !val || (Array.isArray(val) && val.length === 0)
-import { ResourceTableView } from './resource-table-view'
 
 export interface ResourceTableProps<T> {
   resourceName: string
@@ -56,6 +58,11 @@ export interface ResourceTableProps<T> {
   showCreateButton?: boolean // If true, show create button
   onCreateClick?: () => void // Callback for create button click
   extraToolbars?: React.ReactNode[] // Additional toolbar components
+  renderBatchActions?: (context: {
+    selectedRows: T[]
+    clearSelection: () => void
+    refetch: () => Promise<unknown> | void
+  }) => React.ReactNode
   defaultHiddenColumns?: string[] // Columns to hide by default
 }
 
@@ -68,6 +75,7 @@ export function ResourceTable<T>({
   showCreateButton = false,
   onCreateClick,
   extraToolbars = [],
+  renderBatchActions,
   defaultHiddenColumns = [],
 }: ResourceTableProps<T>) {
   const { t } = useTranslation()
@@ -454,6 +462,14 @@ export function ResourceTable<T>({
   }
 
   const emptyState = renderEmptyState()
+  const selectedRows = table
+    .getSelectedRowModel()
+    .rows.map((row) => row.original)
+  const batchActions = renderBatchActions?.({
+    selectedRows,
+    clearSelection: () => setRowSelection({}),
+    refetch,
+  })
 
   return (
     <div className="flex flex-col gap-3">
@@ -477,6 +493,7 @@ export function ResourceTable<T>({
         useRegex={useRegex}
         onUseRegexChange={handleUseRegexChange}
         selectedRowCount={table.getSelectedRowModel().rows.length}
+        batchActions={batchActions}
         onOpenDeleteDialog={() => setDeleteDialogOpen(true)}
       />
 

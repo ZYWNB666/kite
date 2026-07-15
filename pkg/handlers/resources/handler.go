@@ -6,14 +6,18 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/zxh326/kite/pkg/cluster"
 	"github.com/zxh326/kite/pkg/common"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	batchv1 "k8s.io/api/batch/v1"
+	coordinationv1 "k8s.io/api/coordination/v1"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	nodev1 "k8s.io/api/node/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	schedulingv1 "k8s.io/api/scheduling/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -57,6 +61,8 @@ func RegisterRoutes(group *gin.RouterGroup) {
 		string(common.Services):                 NewGenericResourceHandler[*corev1.Service, *corev1.ServiceList](common.Services),
 		string(common.Endpoints):                NewGenericResourceHandler[*corev1.Endpoints, *corev1.EndpointsList](common.Endpoints),
 		string(common.EndpointSlices):           NewGenericResourceHandler[*discoveryv1.EndpointSlice, *discoveryv1.EndpointSliceList](common.EndpointSlices),
+		string(common.ResourceQuotas):           NewGenericResourceHandler[*corev1.ResourceQuota, *corev1.ResourceQuotaList](common.ResourceQuotas),
+		string(common.LimitRanges):              NewGenericResourceHandler[*corev1.LimitRange, *corev1.LimitRangeList](common.LimitRanges),
 		string(common.ConfigMaps):               NewGenericResourceHandler[*corev1.ConfigMap, *corev1.ConfigMapList](common.ConfigMaps),
 		string(common.Secrets):                  NewGenericResourceHandler[*corev1.Secret, *corev1.SecretList](common.Secrets),
 		string(common.PersistentVolumes):        NewGenericResourceHandler[*corev1.PersistentVolume, *corev1.PersistentVolumeList](common.PersistentVolumes),
@@ -73,7 +79,13 @@ func RegisterRoutes(group *gin.RouterGroup) {
 		string(common.CronJobs):                 NewGenericResourceHandler[*batchv1.CronJob, *batchv1.CronJobList](common.CronJobs),
 		string(common.Ingresses):                NewGenericResourceHandler[*networkingv1.Ingress, *networkingv1.IngressList](common.Ingresses),
 		string(common.NetworkPolicies):          NewGenericResourceHandler[*networkingv1.NetworkPolicy, *networkingv1.NetworkPolicyList](common.NetworkPolicies),
+		string(common.IngressClasses):           NewGenericResourceHandler[*networkingv1.IngressClass, *networkingv1.IngressClassList](common.IngressClasses),
 		string(common.StorageClasses):           NewGenericResourceHandler[*storagev1.StorageClass, *storagev1.StorageClassList](common.StorageClasses),
+		string(common.PriorityClasses):          NewGenericResourceHandler[*schedulingv1.PriorityClass, *schedulingv1.PriorityClassList](common.PriorityClasses),
+		string(common.RuntimeClasses):           NewGenericResourceHandler[*nodev1.RuntimeClass, *nodev1.RuntimeClassList](common.RuntimeClasses),
+		string(common.Leases):                   NewGenericResourceHandler[*coordinationv1.Lease, *coordinationv1.LeaseList](common.Leases),
+		string(common.MutatingWebhookConfigs):   NewGenericResourceHandler[*admissionregistrationv1.MutatingWebhookConfiguration, *admissionregistrationv1.MutatingWebhookConfigurationList](common.MutatingWebhookConfigs),
+		string(common.ValidatingWebhookConfigs): NewGenericResourceHandler[*admissionregistrationv1.ValidatingWebhookConfiguration, *admissionregistrationv1.ValidatingWebhookConfigurationList](common.ValidatingWebhookConfigs),
 		string(common.Roles):                    NewGenericResourceHandler[*rbacv1.Role, *rbacv1.RoleList](common.Roles),
 		string(common.RoleBindings):             NewGenericResourceHandler[*rbacv1.RoleBinding, *rbacv1.RoleBindingList](common.RoleBindings),
 		string(common.ClusterRoles):             NewGenericResourceHandler[*rbacv1.ClusterRole, *rbacv1.ClusterRoleList](common.ClusterRoles),
@@ -81,6 +93,7 @@ func RegisterRoutes(group *gin.RouterGroup) {
 		string(common.PodMetrics):               NewGenericResourceHandler[*metricsv1.PodMetrics, *metricsv1.PodMetricsList](common.PodMetrics),
 		string(common.NodeMetrics):              NewGenericResourceHandler[*metricsv1.NodeMetrics, *metricsv1.NodeMetricsList](common.NodeMetrics),
 		string(common.Gateways):                 NewGenericResourceHandler[*gatewayapiv1.Gateway, *gatewayapiv1.GatewayList](common.Gateways),
+		string(common.GatewayClasses):           NewGenericResourceHandler[*gatewayapiv1.GatewayClass, *gatewayapiv1.GatewayClassList](common.GatewayClasses),
 		string(common.HTTPRoutes):               NewGenericResourceHandler[*gatewayapiv1.HTTPRoute, *gatewayapiv1.HTTPRouteList](common.HTTPRoutes),
 		string(common.HorizontalPodAutoscalers): NewGenericResourceHandler[*autoscalingv2.HorizontalPodAutoscaler, *autoscalingv2.HorizontalPodAutoscalerList](common.HorizontalPodAutoscalers),
 	}

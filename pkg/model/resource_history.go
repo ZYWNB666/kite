@@ -17,8 +17,8 @@ type ResourceHistory struct {
 	OperationType   string `json:"operationType" gorm:"type:varchar(50);not null;index"`
 	OperationSource string `json:"operationSource" gorm:"type:varchar(20);not null;default:'manual';index"`
 
-	ResourceYAML string `json:"resourceYaml" gorm:"type:text"`
-	PreviousYAML string `json:"previousYaml" gorm:"type:text"`
+	ResourceYAML string `json:"resourceYaml" gorm:"size:16777215"`
+	PreviousYAML string `json:"previousYaml" gorm:"size:16777215"`
 
 	Success      bool   `json:"success" gorm:"type:boolean"`
 	ErrorMessage string `json:"errorMessage" gorm:"type:text"`

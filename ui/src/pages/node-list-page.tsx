@@ -5,12 +5,13 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 
 import { NodeWithMetrics } from '@/types/api'
-import { useCluster } from '@/hooks/use-cluster'
-import { createSearchFilter } from '@/lib/k8s'
 import { fetchAPI } from '@/lib/api/shared'
+import { createSearchFilter } from '@/lib/k8s'
 import { formatDate } from '@/lib/utils'
+import { useCluster } from '@/hooks/use-cluster'
 import { Badge } from '@/components/ui/badge'
 import { MetricCell } from '@/components/metrics-cell'
+import { NodeBatchActions } from '@/components/node-batch-actions'
 import { NodeStatusIcon } from '@/components/node-status-icon'
 import { ResourceTable } from '@/components/resource-table'
 
@@ -318,6 +319,13 @@ export function NodeListPage() {
       clusterScope={true}
       searchQueryFilter={nodeSearchFilter}
       showCreateButton={false}
+      renderBatchActions={({ selectedRows, clearSelection, refetch }) => (
+        <NodeBatchActions
+          selectedNodes={selectedRows}
+          clearSelection={clearSelection}
+          refresh={refetch}
+        />
+      )}
       defaultHiddenColumns={[
         'status_nodeInfo_kernelVersion',
         'status_nodeInfo_osImage',

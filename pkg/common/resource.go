@@ -13,6 +13,8 @@ const (
 	Services                 ResourceType = "services"
 	Endpoints                ResourceType = "endpoints"
 	EndpointSlices           ResourceType = "endpointslices"
+	ResourceQuotas           ResourceType = "resourcequotas"
+	LimitRanges              ResourceType = "limitranges"
 	ConfigMaps               ResourceType = "configmaps"
 	Secrets                  ResourceType = "secrets"
 	PersistentVolumes        ResourceType = "persistentvolumes"
@@ -29,7 +31,13 @@ const (
 	CronJobs                 ResourceType = "cronjobs"
 	Ingresses                ResourceType = "ingresses"
 	NetworkPolicies          ResourceType = "networkpolicies"
+	IngressClasses           ResourceType = "ingressclasses"
 	StorageClasses           ResourceType = "storageclasses"
+	PriorityClasses          ResourceType = "priorityclasses"
+	RuntimeClasses           ResourceType = "runtimeclasses"
+	Leases                   ResourceType = "leases"
+	MutatingWebhookConfigs   ResourceType = "mutatingwebhookconfigurations"
+	ValidatingWebhookConfigs ResourceType = "validatingwebhookconfigurations"
 	Roles                    ResourceType = "roles"
 	RoleBindings             ResourceType = "rolebindings"
 	ClusterRoles             ResourceType = "clusterroles"
@@ -37,6 +45,7 @@ const (
 	PodMetrics               ResourceType = "podmetrics"
 	NodeMetrics              ResourceType = "nodemetrics"
 	Gateways                 ResourceType = "gateways"
+	GatewayClasses           ResourceType = "gatewayclasses"
 	HTTPRoutes               ResourceType = "httproutes"
 	HorizontalPodAutoscalers ResourceType = "horizontalpodautoscalers"
 )
@@ -65,6 +74,8 @@ var Registry = []ResourceMeta{
 	{Kind: "Service", Singular: "service", Plural: Services, Short: []string{"svc"}, Version: "v1", Searchable: true, GlobalSearch: true, Related: true},
 	{Kind: "Endpoints", Singular: "endpoints", Plural: Endpoints, Short: []string{"ep"}, Version: "v1"},
 	{Kind: "EndpointSlice", Singular: "endpointslice", Plural: EndpointSlices, Version: "v1", Group: "discovery.k8s.io"},
+	{Kind: "ResourceQuota", Singular: "resourcequota", Plural: ResourceQuotas, Short: []string{"quota"}, Version: "v1"},
+	{Kind: "LimitRange", Singular: "limitrange", Plural: LimitRanges, Short: []string{"limits"}, Version: "v1"},
 	{Kind: "ConfigMap", Singular: "configmap", Plural: ConfigMaps, Short: []string{"cm"}, Version: "v1", Searchable: true, GlobalSearch: true, Related: true},
 	{Kind: "Secret", Singular: "secret", Plural: Secrets, Version: "v1", Searchable: true, GlobalSearch: true, Related: true},
 	{Kind: "PersistentVolume", Singular: "persistentvolume", Plural: PersistentVolumes, Short: []string{"pv"}, Version: "v1", ClusterScoped: true, Searchable: true, GlobalSearch: true},
@@ -88,6 +99,20 @@ var Registry = []ResourceMeta{
 	// networking.k8s.io/v1
 	{Kind: "Ingress", Singular: "ingress", Plural: Ingresses, Short: []string{"ing"}, Group: "networking.k8s.io", Version: "v1", Related: true},
 	{Kind: "NetworkPolicy", Singular: "networkpolicy", Plural: NetworkPolicies, Short: []string{"netpol"}, Group: "networking.k8s.io", Version: "v1"},
+	{Kind: "IngressClass", Singular: "ingressclass", Plural: IngressClasses, Group: "networking.k8s.io", Version: "v1", ClusterScoped: true},
+
+	// scheduling.k8s.io/v1
+	{Kind: "PriorityClass", Singular: "priorityclass", Plural: PriorityClasses, Short: []string{"pc"}, Group: "scheduling.k8s.io", Version: "v1", ClusterScoped: true},
+
+	// node.k8s.io/v1
+	{Kind: "RuntimeClass", Singular: "runtimeclass", Plural: RuntimeClasses, Group: "node.k8s.io", Version: "v1", ClusterScoped: true},
+
+	// coordination.k8s.io/v1
+	{Kind: "Lease", Singular: "lease", Plural: Leases, Group: "coordination.k8s.io", Version: "v1"},
+
+	// admissionregistration.k8s.io/v1
+	{Kind: "MutatingWebhookConfiguration", Singular: "mutatingwebhookconfiguration", Plural: MutatingWebhookConfigs, Group: "admissionregistration.k8s.io", Version: "v1", ClusterScoped: true},
+	{Kind: "ValidatingWebhookConfiguration", Singular: "validatingwebhookconfiguration", Plural: ValidatingWebhookConfigs, Group: "admissionregistration.k8s.io", Version: "v1", ClusterScoped: true},
 
 	// storage.k8s.io/v1
 	{Kind: "StorageClass", Singular: "storageclass", Plural: StorageClasses, Short: []string{"sc"}, Group: "storage.k8s.io", Version: "v1", ClusterScoped: true},
@@ -107,6 +132,7 @@ var Registry = []ResourceMeta{
 
 	// gateway.networking.k8s.io/v1
 	{Kind: "Gateway", Singular: "gateway", Plural: Gateways, Group: "gateway.networking.k8s.io", Version: "v1"},
+	{Kind: "GatewayClass", Singular: "gatewayclass", Plural: GatewayClasses, Group: "gateway.networking.k8s.io", Version: "v1", ClusterScoped: true},
 	{Kind: "HTTPRoute", Singular: "httproute", Plural: HTTPRoutes, Group: "gateway.networking.k8s.io", Version: "v1", Related: true},
 
 	// autoscaling/v2

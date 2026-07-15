@@ -20,6 +20,7 @@ import { DaemonSetListPage } from './daemonset-list-page'
 import { DeploymentDetail } from './deployment-detail'
 import { DeploymentListPage } from './deployment-list-page'
 import { EventListPage } from './event-list-page'
+import { GatewayDetail } from './gateway-detail'
 import { GatewayListPage } from './gateway-list-page'
 import { HorizontalPodAutoscalerListPage } from './horizontalpodautoscaler-list-page'
 import { HTTPRouteListPage } from './httproute-list-page'
@@ -39,6 +40,7 @@ import { ServiceDetail } from './service-detail'
 import { ServiceListPage } from './service-list-page'
 import { StatefulSetDetail } from './statefulset-detail'
 import { StatefulSetListPage } from './statefulset-list-page'
+import { StorageClassListPage } from './storageclass-list-page'
 
 export type ResourceScope = 'cluster' | 'namespace'
 
@@ -150,6 +152,10 @@ function getResourceViews(resourceType: ResourceType): ResourceViewDefinition {
       return {
         listPage: () => <PVCListPage />,
       }
+    case 'storageclasses':
+      return {
+        listPage: () => <StorageClassListPage />,
+      }
     case 'horizontalpodautoscalers':
       return {
         listPage: () => <HorizontalPodAutoscalerListPage />,
@@ -157,6 +163,9 @@ function getResourceViews(resourceType: ResourceType): ResourceViewDefinition {
     case 'gateways':
       return {
         listPage: () => <GatewayListPage />,
+        detailPage: ({ name, namespace }: ResourceDetailProps) => (
+          <GatewayDetail name={name} namespace={namespace!} />
+        ),
       }
     case 'httproutes':
       return {

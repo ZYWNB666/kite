@@ -49,7 +49,7 @@ resourceCatalog
     })
   })
 
-export const SIDEBAR_CONFIG_VERSION = 3
+export const SIDEBAR_CONFIG_VERSION = 4
 
 function getIconName(iconComponent: ComponentType<{ className?: string }>) {
   const entry = Object.entries(sidebarIconMap).find(

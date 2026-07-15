@@ -54,6 +54,7 @@ interface ResourceTableToolbarProps<T> {
   useRegex: boolean
   onUseRegexChange: (pressed: boolean) => void
   selectedRowCount: number
+  batchActions?: React.ReactNode
   onOpenDeleteDialog: () => void
 }
 
@@ -77,6 +78,7 @@ export function ResourceTableToolbar<T>({
   useRegex,
   onUseRegexChange,
   selectedRowCount,
+  batchActions,
   onOpenDeleteDialog,
 }: ResourceTableToolbarProps<T>) {
   const { t } = useTranslation()
@@ -184,7 +186,10 @@ export function ResourceTableToolbar<T>({
                     )}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
+                <DropdownMenuContent
+                  align="start"
+                  className="max-h-72 overflow-y-auto"
+                >
                   <DropdownMenuLabel className="flex items-center justify-between py-1">
                     <span>{headerLabel}</span>
                     {filterValue.length > 0 && (
@@ -202,7 +207,12 @@ export function ResourceTableToolbar<T>({
                     onCheckedChange={() => column.setFilterValue(undefined)}
                     onSelect={(e) => e.preventDefault()}
                   >
-                    All ({allOptions.reduce((s, v) => s + (uniqueValues.get(v) ?? 0), 0)})
+                    All (
+                    {allOptions.reduce(
+                      (s, v) => s + (uniqueValues.get(v) ?? 0),
+                      0
+                    )}
+                    )
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuSeparator />
                   {allOptions.map((value) => (
@@ -266,6 +276,7 @@ export function ResourceTableToolbar<T>({
           </div>
 
           <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+            {selectedRowCount > 0 && batchActions}
             {selectedRowCount > 0 && (
               <Button
                 variant="destructive"

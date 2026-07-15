@@ -1,6 +1,12 @@
 // API types for Custom Resources
 
 import {
+  MutatingWebhookConfiguration,
+  MutatingWebhookConfigurationList,
+  ValidatingWebhookConfiguration,
+  ValidatingWebhookConfigurationList,
+} from 'kubernetes-types/admissionregistration/v1'
+import {
   CustomResourceDefinition,
   CustomResourceDefinitionList,
 } from 'kubernetes-types/apiextensions/v1'
@@ -19,11 +25,16 @@ import {
   HorizontalPodAutoscalerList,
 } from 'kubernetes-types/autoscaling/v2'
 import { CronJob, CronJobList, Job, JobList } from 'kubernetes-types/batch/v1'
+import { Lease, LeaseList } from 'kubernetes-types/coordination/v1'
 import {
   ConfigMap,
   ConfigMapList,
+  Endpoints,
+  EndpointsList,
   Event,
   EventList,
+  LimitRange,
+  LimitRangeList,
   Namespace,
   NamespaceList,
   Node,
@@ -32,6 +43,8 @@ import {
   PersistentVolumeClaimList,
   PersistentVolumeList,
   Pod,
+  ResourceQuota,
+  ResourceQuotaList,
   Secret,
   SecretList,
   Service,
@@ -39,12 +52,16 @@ import {
   ServiceAccountList,
   ServiceList,
 } from 'kubernetes-types/core/v1'
+import { EndpointSlice, EndpointSliceList } from 'kubernetes-types/discovery/v1'
 import {
   Ingress,
+  IngressClass,
+  IngressClassList,
   IngressList,
   NetworkPolicy,
   NetworkPolicyList,
 } from 'kubernetes-types/networking/v1'
+import { RuntimeClass, RuntimeClassList } from 'kubernetes-types/node/v1'
 import {
   PodDisruptionBudget,
   PodDisruptionBudgetList,
@@ -59,15 +76,15 @@ import {
   RoleBindingList,
   RoleList,
 } from 'kubernetes-types/rbac/v1'
-import { StorageClass, StorageClassList } from 'kubernetes-types/storage/v1'
 import {
-  EndpointSlice,
-  EndpointSliceList,
-} from 'kubernetes-types/discovery/v1'
+  PriorityClass,
+  PriorityClassList,
+} from 'kubernetes-types/scheduling/v1'
+import { StorageClass, StorageClassList } from 'kubernetes-types/storage/v1'
 
 import type { ResourceType } from '@/lib/resource-metadata'
 
-import { Gateway, HTTPRoute } from './gateway'
+import { Gateway, GatewayClass, HTTPRoute } from './gateway'
 
 export type { ResourceType } from '@/lib/resource-metadata'
 
@@ -124,7 +141,10 @@ export interface ResourcesTypeMap {
   jobs: JobList
   cronjobs: CronJobList
   services: ServiceList
+  endpoints: EndpointsList
   endpointslices: EndpointSliceList
+  resourcequotas: ResourceQuotaList
+  limitranges: LimitRangeList
   gateways: {
     items: Gateway[]
     metadata?: listMetadataType
@@ -133,11 +153,16 @@ export interface ResourcesTypeMap {
     items: HTTPRoute[]
     metadata?: listMetadataType
   }
+  gatewayclasses: {
+    items: GatewayClass[]
+    metadata?: listMetadataType
+  }
   configmaps: ConfigMapList
   secrets: SecretList
   persistentvolumeclaims: PersistentVolumeClaimList
   ingresses: IngressList
   networkpolicies: NetworkPolicyList
+  ingressclasses: IngressClassList
   namespaces: NamespaceList
   crds: CustomResourceDefinitionList
   crs: {
@@ -157,6 +182,11 @@ export interface ResourcesTypeMap {
   }
   replicasets: ReplicaSetList
   poddisruptionbudgets: PodDisruptionBudgetList
+  priorityclasses: PriorityClassList
+  runtimeclasses: RuntimeClassList
+  leases: LeaseList
+  mutatingwebhookconfigurations: MutatingWebhookConfigurationList
+  validatingwebhookconfigurations: ValidatingWebhookConfigurationList
   serviceaccounts: ServiceAccountList
   roles: RoleList
   rolebindings: RoleBindingList
@@ -215,14 +245,19 @@ export interface ResourceTypeMap {
   jobs: Job
   cronjobs: CronJob
   services: Service
+  endpoints: Endpoints
   endpointslices: EndpointSlice
+  resourcequotas: ResourceQuota
+  limitranges: LimitRange
   gateways: Gateway
   httproutes: HTTPRoute
+  gatewayclasses: GatewayClass
   configmaps: ConfigMap
   secrets: Secret
   persistentvolumeclaims: PersistentVolumeClaim
   ingresses: Ingress
   networkpolicies: NetworkPolicy
+  ingressclasses: IngressClass
   namespaces: Namespace
   crds: CustomResourceDefinition
   crs: CustomResource
@@ -232,6 +267,11 @@ export interface ResourceTypeMap {
   storageclasses: StorageClass
   replicasets: ReplicaSet
   poddisruptionbudgets: PodDisruptionBudget
+  priorityclasses: PriorityClass
+  runtimeclasses: RuntimeClass
+  leases: Lease
+  mutatingwebhookconfigurations: MutatingWebhookConfiguration
+  validatingwebhookconfigurations: ValidatingWebhookConfiguration
   podmetrics: PodMetrics
   serviceaccounts: ServiceAccount
   roles: RawRole
