@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/zxh326/kite/pkg/utils"
+	"gorm.io/gorm/schema"
 )
 
 type SecretString string
@@ -110,6 +111,12 @@ func (s SliceString) Value() (driver.Value, error) {
 
 // JSONField stores arbitrary JSON data
 type JSONField []byte
+
+// GormDataType makes JSONField use the logical string type so size tags map to
+// TEXT variants instead of binary BLOB variants across supported databases.
+func (JSONField) GormDataType() string {
+	return string(schema.String)
+}
 
 func (j *JSONField) Scan(value interface{}) error {
 	if value == nil {

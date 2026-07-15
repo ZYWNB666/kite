@@ -63,7 +63,14 @@ func (s *pendingSessionStore) save(session pendingSession) string {
 	}
 
 	if err := model.SavePendingSession(dbSession); err != nil {
-		klog.Errorf("Failed to save pending session: %v", err)
+		klog.Errorf(
+			"Failed to save pending session (system_prompt=%dB, open_ai_messages=%dB, anthropic_messages=%dB, tool_call_args=%dB): %v",
+			len(dbSession.SystemPrompt),
+			len(dbSession.OpenAIMessages),
+			len(dbSession.AnthropicMessages),
+			len(dbSession.ToolCallArgs),
+			err,
+		)
 		return ""
 	}
 
