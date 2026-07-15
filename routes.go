@@ -160,6 +160,7 @@ func registerProtectedRoutes(r *gin.RouterGroup, authHandler *auth.AuthHandler, 
 	api.GET("/prometheus/pods/:namespace/:podName/metrics", promHandler.GetPodMetrics)
 
 	logsHandler := handlers.NewLogsHandler()
+	api.GET("/logs/:namespace/:podName", logsHandler.HandleLogs)
 	api.GET("/logs/:namespace/:podName/ws", logsHandler.HandleLogsWebSocket)
 
 	terminalHandler := handlers.NewTerminalHandler()

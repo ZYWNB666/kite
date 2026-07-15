@@ -8,7 +8,7 @@ import {
   ResourceUsageHistory,
 } from '@/types/api'
 
-import { API_BASE_URL } from '../api-client'
+import { API_BASE_URL, apiClient } from '../api-client'
 import { appendCurrentClusterParam } from '../current-cluster'
 import { getWebSocketUrl } from '../subpath'
 import useWebSocket, { WebSocketMessage } from '../useWebSocket'
@@ -131,6 +131,8 @@ export interface LogsResponse {
   container?: string
   pod: string
   namespace: string
+  hasMore: boolean
+  warnings?: string[]
 }
 
 // Function to fetch static logs (follow=false)
@@ -143,10 +145,12 @@ export const fetchPodLogs = (
     timestamps?: boolean
     previous?: boolean
     sinceSeconds?: number
+    sinceTime?: string
+    labelSelector?: string
+    signal?: AbortSignal
   }
 ): Promise<LogsResponse> => {
   const params = new URLSearchParams()
-  params.append('follow', 'false') // Explicitly set follow=false for static logs
 
   if (options?.container) {
     params.append('container', options.container)
@@ -163,9 +167,15 @@ export const fetchPodLogs = (
   if (options?.sinceSeconds !== undefined) {
     params.append('sinceSeconds', options.sinceSeconds.toString())
   }
+  if (options?.sinceTime) {
+    params.append('sinceTime', options.sinceTime)
+  }
+  if (options?.labelSelector) {
+    params.append('labelSelector', options.labelSelector)
+  }
 
-  const endpoint = `/logs/${namespace}/${podName}${params.toString() ? `?${params.toString()}` : ''}`
-  return fetchAPI<LogsResponse>(endpoint)
+  const endpoint = `/logs/${encodeURIComponent(namespace)}/${encodeURIComponent(podName)}${params.toString() ? `?${params.toString()}` : ''}`
+  return apiClient.get<LogsResponse>(endpoint, { signal: options?.signal })
 }
 
 // Function to create SSE-based logs connection (follow=true)
