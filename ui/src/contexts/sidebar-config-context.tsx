@@ -16,6 +16,7 @@ import { useAuth } from './auth-context'
 import {
   buildDefaultSidebarConfig,
   getSidebarIconComponent,
+  mergeSidebarConfigWithDefaults,
   SIDEBAR_CONFIG_VERSION,
 } from './sidebar-config-defaults'
 
@@ -91,7 +92,8 @@ export const SidebarConfigProvider: React.FC<SidebarConfigProviderProps> = ({
 
       const currentVersion = userConfig.version || 0
       if (currentVersion < SIDEBAR_CONFIG_VERSION) {
-        setHasUpdate(true)
+        setConfig(mergeSidebarConfigWithDefaults(userConfig))
+        setHasUpdate(false)
       }
       return
     }

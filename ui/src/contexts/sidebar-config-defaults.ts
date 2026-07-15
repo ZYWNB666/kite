@@ -49,7 +49,7 @@ resourceCatalog
     })
   })
 
-export const SIDEBAR_CONFIG_VERSION = 4
+export const SIDEBAR_CONFIG_VERSION = 5
 
 function getIconName(iconComponent: ComponentType<{ className?: string }>) {
   const entry = Object.entries(sidebarIconMap).find(
@@ -101,6 +101,50 @@ export function buildDefaultSidebarConfig(): SidebarConfig {
     hiddenItems: [],
     pinnedItems: [],
     groupOrder: groups.map((g) => g.id),
+    lastUpdated: Date.now(),
+  }
+}
+
+export function mergeSidebarConfigWithDefaults(
+  config: SidebarConfig
+): SidebarConfig {
+  const defaults = buildDefaultSidebarConfig()
+  const defaultGroups = new Map(
+    defaults.groups.map((group) => [group.id, group] as const)
+  )
+
+  const groups = config.groups.map((group) => {
+    const defaultGroup = defaultGroups.get(group.id)
+    if (!defaultGroup) {
+      return group
+    }
+
+    const existingItemIds = new Set(group.items.map((item) => item.id))
+    const existingItemUrls = new Set(group.items.map((item) => item.url))
+    const missingItems = defaultGroup.items.filter(
+      (item) => !existingItemIds.has(item.id) && !existingItemUrls.has(item.url)
+    )
+
+    return missingItems.length > 0
+      ? { ...group, items: [...group.items, ...missingItems] }
+      : group
+  })
+
+  const existingGroupIds = new Set(groups.map((group) => group.id))
+  const missingGroups = defaults.groups.filter(
+    (group) => !existingGroupIds.has(group.id)
+  )
+
+  return {
+    ...config,
+    version: SIDEBAR_CONFIG_VERSION,
+    groups: [...groups, ...missingGroups],
+    groupOrder: [
+      ...config.groupOrder,
+      ...missingGroups
+        .map((group) => group.id)
+        .filter((groupId) => !config.groupOrder.includes(groupId)),
+    ],
     lastUpdated: Date.now(),
   }
 }

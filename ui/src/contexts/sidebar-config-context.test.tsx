@@ -15,7 +15,7 @@ vi.mock('./auth-context', () => ({
 }))
 
 const workloadsGroupId = 'sidebar-groups-workloads'
-const trafficGroupId = 'sidebar-groups-traffic'
+const networkGroupId = 'sidebar-groups-network'
 const workloadsPodsItemId = 'sidebar-groups-workloads--pods'
 const customGroupId = 'custom-my-group'
 const customGroupItemId = 'custom-my-group-widgets-example-com'
@@ -95,8 +95,8 @@ function SidebarConfigConsumer() {
       <button type="button" onClick={() => moveGroup(workloadsGroupId, 'down')}>
         move workloads down
       </button>
-      <button type="button" onClick={() => moveGroup(trafficGroupId, 'up')}>
-        move traffic up
+      <button type="button" onClick={() => moveGroup(networkGroupId, 'up')}>
+        move network up
       </button>
       <button type="button" onClick={() => createCustomGroup('My Group')}>
         create custom group
@@ -204,11 +204,12 @@ describe('SidebarConfigProvider', () => {
     expect(screen.getByTestId('group-order')).toHaveTextContent(
       [
         workloadsGroupId,
-        trafficGroupId,
+        networkGroupId,
         'sidebar-groups-storage',
         'sidebar-groups-config',
         'sidebar-groups-security',
-        'sidebar-groups-other',
+        'sidebar-groups-namespace',
+        'sidebar-groups-cluster',
       ].join(',')
     )
 
@@ -217,11 +218,12 @@ describe('SidebarConfigProvider', () => {
       expect(screen.getByTestId('group-order')).toHaveTextContent(
         [
           workloadsGroupId,
-          trafficGroupId,
+          networkGroupId,
           'sidebar-groups-storage',
           'sidebar-groups-config',
           'sidebar-groups-security',
-          'sidebar-groups-other',
+          'sidebar-groups-namespace',
+          'sidebar-groups-cluster',
         ].join(',')
       )
     )
@@ -230,26 +232,28 @@ describe('SidebarConfigProvider', () => {
     await waitFor(() =>
       expect(screen.getByTestId('group-order')).toHaveTextContent(
         [
-          trafficGroupId,
+          networkGroupId,
           workloadsGroupId,
           'sidebar-groups-storage',
           'sidebar-groups-config',
           'sidebar-groups-security',
-          'sidebar-groups-other',
+          'sidebar-groups-namespace',
+          'sidebar-groups-cluster',
         ].join(',')
       )
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'move traffic up' }))
+    fireEvent.click(screen.getByRole('button', { name: 'move network up' }))
     await waitFor(() =>
       expect(screen.getByTestId('group-order')).toHaveTextContent(
         [
-          trafficGroupId,
+          networkGroupId,
           workloadsGroupId,
           'sidebar-groups-storage',
           'sidebar-groups-config',
           'sidebar-groups-security',
-          'sidebar-groups-other',
+          'sidebar-groups-namespace',
+          'sidebar-groups-cluster',
         ].join(',')
       )
     )

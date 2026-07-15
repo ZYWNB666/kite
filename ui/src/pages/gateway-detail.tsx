@@ -39,7 +39,7 @@ export function GatewayDetail(props: { namespace: string; name: string }) {
   } = useResource('gateways', name, namespace)
   const { data: routes, refetch: refetchRoutes } = useResources(
     'httproutes',
-    namespace
+    '_all'
   )
   const { data: gatewayClasses, refetch: refetchGatewayClasses } = useResources(
     'gatewayclasses',
@@ -389,6 +389,7 @@ function AssociatedRoutesTable({
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
+              <TableHead>Namespace</TableHead>
               <TableHead>Hostnames</TableHead>
               <TableHead>Listener Sections</TableHead>
               <TableHead>Status</TableHead>
@@ -399,7 +400,7 @@ function AssociatedRoutesTable({
             {routes.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={5}
+                  colSpan={6}
                   className="text-center text-muted-foreground"
                 >
                   No HTTPRoutes reference this Gateway
@@ -429,6 +430,7 @@ function AssociatedRoutesTable({
                         {route.metadata?.name}
                       </Link>
                     </TableCell>
+                    <TableCell>{routeNamespace}</TableCell>
                     <TableCell>
                       {route.spec?.hostnames?.join(', ') || '*'}
                     </TableCell>
