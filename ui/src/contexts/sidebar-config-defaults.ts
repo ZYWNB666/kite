@@ -49,7 +49,12 @@ resourceCatalog
     })
   })
 
-export const SIDEBAR_CONFIG_VERSION = 5
+export const SIDEBAR_CONFIG_VERSION = 6
+
+const legacyGroupAliases = new Map([
+  ['sidebar-groups-traffic', 'sidebar-groups-network'],
+  ['sidebar.groups.traffic', 'sidebar-groups-network'],
+])
 
 function getIconName(iconComponent: ComponentType<{ className?: string }>) {
   const entry = Object.entries(sidebarIconMap).find(
@@ -113,7 +118,44 @@ export function mergeSidebarConfigWithDefaults(
     defaults.groups.map((group) => [group.id, group] as const)
   )
 
-  const groups = config.groups.map((group) => {
+  const normalizedGroups: SidebarGroup[] = []
+  config.groups.forEach((group) => {
+    const canonicalGroupId =
+      legacyGroupAliases.get(group.id) ||
+      legacyGroupAliases.get(group.nameKey) ||
+      group.id
+    const defaultGroup = defaultGroups.get(canonicalGroupId)
+    const normalizedGroup =
+      canonicalGroupId === group.id
+        ? group
+        : {
+            ...group,
+            id: canonicalGroupId,
+            nameKey: defaultGroup?.nameKey || group.nameKey,
+          }
+    const existingGroup = normalizedGroups.find(
+      (candidate) => candidate.id === canonicalGroupId
+    )
+
+    if (!existingGroup) {
+      normalizedGroups.push(normalizedGroup)
+      return
+    }
+
+    const existingItemIds = new Set(existingGroup.items.map((item) => item.id))
+    const existingItemUrls = new Set(
+      existingGroup.items.map((item) => item.url)
+    )
+    existingGroup.items = [
+      ...existingGroup.items,
+      ...normalizedGroup.items.filter(
+        (item) =>
+          !existingItemIds.has(item.id) && !existingItemUrls.has(item.url)
+      ),
+    ]
+  })
+
+  const groups = normalizedGroups.map((group) => {
     const defaultGroup = defaultGroups.get(group.id)
     if (!defaultGroup) {
       return group
@@ -140,7 +182,13 @@ export function mergeSidebarConfigWithDefaults(
     version: SIDEBAR_CONFIG_VERSION,
     groups: [...groups, ...missingGroups],
     groupOrder: [
-      ...config.groupOrder,
+      ...Array.from(
+        new Set(
+          config.groupOrder.map(
+            (groupId) => legacyGroupAliases.get(groupId) || groupId
+          )
+        )
+      ),
       ...missingGroups
         .map((group) => group.id)
         .filter((groupId) => !config.groupOrder.includes(groupId)),

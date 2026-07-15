@@ -72,4 +72,77 @@ describe('mergeSidebarConfigWithDefaults', () => {
     expect(merged.hiddenItems).toEqual(config.hiddenItems)
     expect(merged.pinnedItems).toEqual(config.pinnedItems)
   })
+
+  it('merges the legacy Traffic group into Network without duplicates', () => {
+    const config: SidebarConfig = {
+      version: SIDEBAR_CONFIG_VERSION - 1,
+      groups: [
+        {
+          id: 'sidebar-groups-traffic',
+          nameKey: 'sidebar.groups.traffic',
+          items: [
+            {
+              id: 'sidebar-groups-traffic--services',
+              titleKey: 'nav.services',
+              url: '/services',
+              icon: 'IconNetwork',
+              visible: true,
+              pinned: false,
+              order: 2,
+            },
+          ],
+          visible: true,
+          collapsed: true,
+          order: 1,
+        },
+        {
+          id: 'sidebar-groups-network',
+          nameKey: 'sidebar.groups.network',
+          items: [
+            {
+              id: 'sidebar-groups-network--services',
+              titleKey: 'nav.services',
+              url: '/services',
+              icon: 'IconNetwork',
+              visible: true,
+              pinned: false,
+              order: 2,
+            },
+          ],
+          visible: true,
+          collapsed: false,
+          order: 6,
+        },
+      ],
+      hiddenItems: ['sidebar-groups-traffic--services'],
+      pinnedItems: [],
+      groupOrder: ['sidebar-groups-traffic', 'sidebar-groups-network'],
+      lastUpdated: 1,
+    }
+
+    const merged = mergeSidebarConfigWithDefaults(config)
+    const networkGroups = merged.groups.filter(
+      (group) => group.id === 'sidebar-groups-network'
+    )
+
+    expect(networkGroups).toHaveLength(1)
+    expect(networkGroups[0].nameKey).toBe('sidebar.groups.network')
+    expect(networkGroups[0].collapsed).toBe(true)
+    expect(
+      networkGroups[0].items.filter((item) => item.url === '/services')
+    ).toHaveLength(1)
+    expect(networkGroups[0].items.map((item) => item.url)).toEqual(
+      expect.arrayContaining([
+        '/endpointslices',
+        '/endpoints',
+        '/ingressclasses',
+      ])
+    )
+    expect(
+      merged.groupOrder.filter(
+        (groupId) => groupId === 'sidebar-groups-network'
+      )
+    ).toHaveLength(1)
+    expect(merged.hiddenItems).toContain('sidebar-groups-traffic--services')
+  })
 })

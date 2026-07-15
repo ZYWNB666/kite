@@ -1,16 +1,21 @@
 import * as React from 'react'
-import { useMemo, useRef, useEffect, useCallback } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import Icon from '@/assets/icon.svg'
+import { useAuth } from '@/contexts/auth-context'
 import { useSidebarConfig } from '@/contexts/sidebar-config-context'
 import { CollapsibleContent } from '@radix-ui/react-collapsible'
-import { IconBoxMultiple, IconCode, IconLayoutDashboard } from '@tabler/icons-react'
+import {
+  IconBoxMultiple,
+  IconCode,
+  IconLayoutDashboard,
+} from '@tabler/icons-react'
+import { CustomResourceDefinition } from 'kubernetes-types/apiextensions/v1'
 import { ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Link, useLocation } from 'react-router-dom'
-import { CustomResourceDefinition } from 'kubernetes-types/apiextensions/v1'
 
-import { useVersionInfo, useResources } from '@/lib/api'
-import { useAuth } from '@/contexts/auth-context'
+import { useResources, useVersionInfo } from '@/lib/api'
+import { isSidebarRouteActive } from '@/lib/sidebar-route'
 import {
   Sidebar,
   SidebarContent,
@@ -112,8 +117,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       .filter((item) => !config.hiddenItems.includes(item.id))
       .filter(
         (item) =>
-          isAdmin ||
-          (!securityItemIds.has(item.id) && !isSecurityUrl(item.url))
+          isAdmin || (!securityItemIds.has(item.id) && !isSecurityUrl(item.url))
       )
   }, [config, isAdmin, securityItemIds])
 
@@ -175,13 +179,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   )
 
   const isActive = (url: string) => {
-    if (url === '/') {
-      return location.pathname === '/'
-    }
-    if (url === '/crds') {
-      return location.pathname == '/crds'
-    }
-    return location.pathname.startsWith(url)
+    return isSidebarRouteActive(location.pathname, url)
   }
 
   // Handle menu item click on mobile - close sidebar
@@ -254,7 +252,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <SidebarMenuButton
                 asChild
                 className="data-[slot=sidebar-menu-button]:!p-1.5 hover:bg-accent/50 transition-colors"
-               >
+              >
                 <Link to="/" onClick={handleMenuItemClick}>
                   <img src={Icon} alt="Kite Logo" className="ml-1 h-8 w-8" />
                   <span className="text-base font-semibold">Kite</span>
@@ -463,9 +461,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarGroup>
               <SidebarGroupLabel asChild>
                 <CollapsibleTrigger className="flex items-center justify-between w-full text-xs font-bold uppercase tracking-wide text-muted-foreground hover:text-foreground hover:bg-accent/60 active:bg-accent/80 rounded-md transition-all duration-150 group-data-[state=open]:text-foreground group-data-[state=open]:bg-accent/30">
-                  <span>
-                    {t('nav.customResources', 'Custom Resources')}
-                  </span>
+                  <span>{t('nav.customResources', 'Custom Resources')}</span>
                   <ChevronDown className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-180" />
                 </CollapsibleTrigger>
               </SidebarGroupLabel>
@@ -482,7 +478,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                       >
                         <Link to="/crds" onClick={handleMenuItemClick}>
                           <IconCode className="text-sidebar-primary" />
-                          <span>{t('sidebar.crd.definitions', 'Definitions')}</span>
+                          <span>
+                            {t('sidebar.crd.definitions', 'Definitions')}
+                          </span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -505,7 +503,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                                 className="hover:bg-accent/60 active:bg-accent/80 transition-all duration-150"
                               >
                                 <IconBoxMultiple className="text-sidebar-primary shrink-0" />
-                                <span className="truncate text-xs font-mono">{groupName}</span>
+                                <span className="truncate text-xs font-mono">
+                                  {groupName}
+                                </span>
                                 <ChevronDown className="ml-auto shrink-0 transition-transform duration-200 group-data-[state=open]/crd-group:rotate-180" />
                               </SidebarMenuButton>
                             </CollapsibleTrigger>
@@ -522,10 +522,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                                   <SidebarMenuButton
                                     tooltip={kind}
                                     asChild
-                                    isActive={location.pathname.startsWith(url)}
+                                    isActive={isActive(url)}
                                     className="transition-all duration-200 hover:bg-accent/60 data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
                                   >
-                                    <Link to={url} onClick={handleMenuItemClick}>
+                                    <Link
+                                      to={url}
+                                      onClick={handleMenuItemClick}
+                                    >
                                       <IconCode className="text-sidebar-primary shrink-0" />
                                       <span className="truncate">{kind}</span>
                                     </Link>
