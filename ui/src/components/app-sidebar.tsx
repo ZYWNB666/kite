@@ -5,9 +5,12 @@ import { useAuth } from '@/contexts/auth-context'
 import { useSidebarConfig } from '@/contexts/sidebar-config-context'
 import { CollapsibleContent } from '@radix-ui/react-collapsible'
 import {
+  IconAlertTriangle,
   IconBoxMultiple,
   IconCode,
   IconLayoutDashboard,
+  IconLoader2,
+  IconRefresh,
 } from '@tabler/icons-react'
 import { CustomResourceDefinition } from 'kubernetes-types/apiextensions/v1'
 import { ChevronDown } from 'lucide-react'
@@ -56,7 +59,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const isAdmin = user?.isAdmin() ?? false
 
   // Fetch CRDs for auto-classification sidebar section
-  const { data: crdItems } = useResources('crds', undefined, {
+  const {
+    data: crdItems,
+    isLoading: isLoadingCRDs,
+    isError: isCRDError,
+    isFetching: isFetchingCRDs,
+    refetch: refetchCRDs,
+  } = useResources('crds', undefined, {
     staleTime: 30000,
     disable: isLoading || !config,
   })
@@ -456,7 +465,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         })}
 
         {/* Custom Resources - auto-classified by API group */}
-        {crdGroupNames.length > 0 && (
+        {config && (
           <Collapsible defaultOpen={false} className="group/collapsible">
             <SidebarGroup>
               <SidebarGroupLabel asChild>
@@ -484,6 +493,44 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
+
+                    {isLoadingCRDs && (
+                      <SidebarMenuItem>
+                        <SidebarMenuButton disabled>
+                          <IconLoader2 className="animate-spin text-muted-foreground" />
+                          <span className="text-muted-foreground">
+                            {t('sidebar.crd.loading', 'Loading CRDs...')}
+                          </span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    )}
+
+                    {isCRDError && (
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          onClick={() => void refetchCRDs()}
+                          disabled={isFetchingCRDs}
+                          tooltip={t(
+                            'sidebar.crd.loadFailed',
+                            'Failed to load CRDs. Click to retry.'
+                          )}
+                        >
+                          {isFetchingCRDs ? (
+                            <IconLoader2 className="animate-spin text-muted-foreground" />
+                          ) : (
+                            <IconAlertTriangle className="text-destructive" />
+                          )}
+                          <span className="text-muted-foreground">
+                            {isFetchingCRDs
+                              ? t('sidebar.crd.retrying', 'Retrying...')
+                              : t('sidebar.crd.retry', 'Retry loading CRDs')}
+                          </span>
+                          {!isFetchingCRDs && (
+                            <IconRefresh className="ml-auto text-muted-foreground" />
+                          )}
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    )}
                   </SidebarMenu>
 
                   {/* API group collapsibles */}
