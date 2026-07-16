@@ -14,6 +14,7 @@ import {
   IconDownload,
   IconFilter,
   IconHistory,
+  IconLoader2,
   IconMaximize,
   IconMinimize,
   IconSearch,
@@ -204,11 +205,13 @@ export function LogViewer({
     lines,
     isLoading,
     isLoadingOlder,
+    isLoadingLatest,
     isLive,
     hasMore,
     error,
     warning,
     loadOlder,
+    loadLatest,
     refresh,
     clear,
     maxLines,
@@ -280,10 +283,17 @@ export function LogViewer({
   }, [fontSize, virtualizer, wordWrap])
 
   const scrollToLatest = useCallback(() => {
-    if (rows.length === 0) return
-    virtualizer.scrollToIndex(rows.length - 1, { align: 'end' })
+    const lastIndex = virtualizer.options.count - 1
+    if (lastIndex < 0) return
+    virtualizer.scrollToIndex(lastIndex, { align: 'end' })
     setFollowLatest(true)
-  }, [rows.length, virtualizer])
+  }, [virtualizer])
+
+  const handleLatest = useCallback(async () => {
+    setFollowLatest(true)
+    await loadLatest()
+    requestAnimationFrame(scrollToLatest)
+  }, [loadLatest, scrollToLatest])
 
   useLayoutEffect(() => {
     const previousCount = previousLineCountRef.current
@@ -544,11 +554,15 @@ export function LogViewer({
             <Button
               variant="outline"
               size="sm"
-              onClick={scrollToLatest}
-              disabled={rows.length === 0}
-              title="Jump to latest logs"
+              onClick={() => void handleLatest()}
+              disabled={isLoading || isLoadingLatest}
+              title="Fetch and jump to latest logs"
             >
-              <IconArrowDown className="h-4 w-4" />
+              {isLoadingLatest ? (
+                <IconLoader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <IconArrowDown className="h-4 w-4" />
+              )}
               Latest
             </Button>
 
@@ -752,9 +766,14 @@ export function LogViewer({
           <Button
             size="sm"
             className="absolute right-4 bottom-4 shadow-lg"
-            onClick={scrollToLatest}
+            onClick={() => void handleLatest()}
+            disabled={isLoadingLatest}
           >
-            <IconArrowDown className="h-4 w-4" />
+            {isLoadingLatest ? (
+              <IconLoader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <IconArrowDown className="h-4 w-4" />
+            )}
             Latest
           </Button>
         )}
