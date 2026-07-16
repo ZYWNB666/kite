@@ -4,14 +4,13 @@ import { fetchPodLogs } from '@/lib/api'
 import {
   getLastPodLogTimestamp,
   getNextPodLogTailLines,
-  mergeIncrementalPodLogs,
   mergePodLogSnapshot,
 } from '@/lib/pod-logs'
 
 const INITIAL_TAIL_LINES = 500
 const HISTORY_BATCH_SIZE = 500
 const MAX_LOG_LINES = 100_000
-const POLL_INTERVAL_MS = 5_000
+const POLL_INTERVAL_MS = 10_000
 
 interface UsePodLogsOptions {
   namespace: string
@@ -33,7 +32,7 @@ export function usePodLogs({
   const [lines, setLines] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isLoadingOlder, setIsLoadingOlder] = useState(false)
-  const [isLoadingLatest, setIsLoadingLatest] = useState(false)
+  const [isJumpingToPresent, setIsJumpingToPresent] = useState(false)
   const [isLive, setIsLive] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -46,9 +45,8 @@ export function usePodLogs({
   const tailLinesRef = useRef(INITIAL_TAIL_LINES)
   const generationRef = useRef(0)
   const historyControllerRef = useRef<AbortController | null>(null)
-  const lastAggregatePollAtRef = useRef(Date.now())
-  const loadLatestRef = useRef<(() => Promise<number>) | null>(null)
-  const latestRequestRef = useRef<Promise<number> | null>(null)
+  const jumpToPresentRef = useRef<(() => Promise<number>) | null>(null)
+  const jumpRequestRef = useRef<Promise<number> | null>(null)
 
   const commitLines = useCallback((next: string[]) => {
     linesRef.current = next
@@ -64,12 +62,11 @@ export function usePodLogs({
 
     historyControllerRef.current?.abort()
     setIsLoadingOlder(false)
-    setIsLoadingLatest(false)
-    latestRequestRef.current = null
+    setIsJumpingToPresent(false)
+    jumpRequestRef.current = null
     tailLinesRef.current = INITIAL_TAIL_LINES
     cursorRef.current = undefined
     clearedThroughLineRef.current = undefined
-    lastAggregatePollAtRef.current = Date.now()
     commitLines([])
     setError(null)
     setWarning(null)
@@ -86,67 +83,57 @@ export function usePodLogs({
 
     const isCurrent = () => active && generationRef.current === generation
 
-    const schedulePoll = (poll: () => Promise<unknown>) => {
+    const schedulePoll = (
+      refreshPresent: (replaceCurrent: boolean) => Promise<unknown>
+    ) => {
       if (!isCurrent() || previous) return
       if (pollTimer) clearTimeout(pollTimer)
-      pollTimer = setTimeout(() => void poll(), POLL_INTERVAL_MS)
+      pollTimer = setTimeout(() => void refreshPresent(false), POLL_INTERVAL_MS)
     }
 
-    const poll = async (): Promise<number> => {
-      if (!isCurrent() || previous) return 0
+    const refreshPresent = async (replaceCurrent: boolean): Promise<number> => {
+      if (!isCurrent() || (previous && !replaceCurrent)) return 0
       if (pollTimer) {
         clearTimeout(pollTimer)
         pollTimer = undefined
       }
       pollController?.abort()
       pollController = new AbortController()
-      const requestStartedAt = Date.now()
-      const aggregateSinceSeconds =
-        podName === '_all'
-          ? Math.max(
-              10,
-              Math.ceil(
-                (requestStartedAt - lastAggregatePollAtRef.current) / 1000
-              ) + 5
-            )
-          : undefined
-      const isInitialRecovery = podName !== '_all' && !cursorRef.current
       try {
         const beforeCount = linesRef.current.length
         const response = await fetchPodLogs(namespace, podName, {
           container,
-          // Do not tail an incremental request: tailing would silently discard
-          // entries when more than the limit arrive between two polls.
-          tailLines: isInitialRecovery ? INITIAL_TAIL_LINES : -1,
+          tailLines: INITIAL_TAIL_LINES,
           timestamps: true,
-          previous: false,
-          sinceTime: podName === '_all' ? undefined : cursorRef.current,
-          sinceSeconds: aggregateSinceSeconds,
+          previous,
           labelSelector,
           signal: pollController.signal,
         })
         if (!isCurrent()) return 0
         let incoming = response.logs
         const clearedThrough = clearedThroughLineRef.current
-        if (linesRef.current.length === 0 && clearedThrough) {
+        if (
+          !replaceCurrent &&
+          linesRef.current.length === 0 &&
+          clearedThrough
+        ) {
           const overlapIndex = incoming.lastIndexOf(clearedThrough)
           if (overlapIndex >= 0) incoming = incoming.slice(overlapIndex + 1)
         }
-        const merged =
-          podName === '_all'
-            ? mergePodLogSnapshot(incoming, linesRef.current, MAX_LOG_LINES)
-            : mergeIncrementalPodLogs(linesRef.current, incoming, MAX_LOG_LINES)
-        commitLines(merged)
-        if (merged.length > 0) clearedThroughLineRef.current = undefined
-        cursorRef.current = getLastPodLogTimestamp(merged) || cursorRef.current
-        if (isInitialRecovery) setHasMore(response.hasMore)
+        const nextLines = replaceCurrent
+          ? incoming.slice(-INITIAL_TAIL_LINES)
+          : mergePodLogSnapshot(incoming, linesRef.current, MAX_LOG_LINES)
+        commitLines(nextLines)
+        if (replaceCurrent) tailLinesRef.current = INITIAL_TAIL_LINES
+        if (nextLines.length > 0 || replaceCurrent) {
+          clearedThroughLineRef.current = undefined
+        }
+        cursorRef.current = getLastPodLogTimestamp(nextLines)
+        setHasMore(response.hasMore)
         setError(null)
         setWarning(response.warnings?.join('\n') || null)
-        setIsLive(true)
-        if (podName === '_all') {
-          lastAggregatePollAtRef.current = requestStartedAt
-        }
-        return Math.max(0, merged.length - beforeCount)
+        setIsLive(!previous)
+        return Math.max(0, nextLines.length - beforeCount)
       } catch (pollError) {
         if (!isCurrent() || (pollError as Error).name === 'AbortError') return 0
         setError(
@@ -157,11 +144,12 @@ export function usePodLogs({
         setIsLive(false)
         return 0
       } finally {
-        schedulePoll(poll)
+        schedulePoll(refreshPresent)
       }
     }
 
-    loadLatestRef.current = poll
+    const jumpToPresentRequest = () => refreshPresent(true)
+    jumpToPresentRef.current = jumpToPresentRequest
 
     const loadInitial = async () => {
       setIsLoading(true)
@@ -181,7 +169,6 @@ export function usePodLogs({
         setError(null)
         setWarning(response.warnings?.join('\n') || null)
         setIsLive(!previous)
-        lastAggregatePollAtRef.current = Date.now()
       } catch (loadError) {
         if (!isCurrent() || (loadError as Error).name === 'AbortError') return
         setError(
@@ -192,7 +179,7 @@ export function usePodLogs({
         setIsLive(false)
       } finally {
         if (isCurrent()) setIsLoading(false)
-        schedulePoll(poll)
+        schedulePoll(refreshPresent)
       }
     }
 
@@ -204,7 +191,9 @@ export function usePodLogs({
       pollController?.abort()
       historyControllerRef.current?.abort()
       if (pollTimer) clearTimeout(pollTimer)
-      if (loadLatestRef.current === poll) loadLatestRef.current = null
+      if (jumpToPresentRef.current === jumpToPresentRequest) {
+        jumpToPresentRef.current = null
+      }
     }
   }, [
     commitLines,
@@ -293,20 +282,20 @@ export function usePodLogs({
     setRefreshVersion((value) => value + 1)
   }, [])
 
-  const loadLatest = useCallback(async () => {
-    if (latestRequestRef.current) return latestRequestRef.current
-    const runLatest = loadLatestRef.current
-    if (!runLatest) return 0
+  const jumpToPresent = useCallback(async () => {
+    if (jumpRequestRef.current) return jumpRequestRef.current
+    const runJump = jumpToPresentRef.current
+    if (!runJump) return 0
 
-    setIsLoadingLatest(true)
-    const request = runLatest()
-    latestRequestRef.current = request
+    setIsJumpingToPresent(true)
+    const request = runJump()
+    jumpRequestRef.current = request
     try {
       return await request
     } finally {
-      if (latestRequestRef.current === request) {
-        latestRequestRef.current = null
-        setIsLoadingLatest(false)
+      if (jumpRequestRef.current === request) {
+        jumpRequestRef.current = null
+        setIsJumpingToPresent(false)
       }
     }
   }, [])
@@ -323,13 +312,13 @@ export function usePodLogs({
     lines,
     isLoading,
     isLoadingOlder,
-    isLoadingLatest,
+    isJumpingToPresent,
     isLive,
     hasMore,
     error,
     warning,
     loadOlder,
-    loadLatest,
+    jumpToPresent,
     refresh,
     clear,
     maxLines: MAX_LOG_LINES,

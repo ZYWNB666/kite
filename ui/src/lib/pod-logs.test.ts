@@ -7,6 +7,7 @@ import {
   mergeIncrementalPodLogs,
   mergePodLogSnapshot,
   parsePodLogLine,
+  presentPodLogLine,
 } from './pod-logs'
 
 describe('pod log helpers', () => {
@@ -32,6 +33,21 @@ describe('pod log helpers', () => {
         '2026-07-15T10:20:31Z second',
       ])
     ).toBe('2026-07-15T10:20:31Z')
+  })
+
+  it('presents resource names after the timestamp for single and aggregate pods', () => {
+    expect(presentPodLogLine('2026-07-15T10:20:30Z hello', 'pod-a')).toEqual({
+      timestamp: '2026-07-15T10:20:30Z',
+      resourceName: 'pod-a',
+      message: 'hello',
+    })
+    expect(
+      presentPodLogLine('2026-07-15T10:20:30Z [pod-b]: aggregate hello', '_all')
+    ).toEqual({
+      timestamp: '2026-07-15T10:20:30Z',
+      resourceName: 'pod-b',
+      message: 'aggregate hello',
+    })
   })
 
   it('requests enough tail lines to cover live growth plus older history', () => {

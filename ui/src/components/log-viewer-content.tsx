@@ -19,6 +19,7 @@ import {
   IconMinimize,
   IconSearch,
   IconSettings,
+  IconTag,
   IconX,
 } from '@tabler/icons-react'
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -27,7 +28,11 @@ import { Container, Pod } from 'kubernetes-types/core/v1'
 import { TERMINAL_THEMES, TerminalTheme } from '@/types/themes'
 import { stripAnsi } from '@/lib/ansi-parser'
 import { toSimpleContainer } from '@/lib/k8s'
-import { buildPodLogMatcher, parsePodLogLine } from '@/lib/pod-logs'
+import {
+  buildPodLogMatcher,
+  parsePodLogLine,
+  presentPodLogLine,
+} from '@/lib/pod-logs'
 import { usePodLogs } from '@/hooks/use-pod-logs'
 import { Button } from '@/components/ui/button'
 import {
@@ -130,6 +135,9 @@ export function LogViewer({
     return saved === null ? true : saved === 'true'
   })
   const [timestamps, setTimestamps] = useState(false)
+  const [showResourceNames, setShowResourceNames] = useState(() => {
+    return localStorage.getItem('log-viewer-show-resource-names') === 'true'
+  })
   const [previous, setPrevious] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [useRegex, setUseRegex] = useState(false)
@@ -205,13 +213,13 @@ export function LogViewer({
     lines,
     isLoading,
     isLoadingOlder,
-    isLoadingLatest,
+    isJumpingToPresent,
     isLive,
     hasMore,
     error,
     warning,
     loadOlder,
-    loadLatest,
+    jumpToPresent,
     refresh,
     clear,
     maxLines,
@@ -289,11 +297,11 @@ export function LogViewer({
     setFollowLatest(true)
   }, [virtualizer])
 
-  const handleLatest = useCallback(async () => {
+  const handleJumpToPresent = useCallback(async () => {
     setFollowLatest(true)
-    await loadLatest()
+    await jumpToPresent()
     requestAnimationFrame(scrollToLatest)
-  }, [loadLatest, scrollToLatest])
+  }, [jumpToPresent, scrollToLatest])
 
   useLayoutEffect(() => {
     const previousCount = previousLineCountRef.current
@@ -361,11 +369,16 @@ export function LogViewer({
     if (lines.length === 0) return
     const content = lines
       .map((line) => {
-        const parsed = parsePodLogLine(line)
-        const message = stripAnsi(parsed.message)
-        return timestamps && parsed.timestamp
-          ? `${formatLogTimestamp(parsed.timestamp)} ${message}`
-          : message
+        const presented = presentPodLogLine(line, selectedPodName)
+        const parts: string[] = []
+        if (timestamps && presented.timestamp) {
+          parts.push(formatLogTimestamp(presented.timestamp))
+        }
+        if (showResourceNames && presented.resourceName) {
+          parts.push(`[${presented.resourceName}]`)
+        }
+        parts.push(stripAnsi(presented.message))
+        return parts.join(' ')
       })
       .join('\n')
     const blob = new Blob([content], { type: 'text/plain' })
@@ -377,7 +390,7 @@ export function LogViewer({
     anchor.click()
     anchor.remove()
     URL.revokeObjectURL(url)
-  }, [lines, selectedContainer, selectedPodName, timestamps])
+  }, [lines, selectedContainer, selectedPodName, showResourceNames, timestamps])
 
   const handleThemeChange = useCallback((theme: TerminalTheme) => {
     setLogTheme(theme)
@@ -392,6 +405,13 @@ export function LogViewer({
   const toggleWordWrap = useCallback(() => {
     setWordWrap((current) => {
       localStorage.setItem('log-viewer-word-wrap', String(!current))
+      return !current
+    })
+  }, [])
+
+  const toggleResourceNames = useCallback(() => {
+    setShowResourceNames((current) => {
+      localStorage.setItem('log-viewer-show-resource-names', String(!current))
       return !current
     })
   }, [])
@@ -554,16 +574,27 @@ export function LogViewer({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => void handleLatest()}
-              disabled={isLoading || isLoadingLatest}
-              title="Fetch and jump to latest logs"
+              onClick={() => void handleJumpToPresent()}
+              disabled={isLoading || isJumpingToPresent}
+              title="Replace the log view with the latest 500 lines"
             >
-              {isLoadingLatest ? (
+              {isJumpingToPresent ? (
                 <IconLoader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <IconArrowDown className="h-4 w-4" />
               )}
-              Latest
+              Jump To Present
+            </Button>
+
+            <Button
+              variant={showResourceNames ? 'secondary' : 'outline'}
+              size="sm"
+              onClick={toggleResourceNames}
+              title="Show resource names after timestamps"
+              aria-pressed={showResourceNames}
+            >
+              <IconTag className="h-4 w-4" />
+              Show Resource Names
             </Button>
 
             <Popover>
@@ -637,8 +668,9 @@ export function LogViewer({
                   </div>
                   <p className="border-t pt-3 text-xs text-muted-foreground">
                     Loads 500 lines initially and 500 more when you reach the
-                    top. Live updates poll every 5 seconds. At most{' '}
-                    {maxLines.toLocaleString()} lines are kept in memory.
+                    top. Live updates fetch the latest 500 lines every 10
+                    seconds. At most {maxLines.toLocaleString()} lines are kept
+                    in memory.
                   </p>
                 </div>
               </PopoverContent>
@@ -728,8 +760,8 @@ export function LogViewer({
             >
               {virtualizer.getVirtualItems().map((virtualRow) => {
                 const row = rows[virtualRow.index]
-                const parsed = parsePodLogLine(row.line)
-                const message = stripAnsi(parsed.message)
+                const presented = presentPodLogLine(row.line, selectedPodName)
+                const message = stripAnsi(presented.message)
                 return (
                   <div
                     key={`${row.originalIndex}-${virtualRow.key}`}
@@ -749,9 +781,19 @@ export function LogViewer({
                       overflowWrap: wordWrap ? 'anywhere' : 'normal',
                     }}
                   >
-                    {timestamps && parsed.timestamp && (
+                    {timestamps && presented.timestamp && (
                       <span style={{ color: theme.brightBlack }}>
-                        {formatLogTimestamp(parsed.timestamp)}{' '}
+                        {formatLogTimestamp(presented.timestamp)}{' '}
+                      </span>
+                    )}
+                    {showResourceNames && presented.resourceName && (
+                      <span style={{ color: theme.cyan }}>
+                        [
+                        {highlightMatches(
+                          presented.resourceName,
+                          matcherResult.matcher
+                        )}
+                        ]{' '}
                       </span>
                     )}
                     {highlightMatches(message, matcherResult.matcher)}
@@ -766,15 +808,16 @@ export function LogViewer({
           <Button
             size="sm"
             className="absolute right-4 bottom-4 shadow-lg"
-            onClick={() => void handleLatest()}
-            disabled={isLoadingLatest}
+            onClick={() => void handleJumpToPresent()}
+            disabled={isJumpingToPresent}
+            title="Replace the log view with the latest 500 lines"
           >
-            {isLoadingLatest ? (
+            {isJumpingToPresent ? (
               <IconLoader2 className="h-4 w-4 animate-spin" />
             ) : (
               <IconArrowDown className="h-4 w-4" />
             )}
-            Latest
+            Jump To Present
           </Button>
         )}
       </CardContent>

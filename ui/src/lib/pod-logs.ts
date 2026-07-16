@@ -6,6 +6,14 @@ export interface ParsedPodLogLine {
   message: string
 }
 
+export interface PresentedPodLogLine {
+  timestamp?: string
+  resourceName?: string
+  message: string
+}
+
+const aggregateResourcePattern = /^\[([^\]]+)\]:\s?(.*)$/s
+
 export function parsePodLogLine(raw: string): ParsedPodLogLine {
   const match = kubernetesTimestampPattern.exec(raw)
   if (!match || Number.isNaN(Date.parse(match[1]))) {
@@ -15,6 +23,29 @@ export function parsePodLogLine(raw: string): ParsedPodLogLine {
     raw,
     timestamp: match[1],
     message: match[2],
+  }
+}
+
+export function presentPodLogLine(
+  raw: string,
+  selectedPodName?: string
+): PresentedPodLogLine {
+  const parsed = parsePodLogLine(raw)
+  if (selectedPodName === '_all') {
+    const match = aggregateResourcePattern.exec(parsed.message)
+    if (match) {
+      return {
+        timestamp: parsed.timestamp,
+        resourceName: match[1],
+        message: match[2],
+      }
+    }
+  }
+
+  return {
+    timestamp: parsed.timestamp,
+    resourceName: selectedPodName,
+    message: parsed.message,
   }
 }
 
