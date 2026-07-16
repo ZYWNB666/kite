@@ -541,6 +541,17 @@ export function LogViewer({
               {isLoadingOlder ? 'Loading…' : 'Older'}
             </Button>
 
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={scrollToLatest}
+              disabled={rows.length === 0}
+              title="Jump to latest logs"
+            >
+              <IconArrowDown className="h-4 w-4" />
+              Latest
+            </Button>
+
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm">

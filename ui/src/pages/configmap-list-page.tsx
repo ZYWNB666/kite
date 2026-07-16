@@ -37,6 +37,12 @@ export function ConfigMapListPage() {
       }),
       columnHelper.accessor('data', {
         header: 'Data Keys',
+        meta: {
+          style: {
+            maxWidth: '40rem',
+            whiteSpace: 'normal',
+          },
+        },
         cell: ({ getValue }) => {
           const data = getValue() || {}
           const keys = Object.keys(data)
@@ -45,11 +51,13 @@ export function ConfigMapListPage() {
           }
           // Limit to first 5 keys for display
           return keys.length > 5 ? (
-            <span className="text-muted-foreground">
+            <span className="block max-w-[40rem] whitespace-normal break-all text-left leading-relaxed text-muted-foreground">
               {keys.slice(0, 5).join(', ')}...
             </span>
           ) : (
-            <span className="text-muted-foreground">{keys.join(', ')}</span>
+            <span className="block max-w-[40rem] whitespace-normal break-all text-left leading-relaxed text-muted-foreground">
+              {keys.join(', ')}
+            </span>
           )
         },
       }),

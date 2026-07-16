@@ -48,13 +48,44 @@ export function mergeDualSeries(
   key2: string
 ) {
   if (!series1 || !series2) return []
+  const firstSeries = series1
+    .map((point) => ({ point, time: new Date(point.timestamp).getTime() }))
+    .filter(({ time }) => Number.isFinite(time))
+    .sort((a, b) => a.time - b.time)
+  const secondSeries = series2
+    .map((point) => ({ point, time: new Date(point.timestamp).getTime() }))
+    .filter(({ time }) => Number.isFinite(time))
+    .sort((a, b) => a.time - b.time)
+
+  const getSampleInterval = (
+    series: Array<{ time: number }>
+  ): number | undefined => {
+    const intervals = series
+      .slice(1)
+      .map(({ time }, index) => time - series[index].time)
+      .filter((interval) => interval > 0)
+      .sort((a, b) => a - b)
+
+    return intervals.length > 0
+      ? intervals[Math.floor(intervals.length / 2)]
+      : undefined
+  }
+
+  const sampleIntervals = [
+    getSampleInterval(firstSeries),
+    getSampleInterval(secondSeries),
+  ].filter((interval): interval is number => interval !== undefined)
+  // Queries for the two metrics may start a few milliseconds apart. Pair
+  // samples within half of the shortest observed interval, but never pair
+  // adjacent samples from the same interval.
+  const mergeTolerance =
+    sampleIntervals.length > 0 ? Math.min(...sampleIntervals) / 2 : 1000
   const combined = new Map<
     number,
     { timestamp: string; time: number; [k: string]: unknown }
   >()
 
-  series1.forEach((point) => {
-    const time = new Date(point.timestamp).getTime()
+  firstSeries.forEach(({ point, time }) => {
     combined.set(time, {
       timestamp: point.timestamp,
       time,
@@ -62,14 +93,28 @@ export function mergeDualSeries(
     })
   })
 
-  series2.forEach((point) => {
-    const time = new Date(point.timestamp).getTime()
-    const existing = combined.get(time) || {
+  let firstIndex = 0
+  secondSeries.forEach(({ point, time }) => {
+    while (
+      firstIndex + 1 < firstSeries.length &&
+      Math.abs(firstSeries[firstIndex + 1].time - time) <
+        Math.abs(firstSeries[firstIndex].time - time)
+    ) {
+      firstIndex += 1
+    }
+
+    const closestTime = firstSeries[firstIndex]?.time
+    const mergedTime =
+      closestTime !== undefined &&
+      Math.abs(closestTime - time) <= mergeTolerance
+        ? closestTime
+        : time
+    const existing = combined.get(mergedTime) || {
       timestamp: point.timestamp,
-      time,
+      time: mergedTime,
     }
     ;(existing as Record<string, unknown>)[key2] = Math.max(0, point.value)
-    combined.set(time, existing)
+    combined.set(mergedTime, existing)
   })
 
   return Array.from(combined.values()).sort((a, b) => a.time - b.time)

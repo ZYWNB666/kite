@@ -55,6 +55,7 @@ const DiskIOUsageChart = React.memo((prop: DiskIOUsageChartProps) => {
     [diskRead, diskWrite]
   )
   const sameDay = React.useMemo(() => isSameDay(chartData), [chartData])
+  const showDots = chartData.length <= 150
 
   return (
     <ChartStateWrapper
@@ -117,7 +118,7 @@ const DiskIOUsageChart = React.memo((prop: DiskIOUsageChartProps) => {
             tickFormatter={(value) => formatBytes(Math.abs(value))}
           />
           <ChartTooltip
-            cursor={false}
+            cursor={{ stroke: 'var(--border)', strokeDasharray: '3 3' }}
             content={
               <ChartTooltipContent
                 labelFormatter={(value) => formatDate(value)}
@@ -147,8 +148,23 @@ const DiskIOUsageChart = React.memo((prop: DiskIOUsageChartProps) => {
             type="monotone"
             fill="url(#fillDiskWrite)"
             stroke="var(--color-diskWrite)"
-            strokeWidth={2}
-            dot={false}
+            strokeWidth={2.5}
+            connectNulls
+            dot={
+              showDots
+                ? {
+                    r: 2,
+                    fill: 'var(--color-diskWrite)',
+                    strokeWidth: 0,
+                  }
+                : false
+            }
+            activeDot={{
+              r: 5,
+              fill: 'var(--color-diskWrite)',
+              stroke: 'var(--background)',
+              strokeWidth: 2,
+            }}
           />
           <Area
             isAnimationActive={false}
@@ -156,8 +172,23 @@ const DiskIOUsageChart = React.memo((prop: DiskIOUsageChartProps) => {
             type="monotone"
             fill="url(#fillDiskRead)"
             stroke="var(--color-diskRead)"
-            strokeWidth={2}
-            dot={false}
+            strokeWidth={2.5}
+            connectNulls
+            dot={
+              showDots
+                ? {
+                    r: 2,
+                    fill: 'var(--color-diskRead)',
+                    strokeWidth: 0,
+                  }
+                : false
+            }
+            activeDot={{
+              r: 5,
+              fill: 'var(--color-diskRead)',
+              stroke: 'var(--background)',
+              strokeWidth: 2,
+            }}
           />
           <ChartLegend content={<ChartLegendContent />} />
         </AreaChart>

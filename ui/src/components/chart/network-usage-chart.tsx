@@ -55,6 +55,7 @@ const NetworkUsageChart = React.memo((prop: NetworkUsageChartProps) => {
     [networkIn, networkOut]
   )
   const sameDay = React.useMemo(() => isSameDay(chartData), [chartData])
+  const showDots = chartData.length <= 150
 
   return (
     <ChartStateWrapper
@@ -117,7 +118,7 @@ const NetworkUsageChart = React.memo((prop: NetworkUsageChartProps) => {
             tickFormatter={(value) => formatBytes(Math.abs(value))}
           />
           <ChartTooltip
-            cursor={false}
+            cursor={{ stroke: 'var(--border)', strokeDasharray: '3 3' }}
             content={
               <ChartTooltipContent
                 labelFormatter={(value) => formatDate(value)}
@@ -147,8 +148,23 @@ const NetworkUsageChart = React.memo((prop: NetworkUsageChartProps) => {
             type="monotone"
             fill="url(#fillNetworkOut)"
             stroke="var(--color-networkOut)"
-            strokeWidth={2}
-            dot={false}
+            strokeWidth={2.5}
+            connectNulls
+            dot={
+              showDots
+                ? {
+                    r: 2,
+                    fill: 'var(--color-networkOut)',
+                    strokeWidth: 0,
+                  }
+                : false
+            }
+            activeDot={{
+              r: 5,
+              fill: 'var(--color-networkOut)',
+              stroke: 'var(--background)',
+              strokeWidth: 2,
+            }}
           />
           <Area
             isAnimationActive={false}
@@ -156,8 +172,23 @@ const NetworkUsageChart = React.memo((prop: NetworkUsageChartProps) => {
             type="monotone"
             fill="url(#fillNetworkIn)"
             stroke="var(--color-networkIn)"
-            strokeWidth={2}
-            dot={false}
+            strokeWidth={2.5}
+            connectNulls
+            dot={
+              showDots
+                ? {
+                    r: 2,
+                    fill: 'var(--color-networkIn)',
+                    strokeWidth: 0,
+                  }
+                : false
+            }
+            activeDot={{
+              r: 5,
+              fill: 'var(--color-networkIn)',
+              stroke: 'var(--background)',
+              strokeWidth: 2,
+            }}
           />
           <ChartLegend content={<ChartLegendContent />} />
         </AreaChart>
