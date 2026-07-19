@@ -1,6 +1,9 @@
 package handlers
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -12,6 +15,18 @@ import (
 	"github.com/zxh326/kite/pkg/model"
 	"github.com/zxh326/kite/pkg/rbac"
 	"k8s.io/klog/v2"
+)
+
+const (
+	accessSummaryBatchSize   = 20
+	accessSummaryConcurrency = 3
+	accessSummaryClaimTTL    = 5 * time.Minute
+	accessSummaryMaxRetry    = time.Hour
+)
+
+var (
+	accessSummaryWakeup = make(chan struct{}, 1)
+	accessSummarySlots  = make(chan struct{}, accessSummaryConcurrency)
 )
 
 // ─── Request/Response types ──────────────────────────────────────────────────
@@ -97,12 +112,14 @@ func createTempRole(req *model.AccessRequest) error {
 }
 
 // deleteTempRole removes the temporary role (and cascades to RoleAssignment).
-func deleteTempRole(roleID uint) {
+// Callers must not mark access as expired when this fails: doing so would make
+// the UI claim that permission was revoked while the role may still be active.
+func deleteTempRole(roleID uint) error {
 	if err := model.DB.Delete(&model.Role{}, roleID).Error; err != nil {
-		klog.Warningf("access_request: failed to delete temp role %d: %v", roleID, err)
-		return
+		return fmt.Errorf("delete temp role %d: %w", roleID, err)
 	}
 	rbac.TriggerSync()
+	return nil
 }
 
 // recordAccessRequestAudit logs an access request action (approve/reject/revoke/renew) to the
@@ -384,31 +401,34 @@ func RevokeAccess(c *gin.Context) {
 		return
 	}
 	if req.RoleID != nil {
-		deleteTempRole(*req.RoleID)
+		if err := deleteTempRole(*req.RoleID); err != nil {
+			klog.Errorf("access_request: revoke failed for request %d: %v", req.ID, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to revoke temporary role"})
+			return
+		}
 	}
 
-	// Capture ExpiresAt before saving (SaveAccessRequest overwrites UpdatedAt,
-	// and collectAccessUsageHistory needs the original ExpiresAt for old data fallback)
-	endForSummary := req.ExpiresAt
-
-	req.Status = model.AccessRequestExpired
-	req.RoleID = nil
-	if err := model.SaveAccessRequest(req); err != nil {
+	endedAt := time.Now()
+	expired, err := model.ExpireAccessRequestAndQueueSummary(req.ID, endedAt, false)
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save"})
 		return
 	}
-
-	// Restore captured ExpiresAt for the async summary (req is mutated by Save)
-	if endForSummary != nil {
-		req.ExpiresAt = endForSummary
+	if !expired {
+		c.JSON(http.StatusConflict, gin.H{"error": "request was already processed"})
+		return
 	}
+	req.Status = model.AccessRequestExpired
+	req.RoleID = nil
+	req.EndedAt = &endedAt
+	req.SummaryStatus = model.AccessSummaryPending
 
 	// Update the Feishu card to show expired status
 	go updateCardToResult(req)
 
-	// Record audit + generate AI usage summary and post to Feishu thread
+	// Record audit and wake the durable summary worker.
 	recordAccessRequestAudit(c, req, "revoke")
-	go summarizeAndNotifyAccessUsage(req)
+	triggerAccessSummaryWorker()
 
 	c.JSON(http.StatusOK, gin.H{"message": "access revoked"})
 }
@@ -479,6 +499,13 @@ func UpdateFeishuSetting(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save setting"})
 		return
 	}
+	if setting.Enabled && setting.AppID != "" && setting.GroupChatID != "" {
+		if err := model.RetryFailedAccessSummariesNow(); err != nil {
+			klog.Warningf("access_request summary: failed to wake retry jobs after Feishu settings update: %v", err)
+		} else {
+			triggerAccessSummaryWorker()
+		}
+	}
 	c.JSON(http.StatusOK, feishuSettingResponse{
 		ID:                   setting.ID,
 		AppID:                setting.AppID,
@@ -508,11 +535,169 @@ func StartAccessRequestExpiryWorker() {
 	go func() {
 		ticker := time.NewTicker(time.Minute)
 		defer ticker.Stop()
-		for range ticker.C {
-			notifyExpiringSoonRequests()
-			expireAccessRequests()
+
+		// Run immediately so restart recovery does not wait for the first tick.
+		runAccessRequestMaintenanceSafely()
+		for {
+			select {
+			case <-ticker.C:
+				runAccessRequestMaintenanceSafely()
+			case <-accessSummaryWakeup:
+				processAccessSummaryQueueSafely()
+			}
 		}
 	}()
+}
+
+func runAccessRequestMaintenanceSafely() {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			klog.Errorf("access_request maintenance worker panic: %v", recovered)
+		}
+	}()
+	runAccessRequestMaintenance()
+}
+
+func runAccessRequestMaintenance() {
+	notifyExpiringSoonRequests()
+	expireAccessRequests()
+	processAccessSummaryQueue()
+}
+
+func triggerAccessSummaryWorker() {
+	select {
+	case accessSummaryWakeup <- struct{}{}:
+	default:
+	}
+}
+
+func newAccessSummaryClaimToken() string {
+	buffer := make([]byte, 16)
+	if _, err := rand.Read(buffer); err == nil {
+		return hex.EncodeToString(buffer)
+	}
+	return fmt.Sprintf("%d", time.Now().UnixNano())
+}
+
+func accessSummaryRetryDelay(attempt int) time.Duration {
+	if attempt < 1 {
+		attempt = 1
+	}
+	delay := time.Minute
+	for i := 1; i < attempt && delay < accessSummaryMaxRetry; i++ {
+		delay *= 2
+	}
+	if delay > accessSummaryMaxRetry {
+		return accessSummaryMaxRetry
+	}
+	return delay
+}
+
+func processAccessSummaryQueue() {
+	now := time.Now()
+	reqs, err := model.ListAccessSummaryCandidates(now, now.Add(-accessSummaryClaimTTL), accessSummaryBatchSize)
+	if err != nil {
+		klog.Errorf("access_request summary worker: list jobs: %v", err)
+		return
+	}
+
+	for i := range reqs {
+		select {
+		case accessSummarySlots <- struct{}{}:
+		default:
+			return
+		}
+
+		req := reqs[i]
+		claimToken := newAccessSummaryClaimToken()
+		claimed, claimErr := model.ClaimAccessSummary(req.ID, claimToken, now, now.Add(-accessSummaryClaimTTL))
+		if claimErr != nil {
+			<-accessSummarySlots
+			klog.Errorf("access_request summary worker: claim request #%d: %v", req.ID, claimErr)
+			continue
+		}
+		if !claimed {
+			<-accessSummarySlots
+			continue
+		}
+
+		req.SummaryAttempts++
+		req.SummaryClaimToken = claimToken
+		go func(req model.AccessRequest) {
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					nextRetryAt := time.Now().Add(accessSummaryRetryDelay(req.SummaryAttempts))
+					_, _ = model.MarkAccessSummaryFailed(req.ID, req.SummaryClaimToken, fmt.Sprintf("worker panic: %v", recovered), nextRetryAt)
+					klog.Errorf("access_request summary worker panic for request #%d: %v", req.ID, recovered)
+				}
+				<-accessSummarySlots
+				triggerAccessSummaryWorker()
+			}()
+
+			result, summaryErr := generateAndSendAccessUsageSummary(&req)
+			if summaryErr != nil {
+				nextRetryAt := time.Now().Add(accessSummaryRetryDelay(req.SummaryAttempts))
+				var aiErr *accessSummaryAIError
+				var deliveryErr *accessSummaryDeliveryError
+				var notificationErr *accessSummaryNotificationError
+				var updated bool
+				var markErr error
+				switch {
+				case errors.As(summaryErr, &aiErr):
+					updated, markErr = model.MarkAccessSummaryAIFailed(
+						req.ID, req.SummaryClaimToken, aiErr.reason, nextRetryAt,
+					)
+				case errors.As(summaryErr, &deliveryErr):
+					updated, markErr = model.MarkAccessSummaryDeliveryFailed(
+						req.ID, req.SummaryClaimToken, conciseSummaryFailureReason(deliveryErr), nextRetryAt,
+					)
+				case errors.As(summaryErr, &notificationErr):
+					updated, markErr = model.MarkAccessSummaryNotificationFailed(
+						req.ID, req.SummaryClaimToken, notificationErr.reason, notificationErr.aiAttempts, nextRetryAt,
+					)
+				default:
+					updated, markErr = model.MarkAccessSummaryFailed(
+						req.ID, req.SummaryClaimToken, conciseSummaryFailureReason(summaryErr), nextRetryAt,
+					)
+				}
+				if markErr != nil {
+					klog.Errorf("access_request summary worker: persist failure for request #%d: %v", req.ID, markErr)
+				} else if updated {
+					klog.Warningf("access_request summary worker: request #%d failed (attempt %d), retry at %s: %v",
+						req.ID, req.SummaryAttempts, nextRetryAt.Format(time.RFC3339), summaryErr)
+				}
+				return
+			}
+
+			var updated bool
+			var markErr error
+			if result.FailedNotified {
+				updated, markErr = model.MarkAccessSummaryFailedNotified(
+					req.ID, req.SummaryClaimToken, result.MessageID, result.FailureReason, result.AIAttempts, time.Now(),
+				)
+			} else {
+				updated, markErr = model.MarkAccessSummarySent(req.ID, req.SummaryClaimToken, result.MessageID, time.Now())
+			}
+			if markErr != nil {
+				klog.Errorf("access_request summary worker: complete request #%d: %v", req.ID, markErr)
+			} else if updated {
+				if result.FailedNotified {
+					klog.Warningf("access_request summary worker: notified terminal failure for request #%d: %s", req.ID, result.FailureReason)
+				} else {
+					klog.Infof("access_request summary worker: sent summary for request #%d (attempt %d)", req.ID, req.SummaryAttempts)
+				}
+			}
+		}(req)
+	}
+}
+
+func processAccessSummaryQueueSafely() {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			klog.Errorf("access_request summary queue panic: %v", recovered)
+		}
+	}()
+	processAccessSummaryQueue()
 }
 
 // notifyExpiringSoonRequests sends a Feishu thread reply with renewal buttons
@@ -577,30 +762,29 @@ func expireAccessRequests() {
 	for i := range reqs {
 		req := &reqs[i]
 		if req.RoleID != nil {
-			deleteTempRole(*req.RoleID)
+			if err := deleteTempRole(*req.RoleID); err != nil {
+				klog.Errorf("access_request expiry: revoke role for request %d: %v", req.ID, err)
+				continue
+			}
 		}
 
-		// Capture ExpiresAt before saving (SaveAccessRequest overwrites UpdatedAt,
-		// and collectAccessUsageHistory needs the original ExpiresAt for old data fallback)
-		endForSummary := req.ExpiresAt
-
-		req.Status = model.AccessRequestExpired
-		req.RoleID = nil
-		if err := model.SaveAccessRequest(req); err != nil {
-			klog.Errorf("access_request expiry: save %d: %v", req.ID, err)
+		endedAt := time.Now()
+		expired, expireErr := model.ExpireAccessRequestAndQueueSummary(req.ID, endedAt, true)
+		if expireErr != nil {
+			klog.Errorf("access_request expiry: save %d: %v", req.ID, expireErr)
 			continue
 		}
-		klog.Infof("access_request: expired request #%d (%s → %s)", req.ID, req.RequesterName, req.Namespace)
-
-		// Restore captured ExpiresAt for the async summary (req is mutated by Save)
-		if endForSummary != nil {
-			req.ExpiresAt = endForSummary
+		if !expired {
+			continue
 		}
+		req.Status = model.AccessRequestExpired
+		req.RoleID = nil
+		req.EndedAt = &endedAt
+		req.SummaryStatus = model.AccessSummaryPending
+		klog.Infof("access_request: expired request #%d (%s → %s)", req.ID, req.RequesterName, req.Namespace)
 
 		// Update the Feishu card to show expired status
 		go updateCardToResult(req)
 
-		// Generate AI usage summary and post to Feishu thread
-		go summarizeAndNotifyAccessUsage(req)
 	}
 }

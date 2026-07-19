@@ -16,6 +16,8 @@ import (
 
 const feishuBase = "https://open.feishu.cn/open-apis"
 
+var botHTTPClient = &http.Client{Timeout: 30 * time.Second}
+
 // BotClient holds Feishu app credentials and caches the app_access_token.
 type BotClient struct {
 	AppID     string
@@ -40,7 +42,7 @@ func (c *BotClient) GetAppAccessToken() (string, error) {
 	}
 	body := map[string]string{"app_id": c.AppID, "app_secret": c.AppSecret}
 	b, _ := json.Marshal(body)
-	resp, err := http.Post(feishuBase+"/auth/v3/app_access_token/internal", "application/json", bytes.NewReader(b))
+	resp, err := botHTTPClient.Post(feishuBase+"/auth/v3/app_access_token/internal", "application/json", bytes.NewReader(b))
 	if err != nil {
 		return "", fmt.Errorf("feishu get token: %w", err)
 	}
@@ -88,7 +90,7 @@ func (c *BotClient) SendCard(chatID string, card map[string]interface{}) (string
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := botHTTPClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("feishu send card: %w", err)
 	}
@@ -128,7 +130,7 @@ func (c *BotClient) PatchCard(messageID string, card map[string]interface{}) err
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := botHTTPClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("feishu patch card: %w", err)
 	}
@@ -149,9 +151,16 @@ func (c *BotClient) PatchCard(messageID string, card map[string]interface{}) err
 // ReplyCard replies to an existing message (by message_id) with an interactive card.
 // The reply is posted in the thread/topic of the original message.
 func (c *BotClient) ReplyCard(messageID string, card map[string]interface{}) error {
+	_, err := c.ReplyCardWithMessageID(messageID, card)
+	return err
+}
+
+// ReplyCardWithMessageID replies to an existing message and returns the ID of
+// the new reply. The ID lets durable callers record successful delivery.
+func (c *BotClient) ReplyCardWithMessageID(messageID string, card map[string]interface{}) (string, error) {
 	token, err := c.GetAppAccessToken()
 	if err != nil {
-		return err
+		return "", err
 	}
 	cardJSON, _ := json.Marshal(card)
 	payload := map[string]interface{}{
@@ -164,27 +173,30 @@ func (c *BotClient) ReplyCard(messageID string, card map[string]interface{}) err
 		feishuBase+"/im/v1/messages/"+messageID+"/reply",
 		bytes.NewReader(b))
 	if err != nil {
-		return err
+		return "", err
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := botHTTPClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("feishu reply card: %w", err)
+		return "", fmt.Errorf("feishu reply card: %w", err)
 	}
 	defer resp.Body.Close()
 	var result struct {
 		Code int    `json:"code"`
 		Msg  string `json:"msg"`
+		Data struct {
+			MessageID string `json:"message_id"`
+		} `json:"data"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return fmt.Errorf("feishu decode reply response: %w", err)
+		return "", fmt.Errorf("feishu decode reply response: %w", err)
 	}
 	if result.Code != 0 {
-		return fmt.Errorf("feishu reply card: code=%d msg=%s", result.Code, result.Msg)
+		return "", fmt.Errorf("feishu reply card: code=%d msg=%s", result.Code, result.Msg)
 	}
-	return nil
+	return result.Data.MessageID, nil
 }
 
 // VerifyCardSignature verifies the X-Lark-Signature header for card action callbacks.
@@ -198,9 +210,15 @@ func VerifyCardSignature(timestamp, nonce, token, body, signature string) bool {
 
 // ReplyText sends a text message as a thread reply to an existing message.
 func (c *BotClient) ReplyText(messageID, text string) error {
+	_, err := c.ReplyTextWithMessageID(messageID, text)
+	return err
+}
+
+// ReplyTextWithMessageID replies with text and returns the new reply ID.
+func (c *BotClient) ReplyTextWithMessageID(messageID, text string) (string, error) {
 	token, err := c.GetAppAccessToken()
 	if err != nil {
-		return err
+		return "", err
 	}
 	content, _ := json.Marshal(map[string]string{"text": text})
 	payload := map[string]interface{}{
@@ -213,26 +231,72 @@ func (c *BotClient) ReplyText(messageID, text string) error {
 		feishuBase+"/im/v1/messages/"+messageID+"/reply",
 		bytes.NewReader(b))
 	if err != nil {
-		return err
+		return "", err
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := botHTTPClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("feishu reply text: %w", err)
+		return "", fmt.Errorf("feishu reply text: %w", err)
 	}
 	defer resp.Body.Close()
 	var result struct {
 		Code int    `json:"code"`
 		Msg  string `json:"msg"`
+		Data struct {
+			MessageID string `json:"message_id"`
+		} `json:"data"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return fmt.Errorf("feishu decode reply response: %w", err)
+		return "", fmt.Errorf("feishu decode reply response: %w", err)
 	}
 	if result.Code != 0 {
-		return fmt.Errorf("feishu reply text: code=%d msg=%s", result.Code, result.Msg)
+		return "", fmt.Errorf("feishu reply text: code=%d msg=%s", result.Code, result.Msg)
 	}
-	return nil
+	return result.Data.MessageID, nil
+}
+
+// SendText sends a standalone text message to a chat and returns its message ID.
+func (c *BotClient) SendText(chatID, text string) (string, error) {
+	token, err := c.GetAppAccessToken()
+	if err != nil {
+		return "", err
+	}
+	content, _ := json.Marshal(map[string]string{"text": text})
+	payload := map[string]string{
+		"receive_id": chatID,
+		"msg_type":   "text",
+		"content":    string(content),
+	}
+	b, _ := json.Marshal(payload)
+	req, err := http.NewRequest(http.MethodPost,
+		feishuBase+"/im/v1/messages?receive_id_type=chat_id",
+		bytes.NewReader(b))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := botHTTPClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("feishu send text: %w", err)
+	}
+	defer resp.Body.Close()
+	var result struct {
+		Code int    `json:"code"`
+		Msg  string `json:"msg"`
+		Data struct {
+			MessageID string `json:"message_id"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("feishu decode send text response: %w", err)
+	}
+	if result.Code != 0 {
+		return "", fmt.Errorf("feishu send text: code=%d msg=%s", result.Code, result.Msg)
+	}
+	return result.Data.MessageID, nil
 }
 
 // BuildRequestCard creates the interactive card payload for a new access request.
@@ -553,7 +617,7 @@ func BuildSummaryCard(requestID uint, requesterName, cluster, namespace string, 
 				"tag": "div",
 				"text": map[string]interface{}{
 					"tag":     "lark_md",
-					"content": fmt.Sprintf("**AI 分析**\n%s", summary),
+					"content": fmt.Sprintf("**使用分析**\n%s", summary),
 				},
 			},
 			map[string]interface{}{

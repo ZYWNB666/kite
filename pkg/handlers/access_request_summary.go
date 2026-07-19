@@ -12,54 +12,145 @@ import (
 	"k8s.io/klog/v2"
 )
 
-// summarizeAndNotifyAccessUsage collects the user's operation history during the
-// approved access period, asks AI to summarize it (including high-risk detection),
-// and posts the summary as a Feishu card reply in the original request card's thread.
-//
-// This function is designed to be called asynchronously (go summarizeAndNotifyAccessUsage(req)).
-// It silently returns if: AI is not configured, no operation records exist,
-// or the Feishu bot is not configured / has no message_id to reply to.
-func summarizeAndNotifyAccessUsage(req *model.AccessRequest) {
+var (
+	collectAccessUsageHistoryForSummary   = collectAccessUsageHistory
+	generateAccessUsageAnalysisForSummary = generateAccessUsageAnalysis
+	persistAccessUsageSummaryForSummary   = model.SaveAccessSummaryContent
+	sendAccessUsageSummaryCard            = sendSummaryCard
+	sendAISummaryFailureForSummary        = sendAISummaryFailureNotice
+	sendMissingMessageIDForSummary        = sendMissingMessageIDNotice
+)
+
+const maxAccessSummaryAIAttempts = 3
+
+type accessSummaryResult struct {
+	MessageID      string
+	FailedNotified bool
+	FailureReason  string
+	AIAttempts     int
+}
+
+type accessSummaryAIError struct {
+	reason string
+}
+
+func (e *accessSummaryAIError) Error() string { return e.reason }
+
+type accessSummaryDeliveryError struct {
+	err error
+}
+
+func (e *accessSummaryDeliveryError) Error() string { return e.err.Error() }
+func (e *accessSummaryDeliveryError) Unwrap() error { return e.err }
+
+type accessSummaryNotificationError struct {
+	reason     string
+	aiAttempts int
+	err        error
+}
+
+func (e *accessSummaryNotificationError) Error() string {
+	return fmt.Sprintf("send summary failure notification: %v", e.err)
+}
+
+func (e *accessSummaryNotificationError) Unwrap() error { return e.err }
+
+// generateAndSendAccessUsageSummary builds and sends one durable summary job.
+// Zero-change requests receive an explicit summary. AI failures are retried
+// separately and reported to the original request thread after three attempts.
+// Delivery errors are returned so the database-backed queue can retry them.
+func generateAndSendAccessUsageSummary(req *model.AccessRequest) (result accessSummaryResult, resultErr error) {
 	defer func() {
 		if r := recover(); r != nil {
 			klog.Errorf("access_request summary: panic for request #%d: %v", req.ID, r)
+			resultErr = fmt.Errorf("summary panic: %v", r)
 		}
 	}()
 
+	if req.MessageID == "" {
+		reason := fmt.Sprintf("申请 #%d 缺少原始飞书 message_id，无法将权限使用总结回复到对应申请线程", req.ID)
+		messageID, err := sendMissingMessageIDForSummary(req, reason)
+		if err != nil {
+			return accessSummaryResult{}, &accessSummaryNotificationError{
+				reason: reason, aiAttempts: req.SummaryAIAttempts, err: err,
+			}
+		}
+		return accessSummaryResult{
+			MessageID: messageID, FailedNotified: true, FailureReason: reason, AIAttempts: req.SummaryAIAttempts,
+		}, nil
+	}
+	if req.SummaryContent != "" {
+		return sendPersistedAccessUsageSummary(req, req.SummaryContent, req.SummaryStats)
+	}
+
 	// 1. Collect operation history
-	histories, err := collectAccessUsageHistory(req)
+	histories, err := collectAccessUsageHistoryForSummary(req)
 	if err != nil {
-		klog.Warningf("access_request summary: failed to query history for request #%d: %v", req.ID, err)
-		return
-	}
-	if len(histories) == 0 {
-		startStr := "nil"
-		if req.ApprovedAt != nil {
-			startStr = req.ApprovedAt.Format("01-02 15:04:05")
-		}
-		endStr := "nil"
-		if req.ExpiresAt != nil {
-			endStr = req.ExpiresAt.Format("01-02 15:04:05")
-		}
-		klog.Infof("access_request summary: no operations for request #%d (user=%d, cluster=%s, ns=%s, range=[%s, %s]), skipping",
-			req.ID, req.RequesterID, req.Cluster, req.Namespace, startStr, endStr)
-		return
+		return accessSummaryResult{}, fmt.Errorf("query history: %w", err)
 	}
 
-	// 2. Build stats summary
 	stats := buildUsageStats(histories)
+	if len(histories) == 0 {
+		summary := buildNoChangeAccessUsageSummary()
+		return persistAndSendAccessUsageSummary(req, summary, stats)
+	}
 
-	// 3. Call AI for analysis
+	if req.SummaryAIAttempts >= maxAccessSummaryAIAttempts {
+		return notifyAISummaryFailure(req, req.SummaryLastError, req.SummaryAIAttempts)
+	}
+
+	summary, aiErr := generateAccessUsageAnalysisForSummary(req, histories, stats)
+	if aiErr != nil {
+		reason := conciseSummaryFailureReason(aiErr)
+		attempts := req.SummaryAIAttempts + 1
+		if attempts < maxAccessSummaryAIAttempts {
+			return accessSummaryResult{}, &accessSummaryAIError{reason: reason}
+		}
+		return notifyAISummaryFailure(req, reason, attempts)
+	}
+
+	return persistAndSendAccessUsageSummary(req, summary, stats)
+}
+
+func persistAndSendAccessUsageSummary(req *model.AccessRequest, summary, stats string) (accessSummaryResult, error) {
+	updated, err := persistAccessUsageSummaryForSummary(req.ID, req.SummaryClaimToken, summary, stats)
+	if err != nil {
+		return accessSummaryResult{}, fmt.Errorf("persist generated summary: %w", err)
+	}
+	if !updated {
+		return accessSummaryResult{}, fmt.Errorf("persist generated summary: claim is no longer active")
+	}
+	req.SummaryContent = summary
+	req.SummaryStats = stats
+	return sendPersistedAccessUsageSummary(req, summary, stats)
+}
+
+func sendPersistedAccessUsageSummary(req *model.AccessRequest, summary, stats string) (accessSummaryResult, error) {
+	messageID, err := sendAccessUsageSummaryCard(req, summary, stats)
+	if err != nil {
+		return accessSummaryResult{}, &accessSummaryDeliveryError{err: err}
+	}
+	return accessSummaryResult{MessageID: messageID, AIAttempts: req.SummaryAIAttempts}, nil
+}
+
+func buildNoChangeAccessUsageSummary() string {
+	return "授权期间未检测到资源变更操作。用户可能仅进行了查看资源、查看日志等只读操作；当前总结不会将“无资源变更”解释为“未使用权限”。"
+}
+
+// generateAccessUsageAnalysis asks AI for a detailed analysis. Failures are
+// returned so the durable worker can retry AI independently up to three times.
+func generateAccessUsageAnalysis(req *model.AccessRequest, histories []model.ResourceHistory, stats string) (string, error) {
 	cfg, err := ai.LoadRuntimeConfig()
-	if err != nil || cfg == nil || !cfg.Enabled {
-		klog.Infof("access_request summary: AI not enabled, skipping for request #%d", req.ID)
-		return
+	if err != nil {
+		return "", fmt.Errorf("加载 AI 配置失败: %w", err)
+	}
+	if cfg == nil || !cfg.Enabled {
+		return "", fmt.Errorf("AI 未启用")
 	}
 
 	agent, err := ai.NewAgent(nil, cfg)
 	if err != nil {
-		klog.Warningf("access_request summary: failed to create AI agent for request #%d: %v", req.ID, err)
-		return
+		return "", fmt.Errorf("创建 AI Agent 失败: %w", err)
 	}
 
 	systemPrompt := `你是 Kubernetes 安全审计助手。请根据用户在临时权限期间的操作记录，生成一份详细的使用总结。
@@ -86,17 +177,14 @@ func summarizeAndNotifyAccessUsage(req *model.AccessRequest) {
 
 	summary, err := agent.SimpleChat(ctx, systemPrompt, userMessage)
 	if err != nil {
-		klog.Warningf("access_request summary: AI call failed for request #%d: %v", req.ID, err)
-		return
+		return "", fmt.Errorf("AI 调用失败: %w", err)
 	}
 
 	if strings.TrimSpace(summary) == "" {
-		klog.Infof("access_request summary: AI returned empty summary for request #%d, skipping", req.ID)
-		return
+		return "", fmt.Errorf("AI 返回了空内容")
 	}
 
-	// 4. Send summary card to Feishu thread
-	sendSummaryCard(req, summary, stats)
+	return summary, nil
 }
 
 // collectAccessUsageHistory queries ResourceHistory records for the access request's
@@ -132,7 +220,10 @@ func collectAccessUsageHistory(req *model.AccessRequest) ([]model.ResourceHistor
 			startTime = &t
 		}
 	}
-	endTime := req.ExpiresAt
+	endTime := req.EndedAt
+	if endTime == nil {
+		endTime = req.ExpiresAt
+	}
 	if endTime == nil {
 		// Fallback: if no ExpiresAt, use current time
 		now := time.Now()
@@ -181,7 +272,11 @@ func buildUsageStats(histories []model.ResourceHistory) string {
 			parts = append(parts, fmt.Sprintf("%s %d", op, c))
 		}
 	}
-	sb.WriteString(strings.Join(parts, "、"))
+	if len(parts) == 0 {
+		sb.WriteString("无资源变更")
+	} else {
+		sb.WriteString(strings.Join(parts, "、"))
+	}
 	sb.WriteString("\n")
 
 	// Source breakdown
@@ -196,13 +291,79 @@ func buildUsageStats(histories []model.ResourceHistory) string {
 	return sb.String()
 }
 
+func conciseSummaryFailureText(reason string) string {
+	reason = strings.Join(strings.Fields(reason), " ")
+	if reason == "" {
+		return "未知错误"
+	}
+	runes := []rune(reason)
+	if len(runes) > 500 {
+		return string(runes[:500]) + "…"
+	}
+	return reason
+}
+
+func conciseSummaryFailureReason(err error) string {
+	if err == nil {
+		return "未知错误"
+	}
+	return conciseSummaryFailureText(err.Error())
+}
+
+func notifyAISummaryFailure(req *model.AccessRequest, reason string, aiAttempts int) (accessSummaryResult, error) {
+	reason = conciseSummaryFailureText(reason)
+	messageID, err := sendAISummaryFailureForSummary(req, reason, aiAttempts)
+	if err != nil {
+		return accessSummaryResult{}, &accessSummaryNotificationError{
+			reason: reason, aiAttempts: aiAttempts, err: err,
+		}
+	}
+	return accessSummaryResult{
+		MessageID: messageID, FailedNotified: true, FailureReason: reason, AIAttempts: aiAttempts,
+	}, nil
+}
+
+func sendAISummaryFailureNotice(req *model.AccessRequest, reason string, aiAttempts int) (string, error) {
+	bot, _, err := getFeishuBot()
+	if err != nil {
+		return "", fmt.Errorf("load feishu bot: %w", err)
+	}
+	if bot == nil {
+		return "", fmt.Errorf("feishu bot is disabled")
+	}
+	text := fmt.Sprintf("⚠️ Kite 权限使用总结失败\n申请编号：#%d\n申请人：%s\n集群：%s\n命名空间：%s\nAI 已尝试：%d 次\n失败原因：%s\n请管理员检查 AI 配置或服务状态。",
+		req.ID, req.RequesterName, req.Cluster, req.Namespace, aiAttempts, reason)
+	messageID, err := bot.ReplyTextWithMessageID(req.MessageID, text)
+	if err != nil {
+		return "", fmt.Errorf("reply AI failure notice: %w", err)
+	}
+	return messageID, nil
+}
+
+func sendMissingMessageIDNotice(req *model.AccessRequest, reason string) (string, error) {
+	bot, setting, err := getFeishuBot()
+	if err != nil {
+		return "", fmt.Errorf("load feishu bot: %w", err)
+	}
+	if bot == nil || setting.GroupChatID == "" {
+		return "", fmt.Errorf("feishu bot is disabled or group chat is not configured")
+	}
+	text := fmt.Sprintf("⚠️ Kite 权限总结投递失败\n申请编号：#%d\n申请人：%s\n集群：%s\n命名空间：%s\n失败原因：%s\n请检查原始申请卡片发送记录。",
+		req.ID, req.RequesterName, req.Cluster, req.Namespace, reason)
+	messageID, err := bot.SendText(setting.GroupChatID, text)
+	if err != nil {
+		return "", fmt.Errorf("send missing message_id notice: %w", err)
+	}
+	return messageID, nil
+}
+
 // buildUsagePrompt constructs the user message for the AI, including the full
 // operation details with YAML diffs so the AI can describe what changed.
 func buildUsagePrompt(req *model.AccessRequest, histories []model.ResourceHistory, stats string) string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("用户 %s 获得了对集群 %s 命名空间 %s 的临时访问权限。\n",
 		req.RequesterName, req.Cluster, req.Namespace))
-	sb.WriteString(fmt.Sprintf("授权时长：%d 小时\n\n", req.DurationHours))
+	sb.WriteString(fmt.Sprintf("授权时长：%d 小时\n\n", accessRequestGrantedHours(req)))
 	sb.WriteString(fmt.Sprintf("操作统计：\n%s\n\n", stats))
 	sb.WriteString("操作明细（含变更内容）：\n")
 
@@ -260,12 +421,29 @@ func buildUsagePrompt(req *model.AccessRequest, histories []model.ResourceHistor
 	return sb.String()
 }
 
-// sendSummaryCard builds and sends the AI summary card as a thread reply.
-func sendSummaryCard(req *model.AccessRequest, summary, stats string) {
+func accessRequestGrantedHours(req *model.AccessRequest) int {
+	endTime := req.EndedAt
+	if endTime == nil {
+		endTime = req.ExpiresAt
+	}
+	if req.ApprovedAt == nil || endTime == nil || !endTime.After(*req.ApprovedAt) {
+		return req.DurationHours
+	}
+	duration := endTime.Sub(*req.ApprovedAt)
+	return int((duration + time.Hour - 1) / time.Hour)
+}
+
+// sendSummaryCard posts to the original request thread. The caller handles a
+// missing message ID by sending a plain-text failure alert, never a summary
+// card. After repeated reply failures for an existing message ID, this falls
+// back to a standalone card so a deleted original message cannot block forever.
+func sendSummaryCard(req *model.AccessRequest, summary, stats string) (string, error) {
 	bot, setting, err := getFeishuBot()
-	if err != nil || bot == nil || req.MessageID == "" || setting.GroupChatID == "" {
-		klog.Infof("access_request summary: feishu not configured or no message_id for request #%d, skipping", req.ID)
-		return
+	if err != nil {
+		return "", fmt.Errorf("load feishu bot: %w", err)
+	}
+	if bot == nil {
+		return "", fmt.Errorf("feishu bot is disabled")
 	}
 
 	card := feishu.BuildSummaryCard(
@@ -273,15 +451,30 @@ func sendSummaryCard(req *model.AccessRequest, summary, stats string) {
 		req.RequesterName,
 		req.Cluster,
 		req.Namespace,
-		req.DurationHours,
+		accessRequestGrantedHours(req),
 		summary,
 		stats,
 	)
 
-	if err := bot.ReplyCard(req.MessageID, card); err != nil {
-		klog.Warningf("access_request summary: failed to reply card for request #%d: %v", req.ID, err)
-		return
+	if req.MessageID == "" {
+		return "", fmt.Errorf("request #%d has no message_id", req.ID)
 	}
 
-	klog.Infof("access_request summary: sent summary card for request #%d", req.ID)
+	messageID, err := bot.ReplyCardWithMessageID(req.MessageID, card)
+	if err == nil {
+		return messageID, nil
+	}
+	if req.SummaryDeliveryAttempts < 2 {
+		return "", fmt.Errorf("reply summary card: %w", err)
+	}
+	if setting.GroupChatID == "" {
+		return "", fmt.Errorf("reply summary card: %v; standalone fallback unavailable: group chat is not configured", err)
+	}
+
+	klog.Warningf("access_request summary: thread reply failed repeatedly for request #%d, falling back to group card: %v", req.ID, err)
+	messageID, fallbackErr := bot.SendCard(setting.GroupChatID, card)
+	if fallbackErr != nil {
+		return "", fmt.Errorf("reply summary card: %v; standalone fallback: %w", err, fallbackErr)
+	}
+	return messageID, nil
 }
