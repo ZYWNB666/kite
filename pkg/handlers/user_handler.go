@@ -109,6 +109,8 @@ func ListUsers(c *gin.Context) {
 		role,
 	)
 	if err != nil {
+		klog.Errorf("list users: page=%d size=%d sortBy=%s sortOrder=%s role=%s search=%q: %v",
+			page, size, sortBy, sortOrder, role, search, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list users"})
 		return
 	}

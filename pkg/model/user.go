@@ -257,7 +257,14 @@ func ListUsers(limit int, offset int, search string, sortBy string, sortOrder st
 			likeQuery,
 		)
 	}
-	countQuery := query.Select("users.id").Distinct("users.id")
+	// Use GROUP BY users.id instead of DISTINCT users.id so the sort column
+	// can be included in the SELECT list. DISTINCT users.id would force
+	// SELECT to only contain users.id, which then violates MySQL's
+	// ONLY_FULL_GROUP_BY sql_mode when ORDER BY references another column
+	// (Error 3065). GROUP BY on the primary key is functionally equivalent
+	// for deduplication and, per MySQL semantics, allows selecting any
+	// column of the same table without violating ONLY_FULL_GROUP_BY.
+	countQuery := query.Select("users.id").Group("users.id")
 	err = DB.Table("(?) as sub", countQuery).Count(&total).Error
 	if err != nil {
 		return nil, 0, err
@@ -278,16 +285,40 @@ func ListUsers(limit int, offset int, search string, sortBy string, sortOrder st
 	if sortColumn == "users.last_login_at" {
 		orderExpr = fmt.Sprintf("users.last_login_at IS NULL, users.last_login_at %s", sortOrder)
 	}
-	var userIds []uint
-	idsQuery := query.
-		Select("users.id").
-		Distinct("users.id").
+	// Select the sort column alongside users.id so the ORDER BY clause is
+	// compatible with MySQL's ONLY_FULL_GROUP_BY sql_mode (enabled by default
+	// on MySQL 5.7+). Without this, `SELECT DISTINCT users.id ... ORDER BY
+	// users.last_login_at` raises "Error 3065: Expression #1 of ORDER BY
+	// clause is not in SELECT list" and the whole /admin/users endpoint 500s.
+	// We use GROUP BY users.id (not DISTINCT users.id) because DISTINCT
+	// forces SELECT to only contain users.id, defeating the fix. GROUP BY
+	// on the primary key deduplicates identically and, per MySQL semantics,
+	// permits selecting any other column of the same table.
+	idSelect := "users.id"
+	if sortColumn != "users.id" {
+		idSelect = fmt.Sprintf("users.id, %s", sortColumn)
+	}
+	type idRow struct {
+		ID uint `gorm:"column:id"`
+	}
+	var idRows []idRow
+	err = query.
+		Select(idSelect).
+		Group("users.id").
 		Order(orderExpr).
 		Limit(limit).
-		Offset(offset)
-	err = idsQuery.Pluck("users.id", &userIds).Error
+		Offset(offset).
+		Scan(&idRows).Error
 	if err != nil {
 		return nil, 0, err
+	}
+	if len(idRows) == 0 {
+		// Avoid `WHERE id IN ()` which is a syntax error on some drivers/DBs.
+		return users, total, nil
+	}
+	userIds := make([]uint, 0, len(idRows))
+	for _, r := range idRows {
+		userIds = append(userIds, r.ID)
 	}
 	err = DB.
 		Where("id IN (?)", userIds).
