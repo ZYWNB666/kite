@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -43,6 +44,8 @@ func init() {
 type K8sClient struct {
 	client.Client
 	ClientSet     *kubernetes.Clientset
+	DynamicClient dynamic.Interface
+	WatchHub      *ResourceWatchHub
 	Configuration *rest.Config
 	MetricsClient *metricsclient.Clientset
 	CacheEnabled  bool // true when using controller-runtime informer cache
@@ -60,6 +63,11 @@ func NewClient(config *rest.Config) (*K8sClient, error) {
 	metricsClient, err := metricsclient.NewForConfig(config)
 	if err != nil {
 		klog.Warningf("failed to create metrics client: %v", err)
+	}
+
+	dynamicClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create dynamic client: %w", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -117,6 +125,8 @@ func NewClient(config *rest.Config) (*K8sClient, error) {
 	return &K8sClient{
 		Client:        c,
 		ClientSet:     clientset,
+		DynamicClient: dynamicClient,
+		WatchHub:      NewResourceWatchHub(dynamicClient),
 		Configuration: config,
 		MetricsClient: metricsClient,
 		CacheEnabled:  cacheEnabled,
@@ -126,6 +136,9 @@ func NewClient(config *rest.Config) (*K8sClient, error) {
 
 func (c *K8sClient) Stop(name string) {
 	klog.Infof("Stopping K8s client for %s", name)
+	if c.WatchHub != nil {
+		c.WatchHub.Close()
+	}
 	c.cancel()
 }
 

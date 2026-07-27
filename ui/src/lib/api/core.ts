@@ -12,6 +12,12 @@ import {
   ResourceTypeMap,
 } from '@/types/api'
 import { getResourceQueryKey } from '@/lib/resource-metadata'
+import {
+  applyResourceWatchDeltas,
+  ResourceWatchDelta,
+  sortWatchedResources,
+  WatchableResource,
+} from '@/lib/resource-watch'
 
 import { API_BASE_URL, apiClient } from '../api-client'
 import { appendCurrentClusterParam } from '../current-cluster'
@@ -353,13 +359,23 @@ export function useResourcesWatch<T extends ResourceType>(
     fieldSelector?: string
     reduce?: boolean
     enabled?: boolean
+    cluster?: string | null
   }
 ) {
   const [data, setData] = useState<ResourcesItems<T> | undefined>(undefined)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
   const [isConnected, setIsConnected] = useState(false)
+  const [isUnsupported, setIsUnsupported] = useState(false)
   const eventSourceRef = useRef<EventSource | null>(null)
+  const dataRef = useRef<ResourceTypeMap[T][]>([])
+  const pendingDeltasRef = useRef<
+    ResourceWatchDelta<ResourceTypeMap[T] & WatchableResource>[]
+  >([])
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const activeUrlRef = useRef<string | null>(null)
+  const hasSnapshotRef = useRef(false)
+  const connectionErrorCountRef = useRef(0)
 
   const buildUrl = useCallback(() => {
     const ns = namespace || '_all'
@@ -369,9 +385,9 @@ export function useResourcesWatch<T extends ResourceType>(
       params.append('labelSelector', options.labelSelector)
     if (options?.fieldSelector)
       params.append('fieldSelector', options.fieldSelector)
-    appendCurrentClusterParam(params)
+    appendCurrentClusterParam(params, options?.cluster)
     return withSubPath(
-      `${API_BASE_URL}/${resource}/${ns}/watch?${params.toString()}`
+      `${API_BASE_URL}/${resource}/${ns}/_watch?${params.toString()}`
     )
   }, [
     resource,
@@ -379,6 +395,7 @@ export function useResourcesWatch<T extends ResourceType>(
     options?.reduce,
     options?.labelSelector,
     options?.fieldSelector,
+    options?.cluster,
   ])
 
   const disconnect = useCallback(() => {
@@ -386,104 +403,173 @@ export function useResourcesWatch<T extends ResourceType>(
       eventSourceRef.current.close()
       eventSourceRef.current = null
     }
+    if (flushTimerRef.current) {
+      clearTimeout(flushTimerRef.current)
+      flushTimerRef.current = null
+    }
+    pendingDeltasRef.current = []
   }, [])
+
+  const flushDeltas = useCallback(() => {
+    flushTimerRef.current = null
+    if (pendingDeltasRef.current.length === 0) return
+    const next = applyResourceWatchDeltas(
+      dataRef.current as (ResourceTypeMap[T] & WatchableResource)[],
+      pendingDeltasRef.current
+    )
+    pendingDeltasRef.current = []
+    dataRef.current = next as ResourceTypeMap[T][]
+    setData(next as ResourcesItems<T>)
+  }, [])
+
+  const enqueueDelta = useCallback(
+    (
+      type: ResourceWatchDelta<ResourceTypeMap[T] & WatchableResource>['type'],
+      serializedObject: string
+    ) => {
+      const object = JSON.parse(serializedObject) as ResourceTypeMap[T] &
+        WatchableResource
+      pendingDeltasRef.current.push({ type, object })
+      if (!flushTimerRef.current) {
+        flushTimerRef.current = setTimeout(flushDeltas, 100)
+      }
+    },
+    [flushDeltas]
+  )
 
   const connect = useCallback(() => {
     disconnect()
-    setData(undefined)
     if (options?.enabled === false) return
     const url = buildUrl()
+    if (activeUrlRef.current !== url) {
+      activeUrlRef.current = url
+      dataRef.current = []
+      hasSnapshotRef.current = false
+      setData(undefined)
+    }
+    connectionErrorCountRef.current = 0
     setError(null)
+    setIsUnsupported(false)
     setIsConnected(false)
+    setIsLoading(true)
 
     try {
       const es = new EventSource(url, { withCredentials: true })
       eventSourceRef.current = es
+      const isCurrentConnection = () => eventSourceRef.current === es
 
-      es.onopen = () => {
-        setIsConnected(true)
-      }
-
-      const getKey = (obj: ResourceTypeMap[T]) => {
-        return (
-          (obj.metadata?.namespace || '') + '/' + (obj.metadata?.name || '')
-        )
-      }
-
-      const upsert = (obj: string) => {
-        const object = JSON.parse(obj) as ResourceTypeMap[T]
-        setData((prev) => {
-          const arr = prev ? [...prev] : []
-          const key = getKey(object)
-          const idx = arr.findIndex(
-            (it) => getKey(it as ResourceTypeMap[T]) === key
-          )
-          if (idx >= 0) arr[idx] = object
-          else arr.unshift(object)
-          return arr as ResourcesItems<T>
-        })
-      }
-
-      const remove = (obj: string) => {
-        const object = JSON.parse(obj) as ResourceTypeMap[T]
-        setData((prev) => {
-          const arr = prev ? [...prev] : []
-          const key = getKey(object)
-          const filtered = arr.filter(
-            (it) => getKey(it as ResourceTypeMap[T]) !== key
-          )
-          return filtered as ResourcesItems<T>
-        })
-      }
-
-      es.addEventListener('added', (e: MessageEvent<string>) => {
-        upsert(e.data)
-      })
-      es.addEventListener('modified', (e: MessageEvent<string>) => {
-        upsert(e.data)
-      })
-      es.addEventListener('deleted', (e: MessageEvent<string>) => {
-        remove(e.data)
-      })
-
-      es.addEventListener('error', (e: MessageEvent) => {
-        try {
-          const payload = JSON.parse(e.data)
-          setError(new Error(payload?.error || 'SSE error'))
-        } catch {
-          setError(new Error('SSE error'))
+      es.addEventListener('snapshot', (e: MessageEvent<string>) => {
+        if (!isCurrentConnection()) return
+        const payload = JSON.parse(e.data) as {
+          items?: (ResourceTypeMap[T] & WatchableResource)[]
         }
+        if (flushTimerRef.current) {
+          clearTimeout(flushTimerRef.current)
+          flushTimerRef.current = null
+        }
+        pendingDeltasRef.current = []
+        const items = sortWatchedResources([...(payload.items || [])])
+        hasSnapshotRef.current = true
+        connectionErrorCountRef.current = 0
+        dataRef.current = items as ResourceTypeMap[T][]
+        setData(items as ResourcesItems<T>)
+        setError(null)
         setIsLoading(false)
         setIsConnected(false)
       })
-      es.addEventListener('close', () => {
+
+      es.addEventListener('added', (e: MessageEvent<string>) => {
+        if (!isCurrentConnection()) return
+        enqueueDelta('added', e.data)
+      })
+      es.addEventListener('modified', (e: MessageEvent<string>) => {
+        if (!isCurrentConnection()) return
+        enqueueDelta('modified', e.data)
+      })
+      es.addEventListener('deleted', (e: MessageEvent<string>) => {
+        if (!isCurrentConnection()) return
+        enqueueDelta('deleted', e.data)
+      })
+
+      es.addEventListener('ready', () => {
+        if (!isCurrentConnection()) return
+        connectionErrorCountRef.current = 0
+        setError(null)
+        setIsLoading(false)
+        setIsConnected(true)
+      })
+
+      es.addEventListener('watch-error', (e: MessageEvent<string>) => {
+        if (!isCurrentConnection()) return
+        const payload = JSON.parse(e.data) as {
+          error?: string
+          fatal?: boolean
+        }
+        setError(new Error(payload.error || 'Resource watch failed'))
+        setIsLoading(false)
         setIsConnected(false)
+        if (payload.fatal) {
+          setIsUnsupported(true)
+          es.close()
+          if (eventSourceRef.current === es) {
+            eventSourceRef.current = null
+          }
+        }
       })
 
       es.onerror = () => {
+        if (!isCurrentConnection()) return
         setIsConnected(false)
+        connectionErrorCountRef.current += 1
+        const fallbackThreshold = hasSnapshotRef.current ? 5 : 3
+        if (
+          es.readyState === EventSource.CLOSED ||
+          connectionErrorCountRef.current >= fallbackThreshold
+        ) {
+          setError(new Error('Resource watch connection is unavailable'))
+          setIsLoading(false)
+          setIsUnsupported(true)
+          es.close()
+          if (eventSourceRef.current === es) {
+            eventSourceRef.current = null
+          }
+        }
       }
     } catch (err) {
       if (err instanceof Error) setError(err)
       setIsLoading(false)
       setIsConnected(false)
+      setIsUnsupported(true)
     }
-  }, [buildUrl, disconnect, options?.enabled])
+  }, [buildUrl, disconnect, enqueueDelta, options?.enabled])
 
   const refetch = useCallback(() => {
-    disconnect()
-    setTimeout(connect, 100)
-  }, [disconnect, connect])
+    connect()
+  }, [connect])
 
   useEffect(() => {
-    if (options?.enabled === false) return
+    if (options?.enabled === false) {
+      disconnect()
+      setIsConnected(false)
+      setIsLoading(false)
+      setIsUnsupported(false)
+      return
+    }
     connect()
     return () => {
       disconnect()
     }
   }, [connect, disconnect, options?.enabled])
 
-  return { data, isLoading, error, isConnected, refetch, stop: disconnect }
+  return {
+    data,
+    isLoading,
+    error,
+    isConnected,
+    isUnsupported,
+    refetch,
+    stop: disconnect,
+  }
 }
 
 export const fetchResource = <T>(

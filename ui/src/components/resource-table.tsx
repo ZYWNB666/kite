@@ -17,6 +17,8 @@ import { toast } from 'sonner'
 import { ResourceType } from '@/types/api'
 import { deleteResource } from '@/lib/api'
 import { getResourceMetadata } from '@/lib/resource-catalog'
+import { supportsResourceWatch } from '@/lib/resource-watch'
+import { useCluster } from '@/hooks/use-cluster'
 import { useResourceTableData } from '@/hooks/use-resource-table-data'
 import { useResourceTableState } from '@/hooks/use-resource-table-state'
 import { Badge } from '@/components/ui/badge'
@@ -79,6 +81,10 @@ export function ResourceTable<T>({
   defaultHiddenColumns = [],
 }: ResourceTableProps<T>) {
   const { t } = useTranslation()
+  const { currentCluster } = useCluster()
+  const resolvedResourceType = (resourceType ??
+    (resourceName.toLowerCase() as ResourceType)) as ResourceType
+  const watchSupported = supportsResourceWatch(resolvedResourceType)
   const {
     sorting,
     setSorting,
@@ -108,6 +114,7 @@ export function ResourceTable<T>({
     resourceName,
     clusterScope,
     defaultHiddenColumns,
+    watchSupported,
   })
   const [isDeleting, setIsDeleting] = useState(false)
   // When multiple namespaces are selected (not _all), fetch _all and filter
@@ -119,21 +126,32 @@ export function ResourceTable<T>({
       ? selectedNamespaces
       : undefined
   const {
-    resourceType: resolvedResourceType,
     data,
     isLoading,
     isError,
     error,
     refetch,
     isConnected,
+    watchUnavailable,
   } = useResourceTableData<T>({
     resourceName,
     resourceType,
     namespace: effectiveNamespace,
     clientFilterNamespaces,
+    currentCluster,
     useSSE,
     refreshInterval,
   })
+
+  useEffect(() => {
+    if (!useSSE || !watchUnavailable) return
+    handleUseSSEChange(false)
+    toast.warning(
+      t('resourceTable.watchUnavailable', {
+        defaultValue: 'Watch is unavailable; switched to 5s refresh.',
+      })
+    )
+  }, [handleUseSSEChange, t, useSSE, watchUnavailable])
   const displayResourceName = (() => {
     const resource = getResourceMetadata(resolvedResourceType)
     if (!resource) {
@@ -476,7 +494,6 @@ export function ResourceTable<T>({
       <ResourceTableToolbar
         table={table}
         resourceName={displayResourceName}
-        resourceType={resolvedResourceType}
         clusterScope={clusterScope}
         extraToolbars={extraToolbars}
         showCreateButton={showCreateButton}
@@ -486,6 +503,7 @@ export function ResourceTable<T>({
         selectedNamespaces={selectedNamespaces}
         handleNamespaceChange={handleNamespaceChange}
         useSSE={useSSE}
+        watchSupported={watchSupported}
         isConnected={isConnected}
         refreshInterval={refreshInterval}
         onUseSSEChange={handleUseSSEChange}

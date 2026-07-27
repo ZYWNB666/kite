@@ -5,36 +5,63 @@
 *.so
 *.dylib
 
-#SQLite dev.db
+# SQLite dev database + WAL/shm sidecar files
 dev.db
+*.db-shm
+*.db-wal
 
 # Test binary, built with `go test -c`
 *.test
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+coverage/
+coverage.out
 
 # Dependency directories (remove the comment below to include it)
 vendor/
 
 # Go workspace file
 go.work
+go.work.sum
 
 # IDE specific files
 .idea/
 .vscode/
+.fleet/
+.cursor/
+.zed/
 *.swp
 *.swo
 
 # OS specific files
 .DS_Store
 Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.tmp
 
 # Kubernetes config
 kubeconfig
+*kubeconfig*
+
+# Secrets / credentials (never commit)
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+
+# Logs
+*.log
+logs/
 
 static
 bin
+ui/dist
 
 deploy-dev
 

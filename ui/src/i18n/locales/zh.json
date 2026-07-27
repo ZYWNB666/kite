@@ -288,6 +288,7 @@
     "deleteSuccess": "成功删除 {{name}}",
     "deleteFailed": "删除 {{name}} 失败：{{error}}",
     "watch": "监听",
+    "watchUnavailable": "监听不可用，已切换为每 5 秒刷新。",
     "namespace": "命名空间",
     "regexSearch": "正则搜索",
     "regexSearchPlaceholder": "正则搜索 {{resourceName}}..."

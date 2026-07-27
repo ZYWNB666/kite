@@ -16,8 +16,11 @@ export function clearCurrentCluster() {
   document.cookie = `${CURRENT_CLUSTER_HEADER_KEY}=; path=/; expires=${CLEAR_COOKIE_EXPIRES}`
 }
 
-export function appendCurrentClusterParam(params: URLSearchParams) {
-  const currentCluster = getCurrentCluster()
+export function appendCurrentClusterParam(
+  params: URLSearchParams,
+  clusterName?: string | null
+) {
+  const currentCluster = clusterName ?? getCurrentCluster()
   if (currentCluster) {
     params.append(CURRENT_CLUSTER_HEADER_KEY, currentCluster)
   }

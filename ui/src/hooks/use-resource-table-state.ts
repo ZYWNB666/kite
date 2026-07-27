@@ -12,6 +12,7 @@ interface UseResourceTableStateOptions {
   resourceName: string
   clusterScope: boolean
   defaultHiddenColumns: string[]
+  watchSupported: boolean
 }
 
 function readStoredJSON<T>(storage: Storage, key: string, fallback: T): T {
@@ -31,6 +32,7 @@ export function useResourceTableState({
   resourceName,
   clusterScope,
   defaultHiddenColumns,
+  watchSupported,
 }: UseResourceTableStateOptions) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() =>
@@ -76,10 +78,10 @@ export function useResourceTableState({
       pageSize: savedPageSize ? Number(savedPageSize) : 20,
     }
   })
-  const [refreshInterval, setRefreshInterval] = useState(5000)
-  const [selectedNamespaces, setSelectedNamespaces] = useState<
-    string[]
-  >(() => {
+  const [refreshInterval, setRefreshInterval] = useState(
+    watchSupported ? 0 : 5000
+  )
+  const [selectedNamespaces, setSelectedNamespaces] = useState<string[]>(() => {
     if (clusterScope) return []
     const stored = localStorage.getItem(
       getClusterScopedStorageKey('selectedNamespaces')
@@ -98,7 +100,7 @@ export function useResourceTableState({
     )
     return legacy ? [legacy] : ['default']
   })
-  const [useSSE, setUseSSE] = useState(false)
+  const [useSSE, setUseSSE] = useState(watchSupported)
   const [useRegex, setUseRegex] = useState(false)
 
   // The namespace to send to the API. When exactly one namespace is selected
@@ -195,18 +197,22 @@ export function useResourceTableState({
     )
   }, [])
 
-  const handleUseSSEChange = useCallback((pressed: boolean) => {
-    setUseSSE(pressed)
-    setRefreshInterval((current) => {
-      if (pressed) {
-        return 0
-      }
-      if (current === 0) {
-        return 5000
-      }
-      return current
-    })
-  }, [])
+  const handleUseSSEChange = useCallback(
+    (pressed: boolean) => {
+      const enabled = pressed && watchSupported
+      setUseSSE(enabled)
+      setRefreshInterval((current) => {
+        if (enabled) {
+          return 0
+        }
+        if (current === 0) {
+          return 5000
+        }
+        return current
+      })
+    },
+    [watchSupported]
+  )
 
   const handleUseRegexChange = useCallback((pressed: boolean) => {
     setUseRegex(pressed)

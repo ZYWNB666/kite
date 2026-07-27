@@ -1,13 +1,18 @@
 package middleware
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
+
+	"github.com/gin-gonic/gin"
 )
 
 func TestUrl2NamespaceResource(t *testing.T) {
 	testCases := []struct {
 		name             string
 		url              string
+		matchedRoute     string
 		wantNamespace    string
 		wantResource     string
 		wantResourceName string
@@ -15,6 +20,7 @@ func TestUrl2NamespaceResource(t *testing.T) {
 		{
 			name:             "valid URL with namespace and resource",
 			url:              "/api/v1/pods/default/pods",
+			matchedRoute:     "/api/v1/pods/:namespace/:name",
 			wantNamespace:    "default",
 			wantResource:     "pods",
 			wantResourceName: "pods",
@@ -22,6 +28,7 @@ func TestUrl2NamespaceResource(t *testing.T) {
 		{
 			name:             "valid URL with all namespace and specific resource",
 			url:              "/api/v1/pvs/_all/some-pv",
+			matchedRoute:     "/api/v1/pvs/_all/:name",
 			wantNamespace:    "_all",
 			wantResource:     "pvs",
 			wantResourceName: "some-pv",
@@ -29,20 +36,23 @@ func TestUrl2NamespaceResource(t *testing.T) {
 		{
 			name:             "valid URL with namespace only",
 			url:              "/api/v1/pods/default",
+			matchedRoute:     "/api/v1/pods/:namespace",
 			wantNamespace:    "default",
 			wantResource:     "pods",
 			wantResourceName: "",
 		},
 		{
-			name:             "invalid URL - too short (3 parts)",
+			name:             "invalid URL - too short",
 			url:              "/api/v1",
+			matchedRoute:     "",
 			wantNamespace:    "",
 			wantResource:     "",
 			wantResourceName: "",
 		},
 		{
-			name:             "invalid URL - missing namespace",
+			name:             "URL without namespace",
 			url:              "/api/v1/pods",
+			matchedRoute:     "/api/v1/pods",
 			wantNamespace:    "_all",
 			wantResource:     "pods",
 			wantResourceName: "",
@@ -50,26 +60,127 @@ func TestUrl2NamespaceResource(t *testing.T) {
 		{
 			name:             "URL with resource name",
 			url:              "/api/v1/pods/default/my-pod",
+			matchedRoute:     "/api/v1/pods/:namespace/:name",
 			wantNamespace:    "default",
 			wantResource:     "pods",
 			wantResourceName: "my-pod",
 		},
 		{
-			name:             "URL with sub-resource (history) — resource name is still extracted",
-			url:              "/api/v1/pods/default/some-pods/history",
+			name:             "sub-resource route still extracts resource name",
+			url:              "/api/v1/pods/default/some-pod/history",
+			matchedRoute:     "/api/v1/pods/:namespace/:name/history",
 			wantNamespace:    "default",
 			wantResource:     "pods",
-			wantResourceName: "some-pods",
+			wantResourceName: "some-pod",
+		},
+		{
+			name:             "watch collection route has no resource name",
+			url:              "/api/v1/services/default/_watch",
+			matchedRoute:     "/api/v1/services/:namespace/_watch",
+			wantNamespace:    "default",
+			wantResource:     "services",
+			wantResourceName: "",
+		},
+		{
+			name:             "watch remains a legal resource name",
+			url:              "/api/v1/services/default/watch",
+			matchedRoute:     "/api/v1/services/:namespace/:name",
+			wantNamespace:    "default",
+			wantResource:     "services",
+			wantResourceName: "watch",
+		},
+		{
+			name:             "history remains a legal resource name",
+			url:              "/api/v1/configmaps/default/history",
+			matchedRoute:     "/api/v1/configmaps/:namespace/:name",
+			wantNamespace:    "default",
+			wantResource:     "configmaps",
+			wantResourceName: "history",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			gotNamespace, gotResource, gotResourceName := url2namespaceresource(tc.url)
-			if gotNamespace != tc.wantNamespace || gotResource != tc.wantResource || gotResourceName != tc.wantResourceName {
-				t.Errorf("url2namespaceresource(%q) = (%q, %q, %q), want (%q, %q, %q)",
-					tc.url, gotNamespace, gotResource, gotResourceName,
-					tc.wantNamespace, tc.wantResource, tc.wantResourceName)
+			gotNamespace, gotResource, gotResourceName := url2namespaceresource(
+				tc.url,
+				tc.matchedRoute,
+			)
+			if gotNamespace != tc.wantNamespace ||
+				gotResource != tc.wantResource ||
+				gotResourceName != tc.wantResourceName {
+				t.Errorf(
+					"url2namespaceresource(%q, %q) = (%q, %q, %q), want (%q, %q, %q)",
+					tc.url,
+					tc.matchedRoute,
+					gotNamespace,
+					gotResource,
+					gotResourceName,
+					tc.wantNamespace,
+					tc.wantResource,
+					tc.wantResourceName,
+				)
+			}
+		})
+	}
+}
+
+func TestUrl2NamespaceResourceUsesMatchedGinRoute(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		namespace, resource, resourceName := url2namespaceresource(
+			c.Request.URL.Path,
+			c.FullPath(),
+		)
+		c.Header("X-Test-Namespace", namespace)
+		c.Header("X-Test-Resource", resource)
+		c.Header("X-Test-Resource-Name", resourceName)
+		c.Next()
+	})
+	router.GET("/api/v1/services/:namespace/_watch", func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+	router.PUT("/api/v1/services/:namespace/:name", func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+
+	tests := []struct {
+		name             string
+		method           string
+		path             string
+		wantResourceName string
+	}{
+		{
+			name:             "collection watch",
+			method:           http.MethodGet,
+			path:             "/api/v1/services/default/_watch",
+			wantResourceName: "",
+		},
+		{
+			name:             "object named watch",
+			method:           http.MethodPut,
+			path:             "/api/v1/services/default/watch",
+			wantResourceName: "watch",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			request := httptest.NewRequest(tt.method, tt.path, nil)
+			router.ServeHTTP(recorder, request)
+
+			if recorder.Code != http.StatusNoContent {
+				t.Fatalf("status = %d, want %d", recorder.Code, http.StatusNoContent)
+			}
+			if got := recorder.Header().Get("X-Test-Namespace"); got != "default" {
+				t.Fatalf("namespace = %q, want default", got)
+			}
+			if got := recorder.Header().Get("X-Test-Resource"); got != "services" {
+				t.Fatalf("resource = %q, want services", got)
+			}
+			if got := recorder.Header().Get("X-Test-Resource-Name"); got != tt.wantResourceName {
+				t.Fatalf("resource name = %q, want %q", got, tt.wantResourceName)
 			}
 		})
 	}

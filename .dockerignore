@@ -1,11 +1,21 @@
 # Dependencies
+node_modules
 ui/node_modules
 docs/node_modules
 e2e/node_modules
+.pnpm-home/
+.corepack/
 
-# Build outputs
+# Build outputs (the frontend stage rebuilds static/ — never leak stale context)
 ui/dist
-static/assets
+static/
+bin/
+kite
+kite.exe
+*.exe
+*.test
+*.out
+coverage/
 
 # Dev/test artifacts
 *.db
@@ -14,10 +24,17 @@ static/assets
 dev.db
 temp/
 data/
+.gocache/
+*.log
+logs/
+.DS_Store
+Thumbs.db
+Desktop.ini
 
-# Git
+# Git & CI
 .git
 .gitignore
+.github/
 
 # Docs & misc
 docs/
@@ -28,6 +45,26 @@ scripts/
 *.md
 !README.md
 
-# Env files
+# IDE & editor local state
+.vscode/
+.idea/
+.claude/
+.kilo/
+.mimocode/
+.fleet/
+.cursor/
+
+# Agent run artifacts
+strix_runs/
+
+# Env files & secrets
 .env
 .env.*
+*.env
+kubeconfig
+*kubeconfig
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx

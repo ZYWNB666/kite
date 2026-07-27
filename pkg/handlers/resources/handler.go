@@ -45,6 +45,8 @@ type resourceHandler interface {
 	ListHistory(c *gin.Context)
 
 	Describe(c *gin.Context)
+	Watch(c *gin.Context)
+	WatchSupported() bool
 }
 
 type Restartable interface {
@@ -128,6 +130,7 @@ func RegisterRoutes(group *gin.RouterGroup) {
 	{
 		otherGroup.GET("", crHandler.List)
 		otherGroup.GET("/_all", crHandler.List)
+		otherGroup.GET("/_all/_watch", crHandler.Watch)
 		otherGroup.GET("/_all/:name", crHandler.Get)
 		otherGroup.GET("/_all/:name/history", crHandler.ListHistory)
 		otherGroup.GET("/_all/:name/describe", crHandler.Describe)
@@ -135,6 +138,7 @@ func RegisterRoutes(group *gin.RouterGroup) {
 		otherGroup.DELETE("/_all/:name", crHandler.Delete)
 
 		otherGroup.GET("/:namespace", crHandler.List)
+		otherGroup.GET("/:namespace/_watch", crHandler.Watch)
 		otherGroup.GET("/:namespace/:name", crHandler.Get)
 		otherGroup.GET("/:namespace/:name/history", crHandler.ListHistory)
 		otherGroup.GET("/:namespace/:name/describe", crHandler.Describe)
@@ -146,6 +150,9 @@ func RegisterRoutes(group *gin.RouterGroup) {
 func registerClusterScopeRoutes(group *gin.RouterGroup, handler resourceHandler) {
 	group.GET("", handler.List)
 	group.GET("/_all", handler.List)
+	if handler.WatchSupported() {
+		group.GET("/_all/_watch", handler.Watch)
+	}
 	group.GET("/_all/:name", handler.Get)
 	group.POST("/_all", handler.Create)
 	group.PUT("/_all/:name", handler.Update)
@@ -158,6 +165,9 @@ func registerClusterScopeRoutes(group *gin.RouterGroup, handler resourceHandler)
 func registerNamespaceScopeRoutes(group *gin.RouterGroup, handler resourceHandler) {
 	group.GET("", handler.List)
 	group.GET("/:namespace", handler.List)
+	if handler.WatchSupported() {
+		group.GET("/:namespace/_watch", handler.Watch)
+	}
 	group.GET("/:namespace/:name", handler.Get)
 	group.POST("/:namespace", handler.Create)
 	group.PUT("/:namespace/:name", handler.Update)

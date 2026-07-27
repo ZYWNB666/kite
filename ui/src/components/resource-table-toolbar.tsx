@@ -11,7 +11,6 @@ import {
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { ResourceType } from '@/types/api'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
@@ -37,7 +36,6 @@ import { NamespaceSelector } from './selector/namespace-selector'
 interface ResourceTableToolbarProps<T> {
   table: Table<T>
   resourceName: string
-  resourceType?: ResourceType
   clusterScope: boolean
   extraToolbars: React.ReactNode[]
   showCreateButton: boolean
@@ -47,6 +45,7 @@ interface ResourceTableToolbarProps<T> {
   selectedNamespaces: string[]
   handleNamespaceChange: (value: string[]) => void
   useSSE: boolean
+  watchSupported: boolean
   isConnected: boolean
   refreshInterval: number
   onUseSSEChange: (pressed: boolean) => void
@@ -61,7 +60,6 @@ interface ResourceTableToolbarProps<T> {
 export function ResourceTableToolbar<T>({
   table,
   resourceName,
-  resourceType,
   clusterScope,
   extraToolbars,
   showCreateButton,
@@ -71,6 +69,7 @@ export function ResourceTableToolbar<T>({
   selectedNamespaces,
   handleNamespaceChange,
   useSSE,
+  watchSupported,
   isConnected,
   refreshInterval,
   onUseSSEChange,
@@ -97,7 +96,7 @@ export function ResourceTableToolbar<T>({
           {extraToolbars.map((toolbar, index) => (
             <React.Fragment key={index}>{toolbar}</React.Fragment>
           ))}
-          {resourceType === 'pods' && (
+          {watchSupported && (
             <Toggle
               pressed={useSSE}
               variant="outline"

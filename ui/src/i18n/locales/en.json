@@ -269,6 +269,7 @@
     "deleteSuccess": "Deleted {{name}} successfully",
     "deleteFailed": "Failed to delete {{name}}: {{error}}",
     "watch": "Watch",
+    "watchUnavailable": "Watch is unavailable; switched to 5s refresh.",
     "namespace": "Namespace",
     "regexSearch": "Regex search",
     "regexSearchPlaceholder": "Regex search {{resourceName}}..."

@@ -17,7 +17,10 @@ func RBACMiddleware() gin.HandlerFunc {
 		cs := c.MustGet("cluster").(*cluster.ClientSet)
 
 		verbs := method2verb(c.Request.Method)
-		ns, resource, resourceName := url2namespaceresource(c.Request.URL.Path)
+		ns, resource, resourceName := url2namespaceresource(
+			c.Request.URL.Path,
+			c.FullPath(),
+		)
 		if ns == "" || resource == "" {
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Invalid resource URL"})
 			return
@@ -51,28 +54,20 @@ func method2verb(method string) string {
 	}
 }
 
-// subResourceSuffixes lists URL path segments that indicate a sub-resource
-// request (e.g. /pods/default/my-pod/history).  These are NOT resource names
-// and must be excluded when extracting the resource name from the URL.
-var subResourceSuffixes = map[string]struct{}{
-	"history":  {},
-	"describe": {},
-	"related":  {},
-	"proxy":    {},
-	"ws":       {},
-	"metrics":  {},
-}
-
 // url2namespaceresource converts a URL path to namespace, resource type, and optional resource name.
+// matchedRoute is Gin's registered route pattern. Using it to identify :name
+// avoids confusing legal object names such as "watch" or "history" with
+// collection/sub-resource path segments.
 // For example:
 //
 // - /api/v1/pods/default/nginx     => default, pods, nginx
-// - /api/v1/pvs/_all/some-pv      => _all, some-pv, ""  (cluster-scoped treated same way)
+// - /api/v1/pvs/_all/some-pv      => _all, pvs, some-pv
 // - /api/v1/pods/default           => default, pods, ""
 // - /api/v1/pods                   => "", pods, ""
-func url2namespaceresource(url string) (namespace string, resource string, resourceName string) {
+func url2namespaceresource(url, matchedRoute string) (namespace string, resource string, resourceName string) {
 	if common.Base != "" {
 		url = strings.TrimPrefix(url, common.Base)
+		matchedRoute = strings.TrimPrefix(matchedRoute, common.Base)
 	}
 	// Split the URL into its components
 	parts := strings.Split(url, "/")
@@ -85,13 +80,9 @@ func url2namespaceresource(url string) (namespace string, resource string, resou
 	} else {
 		namespace = common.AllNamespaces // All namespaces
 	}
-	// parts[5] (if present) is the resource name, but skip known sub-resource
-	// suffixes like "history", "describe", "related", etc.
-	if len(parts) > 5 {
-		candidate := parts[5]
-		if _, isSub := subResourceSuffixes[candidate]; !isSub {
-			resourceName = candidate
-		}
+	routeParts := strings.Split(matchedRoute, "/")
+	if len(parts) > 5 && len(routeParts) > 5 && routeParts[5] == ":name" {
+		resourceName = parts[5]
 	}
 	return
 }

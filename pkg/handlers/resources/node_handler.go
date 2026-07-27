@@ -62,6 +62,13 @@ func NewNodeHandler() *NodeHandler {
 	}
 }
 
+// Node lists include metrics, pod counts, roles, and disk information assembled
+// outside the Kubernetes Node object. Keep polling until watch events can be
+// enriched with the same data.
+func (h *NodeHandler) WatchSupported() bool {
+	return false
+}
+
 // recordNodeAudit logs a node operation (drain/cordon/uncordon/taint/untaint) to the audit history.
 func (h *NodeHandler) recordNodeAudit(c *gin.Context, nodeName, opType string, success bool, errMsg string) {
 	cs, ok := c.MustGet("cluster").(*cluster.ClientSet)

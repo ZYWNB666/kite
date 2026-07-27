@@ -1,13 +1,34 @@
 package resources
 
 import (
+	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/gin-gonic/gin"
+	"github.com/zxh326/kite/pkg/cluster"
+	"github.com/zxh326/kite/pkg/kube"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metricsv1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+type failingMetricsListClient struct {
+	client.Client
+	err error
+}
+
+func (c *failingMetricsListClient) List(
+	context.Context,
+	client.ObjectList,
+	...client.ListOption,
+) error {
+	return c.err
+}
 
 func TestParseLsOutput(t *testing.T) {
 	output := `
@@ -41,8 +62,8 @@ func TestGetPodMetrics(t *testing.T) {
 					Name: "app",
 					Resources: corev1.ResourceRequirements{
 						Limits: corev1.ResourceList{
-							corev1.ResourceCPU:    resource.MustParse("500m"),
-							corev1.ResourceMemory: resource.MustParse("256Mi"),
+							corev1.ResourceCPU:                    resource.MustParse("500m"),
+							corev1.ResourceMemory:                 resource.MustParse("256Mi"),
 							corev1.ResourceName("nvidia.com/gpu"): resource.MustParse("1"),
 						},
 						Requests: corev1.ResourceList{
@@ -55,8 +76,8 @@ func TestGetPodMetrics(t *testing.T) {
 					Name: "sidecar",
 					Resources: corev1.ResourceRequirements{
 						Limits: corev1.ResourceList{
-							corev1.ResourceCPU:    resource.MustParse("250m"),
-							corev1.ResourceMemory: resource.MustParse("64Mi"),
+							corev1.ResourceCPU:                           resource.MustParse("250m"),
+							corev1.ResourceMemory:                        resource.MustParse("64Mi"),
 							corev1.ResourceName("vendor.com/gpu.shared"): resource.MustParse("2"),
 						},
 						Requests: corev1.ResourceList{
@@ -114,8 +135,8 @@ func TestGetPodMetricsMissingMetrics(t *testing.T) {
 					Name: "app",
 					Resources: corev1.ResourceRequirements{
 						Limits: corev1.ResourceList{
-							corev1.ResourceCPU:    resource.MustParse("500m"),
-							corev1.ResourceMemory: resource.MustParse("256Mi"),
+							corev1.ResourceCPU:                    resource.MustParse("500m"),
+							corev1.ResourceMemory:                 resource.MustParse("256Mi"),
 							corev1.ResourceName("nvidia.com/gpu"): resource.MustParse("1"),
 						},
 						Requests: corev1.ResourceList{
@@ -140,6 +161,26 @@ func TestGetPodMetricsMissingMetrics(t *testing.T) {
 	}
 	if got.CPURequest != 200 || got.MemoryRequest != 128*1024*1024 {
 		t.Fatalf("expected requests from pod spec, got %#v", got)
+	}
+}
+
+func TestListMetricsReturnsClientError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/pods/default/_watch", nil)
+	wantErr := errors.New("metrics unavailable")
+	c.Set("cluster", &cluster.ClientSet{
+		K8sClient: &kube.K8sClient{
+			Client: &failingMetricsListClient{err: wantErr},
+		},
+	})
+
+	metrics, err := NewPodHandler().ListMetrics(c)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("ListMetrics() error = %v, want %v", err, wantErr)
+	}
+	if metrics != nil {
+		t.Fatalf("ListMetrics() metrics = %#v, want nil on error", metrics)
 	}
 }
 

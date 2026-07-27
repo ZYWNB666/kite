@@ -11,6 +11,7 @@ interface UseResourceTableDataOptions {
    * multiple namespaces selected), the hook fetches `_all` and filters the
    * result client-side to only these namespaces. */
   clientFilterNamespaces?: string[]
+  currentCluster?: string | null
   useSSE: boolean
   refreshInterval: number
 }
@@ -20,6 +21,7 @@ export function useResourceTableData<T>({
   resourceType,
   namespace,
   clientFilterNamespaces,
+  currentCluster,
   useSSE,
   refreshInterval,
 }: UseResourceTableDataOptions) {
@@ -35,10 +37,13 @@ export function useResourceTableData<T>({
   const watch = useResourcesWatch(resolvedResourceType, namespace, {
     reduce: true,
     enabled: useSSE,
+    cluster: currentCluster,
   })
 
   const rawSSEData = watch.data
-  const rawData = useSSE ? rawSSEData : query.data
+  // Preserve the last query result while the initial watch snapshot is being
+  // established, avoiding an empty-table flash during mode changes.
+  const rawData = useSSE ? (rawSSEData ?? query.data) : query.data
 
   // When multiple namespaces are selected we fetch _all and filter here.
   const data = useMemo(() => {
@@ -61,9 +66,14 @@ export function useResourceTableData<T>({
     resourceType: resolvedResourceType,
     data,
     isLoading: useSSE ? watch.isLoading : query.isLoading,
-    isError: useSSE ? Boolean(watch.error) : query.isError,
+    isError: useSSE
+      ? Boolean(
+          watch.error && rawSSEData === undefined && query.data === undefined
+        )
+      : query.isError,
     error: (useSSE ? watch.error : query.error) as Error | null,
     refetch: useSSE ? watch.refetch : query.refetch,
     isConnected: watch.isConnected,
+    watchUnavailable: watch.isUnsupported,
   }
 }

@@ -163,6 +163,43 @@ func (h *CRHandler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, crList)
 }
 
+func (h *CRHandler) Watch(c *gin.Context) {
+	crdName := c.Param("crd")
+	if crdName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "CRD name is required"})
+		return
+	}
+
+	cs := c.MustGet("cluster").(*cluster.ClientSet)
+	crd, err := h.getCRDByName(c.Request.Context(), cs.K8sClient, crdName)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "CustomResourceDefinition not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	gvr := h.getGVRFromCRD(crd)
+	if gvr.Version == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "CustomResourceDefinition has no served version"})
+		return
+	}
+
+	if crd.Spec.Scope != apiextensionsv1.ClusterScoped && c.Param("namespace") == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "namespace is required for namespaced custom resources"})
+		return
+	}
+
+	serveResourceWatch(c, resourceWatchStreamOptions{
+		GVR:           gvr,
+		Resource:      crdName,
+		ClusterScoped: crd.Spec.Scope == apiextensionsv1.ClusterScoped,
+		Reduce:        c.Query("reduce") == "true",
+	})
+}
+
 func (h *CRHandler) Get(c *gin.Context) {
 	crdName := c.Param("crd")
 	name := c.Param("name")

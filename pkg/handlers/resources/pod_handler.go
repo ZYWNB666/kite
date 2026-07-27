@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	semver "github.com/blang/semver/v4"
 	"github.com/gin-gonic/gin"
@@ -21,9 +20,11 @@ import (
 	"github.com/zxh326/kite/pkg/rbac"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
-	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/klog/v2"
 	metricsv1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -129,7 +130,7 @@ func (h *PodHandler) ListMetrics(c *gin.Context) (map[string]metricsv1.PodMetric
 		listOpts = append(listOpts, client.MatchingLabelsSelector{Selector: labelSelectorOption})
 	}
 	if err := cs.K8sClient.List(c, &metricsList, listOpts...); err != nil {
-		klog.Warningf("Failed to list pod metrics: %v", err)
+		return nil, fmt.Errorf("list pod metrics: %w", err)
 	}
 
 	metricsMap := lo.KeyBy(metricsList.Items, func(item metricsv1.PodMetrics) string {
@@ -257,10 +258,8 @@ func parseKubeSemver(version string) (semver.Version, error) {
 	return semver.Parse(trimmed)
 }
 
-// registerCustomRoutes adds pod-specific extra routes (SSE watch)
+// registerCustomRoutes adds pod-specific extra routes.
 func (h *PodHandler) registerCustomRoutes(group *gin.RouterGroup) {
-	// watch pods in namespace (or _all)
-	group.GET("/:namespace/watch", h.Watch)
 	group.PATCH("/:namespace/:name/resize", h.Resize)
 	filesGroup := group.Group("/:namespace/:name/files")
 	filesGroup.Use(func(c *gin.Context) {
@@ -497,139 +496,89 @@ func (h *PodHandler) UploadFile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "file uploaded successfully"})
 }
 
-func writeSSE(c *gin.Context, event string, payload any) error {
-	c.Writer.Header().Set("Content-Type", "text/event-stream")
-	c.Writer.Header().Set("Cache-Control", "no-cache, no-transform")
-	c.Writer.Header().Set("Connection", "keep-alive")
-	c.Writer.Header().Set("X-Accel-Buffering", "no")
-	// Try to stream chunked
-	c.Writer.Header().Set("Transfer-Encoding", "chunked")
-
-	flusher, ok := c.Writer.(http.Flusher)
-	if !ok {
-		return fmt.Errorf("streaming unsupported")
-	}
-
-	b, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintf(c.Writer, "event: %s\n", event); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", b); err != nil {
-		return err
-	}
-	flusher.Flush()
-	return nil
-}
-
-// Watch implements SSE-based watch for pods list with initial snapshot and incremental updates
+// Watch streams shared Pod resource events and augments them with metrics.
 func (h *PodHandler) Watch(c *gin.Context) {
-	cs := c.MustGet("cluster").(*cluster.ClientSet)
-
-	// Parse params
-	namespace := c.Param("namespace")
-	if namespace == "" {
-		namespace = common.AllNamespaces
-	}
 	reduce := c.DefaultQuery("reduce", "false") == "true"
-	labelSelector := c.Query("labelSelector")
-	fieldSelector := c.Query("fieldSelector")
-
-	listOpts := metav1.ListOptions{}
-	if labelSelector != "" {
-		listOpts.LabelSelector = labelSelector
-	}
-	if fieldSelector != "" {
-		listOpts.FieldSelector = fieldSelector
-	}
-
-	ns := namespace
-	if ns == common.AllNamespaces {
-		ns = ""
-	}
 	metricsMap, err := h.ListMetrics(c)
 	if err != nil {
 		klog.Warningf("Failed to list pod metrics: %v", err)
 	}
+	pods := make(map[string]*corev1.Pod)
 
-	watchInterface, err := cs.K8sClient.ClientSet.CoreV1().Pods(ns).Watch(c, listOpts)
-	if err != nil {
-		_ = writeSSE(c, "error", gin.H{"error": fmt.Sprintf("failed to start watch: %v", err)})
-		return
+	serveResourceWatch(c, resourceWatchStreamOptions{
+		GVR: schema.GroupVersionResource{
+			Version:  "v1",
+			Resource: "pods",
+		},
+		Resource: string(common.Pods),
+		Reduce:   reduce,
+		BeforeSnapshot: func() {
+			clear(pods)
+		},
+		Transform: func(eventType string, obj *unstructured.Unstructured) (any, error) {
+			pod := &corev1.Pod{}
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, pod); err != nil {
+				return nil, err
+			}
+			key := pod.Namespace + "/" + pod.Name
+			if eventType == kube.ResourceWatchDeleted {
+				delete(pods, key)
+			} else {
+				pods[key] = pod.DeepCopy()
+			}
+			return watchedPodWithMetrics(pod, metricsMap, reduce), nil
+		},
+		OnTick: func() ([]any, error) {
+			previousMetrics := metricsMap
+			latestMetrics, metricsErr := h.ListMetrics(c)
+			if metricsErr != nil {
+				return nil, metricsErr
+			}
+			metricsMap = latestMetrics
+
+			updates := make([]any, 0)
+			for _, pod := range pods {
+				before := GetPodMetrics(previousMetrics, pod)
+				after := GetPodMetrics(latestMetrics, pod)
+				if *before != *after {
+					updates = append(updates, watchedPodWithMetrics(pod, latestMetrics, reduce))
+				}
+			}
+			return updates, nil
+		},
+	})
+}
+
+func watchedPodWithMetrics(
+	pod *corev1.Pod,
+	metricsMap map[string]metricsv1.PodMetrics,
+	reduce bool,
+) *PodWithMetrics {
+	result := &PodWithMetrics{
+		Pod:     pod.DeepCopy(),
+		Metrics: GetPodMetrics(metricsMap, pod),
 	}
-	defer watchInterface.Stop()
-
-	// Keep-alive pings
-	ticker := time.NewTicker(15 * time.Second)
-	defer ticker.Stop()
-
-	flusher, _ := c.Writer.(http.Flusher)
-
-	for {
-		select {
-		case <-c.Request.Context().Done():
-			_ = writeSSE(c, "close", gin.H{"message": "connection closed"})
-			return
-		case <-ticker.C:
-			metricsMap, _ = h.ListMetrics(c)
-			for _, metrics := range metricsMap {
-				pod, err := h.GetResource(c, metrics.Namespace, metrics.Name)
-				if err != nil {
-					klog.Warningf("Failed to get pod: %v", err)
-					continue
-				}
-				p := pod.(*corev1.Pod)
-				obj := &PodWithMetrics{Pod: p, Metrics: GetPodMetrics(metricsMap, p)}
-				_ = writeSSE(c, "modified", obj)
-			}
-			_, _ = fmt.Fprintf(c.Writer, ": ping\n\n") // comment line per SSE
-			flusher.Flush()
-		case event, ok := <-watchInterface.ResultChan():
-			if !ok {
-				_ = writeSSE(c, "close", gin.H{"message": "watch channel closed"})
-				return
-			}
-
-			pod, ok := event.Object.(*corev1.Pod)
-			if !ok || pod == nil {
-				continue
-			}
-
-			obj := &PodWithMetrics{Pod: pod}
-			if reduce {
-				obj.Pod = pod.DeepCopy()
-				obj.ObjectMeta = metav1.ObjectMeta{
-					Name:              pod.Name,
-					Namespace:         pod.Namespace,
-					CreationTimestamp: pod.CreationTimestamp,
-					DeletionTimestamp: pod.DeletionTimestamp,
-					GenerateName:      pod.GenerateName,
-				}
-				obj.Spec = corev1.PodSpec{
-					NodeName: pod.Spec.NodeName,
-					InitContainers: lo.Map(pod.Spec.InitContainers, func(c corev1.Container, _ int) corev1.Container {
-						return corev1.Container{Name: c.Name, Image: c.Image, RestartPolicy: c.RestartPolicy}
-					}),
-					Containers: lo.Map(pod.Spec.Containers, func(c corev1.Container, _ int) corev1.Container {
-						return corev1.Container{Name: c.Name, Image: c.Image, RestartPolicy: c.RestartPolicy}
-					}),
-				}
-			}
-			obj.Metrics = GetPodMetrics(metricsMap, pod)
-			switch event.Type {
-			case watch.Added:
-				_ = writeSSE(c, "added", obj)
-			case watch.Modified:
-				_ = writeSSE(c, "modified", obj)
-			case watch.Deleted:
-				_ = writeSSE(c, "deleted", obj)
-			case watch.Error:
-				_ = writeSSE(c, "error", gin.H{"error": "watch error"})
-			default:
-				// ignore
-			}
-		}
+	if !reduce {
+		return result
 	}
+
+	result.ObjectMeta = metav1.ObjectMeta{
+		Name:              pod.Name,
+		Namespace:         pod.Namespace,
+		UID:               pod.UID,
+		ResourceVersion:   pod.ResourceVersion,
+		CreationTimestamp: pod.CreationTimestamp,
+		DeletionTimestamp: pod.DeletionTimestamp,
+		GenerateName:      pod.GenerateName,
+	}
+	result.Spec = corev1.PodSpec{
+		NodeName: pod.Spec.NodeName,
+		InitContainers: lo.Map(pod.Spec.InitContainers, func(c corev1.Container, _ int) corev1.Container {
+			return corev1.Container{Name: c.Name, Image: c.Image, RestartPolicy: c.RestartPolicy}
+		}),
+		Containers: lo.Map(pod.Spec.Containers, func(c corev1.Container, _ int) corev1.Container {
+			return corev1.Container{Name: c.Name, Image: c.Image, RestartPolicy: c.RestartPolicy}
+		}),
+	}
+	return result
 }
