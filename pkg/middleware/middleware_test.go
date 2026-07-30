@@ -266,3 +266,29 @@ func TestClusterMiddlewareRequiresExplicitCluster(t *testing.T) {
 		t.Fatalf("response body = %q, want missing cluster error", rec.Body.String())
 	}
 }
+
+func TestClusterMiddlewareRejectsConflictingClusterNames(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	r := gin.New()
+	r.Use(ClusterMiddleware(&cluster.ClusterManager{}))
+	r.GET("/api/v1/pods", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/pods?x-cluster-name=cluster-b",
+		nil,
+	)
+	req.Header.Set(ClusterNameHeader, "cluster-a")
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+	if !strings.Contains(rec.Body.String(), "conflicting cluster names") {
+		t.Fatalf("response body = %q, want conflicting cluster error", rec.Body.String())
+	}
+}

@@ -40,7 +40,7 @@ func (a *Agent) processChatOpenAI(c *gin.Context, req *ChatRequest, sendEvent fu
 
 	var messages []openai.ChatCompletionMessageParamUnion
 
-	if stored, ok := agentConversationStore.load(req.SessionID); ok {
+	if stored, ok := agentConversationStore.load(req.SessionID, a.cs.Name); ok {
 		// Resume from server-side state: full untruncated history.
 		// Refresh the system message (it contains current time/context).
 		messages = append([]openai.ChatCompletionMessageParamUnion(nil), stored.OpenAIMessages...)
@@ -92,6 +92,7 @@ func (a *Agent) runOpenAIConversation(
 	saveConversation := func() {
 		agentConversationStore.save(conversationSessionID, conversationSession{
 			Provider:       a.provider,
+			ClusterName:    a.cs.Name,
 			OpenAIMessages: append([]openai.ChatCompletionMessageParamUnion(nil), messages...),
 		})
 	}

@@ -17,11 +17,17 @@ const (
 // ClusterMiddleware extracts cluster name from header and injects clients into context
 func ClusterMiddleware(cm *cluster.ClusterManager) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		clusterName := c.GetHeader(ClusterNameHeader)
-		if clusterName == "" {
-			if v, ok := c.GetQuery(ClusterNameHeader); ok {
-				clusterName = v
-			}
+		headerCluster := c.GetHeader(ClusterNameHeader)
+		queryCluster, hasQueryCluster := c.GetQuery(ClusterNameHeader)
+		if headerCluster != "" && hasQueryCluster && queryCluster != "" && headerCluster != queryCluster {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "conflicting cluster names"})
+			c.Abort()
+			return
+		}
+
+		clusterName := headerCluster
+		if clusterName == "" && hasQueryCluster {
+			clusterName = queryCluster
 		}
 		if clusterName == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "cluster name is required"})

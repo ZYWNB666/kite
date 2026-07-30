@@ -14,6 +14,7 @@ const conversationSessionTTL = 24 * time.Hour
 // Stored server-side so the AI always has complete untruncated context.
 type conversationSession struct {
 	Provider          string
+	ClusterName       string
 	SystemPrompt      string
 	OpenAIMessages    []openai.ChatCompletionMessageParamUnion
 	AnthropicMessages []anthropic.MessageParam
@@ -35,21 +36,21 @@ func newConversationSessionStore() *conversationSessionStore {
 	return s
 }
 
-func (s *conversationSessionStore) load(sessionID string) (*conversationSession, bool) {
-	if sessionID == "" {
+func (s *conversationSessionStore) load(sessionID, clusterName string) (*conversationSession, bool) {
+	if sessionID == "" || clusterName == "" {
 		return nil, false
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	entry, ok := s.entries[sessionID]
-	if !ok || time.Now().After(entry.ExpiresAt) {
+	if !ok || entry.ClusterName == "" || entry.ClusterName != clusterName || time.Now().After(entry.ExpiresAt) {
 		return nil, false
 	}
 	return entry, true
 }
 
 func (s *conversationSessionStore) save(sessionID string, session conversationSession) {
-	if sessionID == "" {
+	if sessionID == "" || session.ClusterName == "" {
 		return
 	}
 	session.ExpiresAt = time.Now().Add(conversationSessionTTL)
@@ -58,12 +59,14 @@ func (s *conversationSessionStore) save(sessionID string, session conversationSe
 	s.mu.Unlock()
 }
 
-func (s *conversationSessionStore) delete(sessionID string) {
-	if sessionID == "" {
+func (s *conversationSessionStore) deleteForCluster(sessionID, clusterName string) {
+	if sessionID == "" || clusterName == "" {
 		return
 	}
 	s.mu.Lock()
-	delete(s.entries, sessionID)
+	if entry, ok := s.entries[sessionID]; ok && entry.ClusterName == clusterName {
+		delete(s.entries, sessionID)
+	}
 	s.mu.Unlock()
 }
 

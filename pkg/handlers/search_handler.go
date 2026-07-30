@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hashicorp/golang-lru/v2/expirable"
+	"github.com/zxh326/kite/pkg/cluster"
 	"github.com/zxh326/kite/pkg/common"
 	"github.com/zxh326/kite/pkg/handlers/resources"
 	"github.com/zxh326/kite/pkg/middleware"
@@ -121,7 +122,7 @@ func (h *SearchHandler) Search(c *gin.Context, query string, limit int) ([]commo
 	// caching incomplete results that would be served as valid 200 OK for the TTL.
 	if !hadFailure.Load() {
 		user := c.MustGet("user").(model.User)
-		h.cache.Add(h.createCacheKey(getSearchClusterName(c), user.Key(), query, limit), allResults)
+		h.cache.Add(h.createCacheKey(getSearchClusterCacheScope(c), user.Key(), query, limit), allResults)
 	}
 	return allResults, nil
 }
@@ -143,7 +144,7 @@ func (h *SearchHandler) GlobalSearch(c *gin.Context) {
 	limit = normalizeSearchLimit(limit)
 
 	user := c.MustGet("user").(model.User)
-	cacheKey := h.createCacheKey(getSearchClusterName(c), user.Key(), query, limit)
+	cacheKey := h.createCacheKey(getSearchClusterCacheScope(c), user.Key(), query, limit)
 
 	if cachedResults, found := h.cache.Get(cacheKey); found {
 		response := SearchResponse{
@@ -226,4 +227,18 @@ func getSearchClusterName(c *gin.Context) string {
 	}
 	clusterName, _ := c.Cookie(middleware.ClusterNameHeader)
 	return clusterName
+}
+
+// Include the concrete ClientSet identity in the cache scope. An administrator
+// can replace a cluster configuration while keeping the same display name; in
+// that case the old ClientSet may point at a different Kubernetes API server.
+// Falling back to the name keeps the helper usable outside ClusterMiddleware
+// (primarily in unit tests).
+func getSearchClusterCacheScope(c *gin.Context) string {
+	if value, exists := c.Get("cluster"); exists {
+		if cs, ok := value.(*cluster.ClientSet); ok && cs != nil {
+			return fmt.Sprintf("%s@%p", cs.Name, cs)
+		}
+	}
+	return getSearchClusterName(c)
 }

@@ -38,17 +38,17 @@ const diskStatsTTL = 60 * time.Second
 // global per-cluster cache so concurrent requests share one fetch
 var (
 	diskStatsCacheMu sync.Mutex
-	diskStatsCaches  = map[string]*diskStatCache{} // keyed by cluster name
+	diskStatsCaches  = map[*cluster.ClientSet]*diskStatCache{} // keyed by concrete cluster client
 )
 
-func getDiskStatCache(clusterName string) *diskStatCache {
+func getDiskStatCache(cs *cluster.ClientSet) *diskStatCache {
 	diskStatsCacheMu.Lock()
 	defer diskStatsCacheMu.Unlock()
-	if c, ok := diskStatsCaches[clusterName]; ok {
+	if c, ok := diskStatsCaches[cs]; ok {
 		return c
 	}
 	c := &diskStatCache{data: map[string]diskStat{}}
-	diskStatsCaches[clusterName] = c
+	diskStatsCaches[cs] = c
 	return c
 }
 
@@ -465,7 +465,7 @@ func (h *NodeHandler) DiskStats(c *gin.Context) {
 	}
 
 	// --- Slow path: background-cached kubelet stats/summary ---
-	cache := getDiskStatCache(cs.Name)
+	cache := getDiskStatCache(cs)
 
 	cache.mu.RLock()
 	cachedData := make(map[string]diskStat, len(cache.data))

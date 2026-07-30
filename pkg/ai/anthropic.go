@@ -37,7 +37,7 @@ func (a *Agent) processChatAnthropic(c *gin.Context, req *ChatRequest, sendEvent
 
 	var messages []anthropic.MessageParam
 
-	if stored, ok := agentConversationStore.load(req.SessionID); ok {
+	if stored, ok := agentConversationStore.load(req.SessionID, a.cs.Name); ok {
 		// Resume from server-side state: full untruncated history.
 		messages = append([]anthropic.MessageParam(nil), stored.AnthropicMessages...)
 		if newMsg := lastUserMessage(req.Messages); newMsg != "" {
@@ -92,6 +92,7 @@ func (a *Agent) runAnthropicConversation(
 	saveConversation := func() {
 		agentConversationStore.save(conversationSessionID, conversationSession{
 			Provider:          a.provider,
+			ClusterName:       a.cs.Name,
 			SystemPrompt:      sysPrompt,
 			AnthropicMessages: append([]anthropic.MessageParam(nil), messages...),
 		})
