@@ -24,7 +24,7 @@ import { useCluster } from './hooks/use-cluster'
 
 function ClusterGate({ children }: { children: ReactNode }) {
   const { t } = useTranslation()
-  const { currentCluster, isLoading, error } = useCluster()
+  const { currentCluster, isLoading, isSwitching, error } = useCluster()
 
   if (isLoading) {
     return (
@@ -47,7 +47,37 @@ function ClusterGate({ children }: { children: ReactNode }) {
     )
   }
 
-  return <Fragment key={currentCluster}>{children}</Fragment>
+  return (
+    <>
+      <Fragment key={currentCluster}>{children}</Fragment>
+      {isSwitching && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-background/45 backdrop-blur-[2px]"
+          role="status"
+          aria-live="polite"
+          aria-label={`Switching to cluster ${currentCluster}`}
+        >
+          <div className="w-[min(22rem,calc(100vw-2rem))] rounded-xl border bg-card/95 p-5 shadow-2xl">
+            <div className="flex items-center gap-4">
+              <div className="relative flex size-11 shrink-0 items-center justify-center">
+                <div className="absolute inset-0 animate-ping rounded-full bg-primary/15" />
+                <div className="size-8 animate-spin rounded-full border-[3px] border-primary/20 border-t-primary" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">Switching cluster</p>
+                <p className="truncate text-sm text-muted-foreground">
+                  Connecting to {currentCluster}?
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-muted">
+              <div className="h-full w-2/3 animate-pulse rounded-full bg-primary" />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
 }
 
 function AppContent() {

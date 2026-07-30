@@ -28,7 +28,7 @@ export function ClusterSelector() {
 
   if (isLoading || isSwitching) {
     return (
-      <div className="flex items-center justify-center">
+      <div className="flex h-10 w-full items-center justify-center">
         <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
         {isSwitching && (
           <span className="ml-2 text-sm text-muted-foreground">
@@ -47,11 +47,11 @@ export function ClusterSelector() {
         <Button
           variant="ghost"
           size="sm"
-          className="flex items-center gap-2 h-8 px-3 max-w-full focus-visible:ring-0 focus-visible:border-transparent"
+          className="flex h-10 w-full max-w-full items-center justify-start gap-2 px-3 focus-visible:border-transparent focus-visible:ring-0"
           disabled={isSwitching}
         >
           <IconServer className="h-4 w-4" />
-          <span className="text-sm font-medium truncate">
+          <span className="min-w-0 flex-1 truncate text-left text-sm font-medium">
             {isSwitching
               ? 'Switching...'
               : currentClusterData?.name || 'Select Cluster'}

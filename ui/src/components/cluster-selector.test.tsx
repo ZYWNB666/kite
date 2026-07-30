@@ -50,6 +50,7 @@ describe('ClusterSelector new-tab action', () => {
       </ClusterContext.Provider>
     )
 
+    expect(screen.getByRole('button', { name: /mars1/i })).toHaveClass('w-full')
     await user.click(screen.getByRole('button', { name: /mars1/i }))
     const newTabLink = screen.getByRole('menuitem', {
       name: 'Open mars2 in a new tab',

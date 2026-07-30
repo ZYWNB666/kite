@@ -44,6 +44,8 @@ export const ClusterProvider: React.FC<{ children: React.ReactNode }> = ({
   const queryClient = useQueryClient()
   const location = useLocation()
   const navigate = useNavigate()
+  const switchTimerRef = useRef<number | null>(null)
+  const switchSequenceRef = useRef(0)
   const initialUrlCluster = useRef(
     new URLSearchParams(location.search).get('cluster')
   )
@@ -125,6 +127,14 @@ export const ClusterProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [refetchClusters])
 
   useEffect(() => {
+    return () => {
+      if (switchTimerRef.current !== null) {
+        window.clearInterval(switchTimerRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
     if (isLoading || clusters.length === 0) {
       return
     }
@@ -167,6 +177,7 @@ export const ClusterProvider: React.FC<{ children: React.ReactNode }> = ({
       return
     }
 
+    const switchSequence = ++switchSequenceRef.current
     setIsSwitching(true)
     void queryClient.cancelQueries({
       predicate: (query) => query.queryKey[0] === 'cluster',
@@ -174,10 +185,38 @@ export const ClusterProvider: React.FC<{ children: React.ReactNode }> = ({
     persistCurrentCluster(clusterName)
     setCurrentClusterState(clusterName)
     replaceUrlCluster(clusterName)
-    toast.success(`Switched to cluster: ${clusterName}`, {
+    toast.loading(`Switching to cluster: ${clusterName}`, {
       id: 'cluster-switch',
     })
-    setIsSwitching(false)
+
+    const startedAt = Date.now()
+    const minimumDuration = 400
+    const maximumDuration = 7000
+    if (switchTimerRef.current !== null) {
+      window.clearInterval(switchTimerRef.current)
+    }
+    switchTimerRef.current = window.setInterval(() => {
+      const elapsed = Date.now() - startedAt
+      const pendingQueries = queryClient.isFetching({
+        predicate: (query) =>
+          query.queryKey[0] === 'cluster' && query.queryKey[1] === clusterName,
+      })
+      if (
+        (elapsed >= minimumDuration && pendingQueries === 0) ||
+        elapsed >= maximumDuration
+      ) {
+        if (switchTimerRef.current !== null) {
+          window.clearInterval(switchTimerRef.current)
+          switchTimerRef.current = null
+        }
+        if (switchSequenceRef.current === switchSequence) {
+          setIsSwitching(false)
+          toast.success(`Switched to cluster: ${clusterName}`, {
+            id: 'cluster-switch',
+          })
+        }
+      }
+    }, 80)
   }
 
   const value: ClusterContextType = {
