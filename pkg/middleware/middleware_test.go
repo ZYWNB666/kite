@@ -231,6 +231,7 @@ func TestClusterMiddlewareNoClusters(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/pods", nil)
+	req.Header.Set(ClusterNameHeader, "cluster-a")
 	r.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusNotFound {
@@ -238,5 +239,30 @@ func TestClusterMiddlewareNoClusters(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "no clusters available") {
 		t.Fatalf("response body = %q, want error message", rec.Body.String())
+	}
+}
+
+func TestClusterMiddlewareRequiresExplicitCluster(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	r := gin.New()
+	r.Use(ClusterMiddleware(&cluster.ClusterManager{}))
+	r.GET("/api/v1/pods", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/pods", nil)
+	req.AddCookie(&http.Cookie{
+		Name:  ClusterNameHeader,
+		Value: "cluster-from-another-tab",
+	})
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+	if !strings.Contains(rec.Body.String(), "cluster name is required") {
+		t.Fatalf("response body = %q, want missing cluster error", rec.Body.String())
 	}
 }

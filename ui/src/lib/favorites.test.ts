@@ -45,7 +45,8 @@ const resource: SearchResult = {
 
 beforeEach(() => {
   localStorage.clear()
-  localStorage.setItem('current-cluster', 'cluster-a-')
+  sessionStorage.clear()
+  sessionStorage.setItem('current-cluster', 'cluster-a-')
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
 

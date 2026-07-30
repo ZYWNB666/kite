@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { resizePod, updateResource, useResource } from '@/lib/api'
+import { withClusterRequestHref } from '@/lib/current-cluster'
 import { getPodErrorMessage, getPodStatus } from '@/lib/k8s'
 import { withSubPath } from '@/lib/subpath'
 import { formatDate, translateError } from '@/lib/utils'
@@ -413,8 +414,10 @@ export function PodDetail(props: { namespace: string; name: string }) {
                               key={`${port.containerPort}-${port.protocol}`}
                             >
                               <a
-                                href={withSubPath(
-                                  `/api/v1/namespaces/${namespace}/pods/${name}:${port.containerPort}/proxy/`
+                                href={withClusterRequestHref(
+                                  withSubPath(
+                                    `/api/v1/namespaces/${namespace}/pods/${name}:${port.containerPort}/proxy/`
+                                  )
                                 )}
                                 target="_blank"
                                 rel="noopener noreferrer"

@@ -9,7 +9,10 @@ import {
 } from '@/types/api'
 
 import { API_BASE_URL, apiClient } from '../api-client'
-import { appendCurrentClusterParam } from '../current-cluster'
+import {
+  appendCurrentClusterParam,
+  getClusterQueryKey,
+} from '../current-cluster'
 import { getWebSocketUrl } from '../subpath'
 import useWebSocket, { WebSocketMessage } from '../useWebSocket'
 import { fetchAPI } from './shared'
@@ -21,7 +24,7 @@ const fetchOverview = (): Promise<OverviewData> => {
 
 export const useOverview = (options?: { staleTime?: number }) => {
   return useQuery({
-    queryKey: ['overview'],
+    queryKey: getClusterQueryKey('overview'),
     queryFn: fetchOverview,
     staleTime: options?.staleTime || 30000, // 30 seconds cache
     refetchInterval: 30000, // Auto refresh every 30 seconds
@@ -35,7 +38,7 @@ const fetchGPUOverview = (): Promise<GPUOverview> => {
 
 export const useGPUOverview = (options?: { staleTime?: number }) => {
   return useQuery({
-    queryKey: ['gpu-overview'],
+    queryKey: getClusterQueryKey('gpu-overview'),
     queryFn: fetchGPUOverview,
     staleTime: options?.staleTime || 30000, // 30 seconds cache
     refetchInterval: 30000, // Auto refresh every 30 seconds
@@ -62,7 +65,11 @@ export const useResourceUsageHistory = (
   options?: { staleTime?: number; instance?: string; enabled?: boolean }
 ) => {
   return useQuery({
-    queryKey: ['resource-usage-history', duration, options?.instance],
+    queryKey: getClusterQueryKey(
+      'resource-usage-history',
+      duration,
+      options?.instance
+    ),
     queryFn: () => fetchResourceUsageHistory(duration, options?.instance),
     enabled: options?.enabled,
     staleTime: options?.staleTime || 10000, // 10 seconds cache
@@ -102,14 +109,14 @@ export const usePodMetrics = (
   }
 ) => {
   return useQuery({
-    queryKey: [
+    queryKey: getClusterQueryKey(
       'pod-metrics',
       namespace,
       podName,
       duration,
       options?.container,
-      options?.labelSelector,
-    ],
+      options?.labelSelector
+    ),
     queryFn: () =>
       fetchPodMetrics(
         namespace,

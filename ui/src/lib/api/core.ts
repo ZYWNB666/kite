@@ -20,7 +20,10 @@ import {
 } from '@/lib/resource-watch'
 
 import { API_BASE_URL, apiClient } from '../api-client'
-import { appendCurrentClusterParam } from '../current-cluster'
+import {
+  appendCurrentClusterParam,
+  getClusterQueryKey,
+} from '../current-cluster'
 import { withSubPath } from '../subpath'
 import { fetchAPI } from './shared'
 
@@ -295,7 +298,7 @@ export const useResourcesEvents = <T extends ResourceType>(
   namespace?: string
 ) => {
   return useQuery({
-    queryKey: ['resource-events', resource, namespace, name],
+    queryKey: getClusterQueryKey('resource-events', resource, namespace, name),
     queryFn: () => {
       const endpoint =
         '/events/resources?' +
@@ -326,13 +329,13 @@ export const useResources = <T extends ResourceType>(
   }
 ) => {
   return useQuery({
-    queryKey: [
+    queryKey: getClusterQueryKey(
       resource,
       namespace,
       options?.limit,
       options?.labelSelector,
-      options?.fieldSelector,
-    ],
+      options?.fieldSelector
+    ),
     queryFn: () => {
       return fetchResources<ResourcesTypeMap[T]>(resource, namespace, {
         limit: options?.limit,
@@ -617,7 +620,7 @@ export const useDescribe = (
   options?: { staleTime?: number; enabled?: boolean }
 ) => {
   return useQuery({
-    queryKey: [resourceType, name, namespace, 'describe'],
+    queryKey: getClusterQueryKey(resourceType, name, namespace, 'describe'),
     queryFn: () => fetchDescribe(resourceType, name, namespace),
     enabled: (options?.enabled ?? true) && !!name,
     staleTime: options?.staleTime || 0,
@@ -661,6 +664,7 @@ export const podDownloadFile = (
     container,
     path,
   })
+  appendCurrentClusterParam(params)
   const url = withSubPath(
     `${API_BASE_URL}/pods/${namespace}/${podName}/files/download?${params.toString()}`
   )
@@ -677,6 +681,7 @@ export const podPreviewFile = (
     container,
     path,
   })
+  appendCurrentClusterParam(params)
   const url = withSubPath(
     `${API_BASE_URL}/pods/${namespace}/${podName}/files/preview?${params.toString()}`
   )
@@ -766,7 +771,12 @@ export function useRelatedResources(
   namespace?: string
 ) {
   return useQuery({
-    queryKey: ['related-resources', resource, name, namespace],
+    queryKey: getClusterQueryKey(
+      'related-resources',
+      resource,
+      name,
+      namespace
+    ),
     queryFn: () => getRelatedResources(resource, name, namespace),
     staleTime: 60 * 1000, // 1 min
     placeholderData: (prev) => prev,
@@ -793,14 +803,14 @@ export const useResourceHistory = (
   options?: { enabled?: boolean; staleTime?: number }
 ) => {
   return useQuery({
-    queryKey: [
+    queryKey: getClusterQueryKey(
       'resource-history',
       resourceType,
       namespace,
       name,
       page,
-      pageSize,
-    ],
+      pageSize
+    ),
     queryFn: () =>
       fetchResourceHistory(resourceType, namespace, name, page, pageSize),
     enabled: options?.enabled ?? true,
@@ -815,7 +825,13 @@ export const usePodFiles = (
   options?: { enabled?: boolean }
 ) => {
   return useQuery({
-    queryKey: ['pod-files', namespace, podName, container, path],
+    queryKey: getClusterQueryKey(
+      'pod-files',
+      namespace,
+      podName,
+      container,
+      path
+    ),
     queryFn: () => podListFiles(namespace, podName, container, path),
     enabled: options?.enabled !== false,
     staleTime: 10000, // 10 seconds cache

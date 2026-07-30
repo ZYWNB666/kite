@@ -1,10 +1,11 @@
 import { useMemo } from 'react'
 import { IconExternalLink } from '@tabler/icons-react'
-import { EndpointSlice } from 'kubernetes-types/discovery/v1'
 import { Service } from 'kubernetes-types/core/v1'
+import { EndpointSlice } from 'kubernetes-types/discovery/v1'
 import { toast } from 'sonner'
 
 import { updateResource, useResource, useResources } from '@/lib/api'
+import { withClusterRequestHref } from '@/lib/current-cluster'
 import { withSubPath } from '@/lib/subpath'
 import { formatDate } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -39,14 +40,17 @@ function EndpointSlicesTab({
       {
         header: 'Address Type',
         accessor: (s: EndpointSlice) => s.addressType,
-        cell: (v: unknown) => <Badge variant="outline">{String(v ?? '-')}</Badge>,
+        cell: (v: unknown) => (
+          <Badge variant="outline">{String(v ?? '-')}</Badge>
+        ),
       },
       {
         header: 'Endpoints',
         accessor: (s: EndpointSlice) => s.endpoints,
         cell: (v: unknown) => {
           const endpoints = v as EndpointSlice['endpoints']
-          const ready = endpoints?.filter((e) => e.conditions?.ready !== false) ?? []
+          const ready =
+            endpoints?.filter((e) => e.conditions?.ready !== false) ?? []
           const addresses = ready
             .flatMap((e) => e.addresses)
             .slice(0, 8)
@@ -65,7 +69,8 @@ function EndpointSlicesTab({
         accessor: (s: EndpointSlice) => s.ports,
         cell: (v: unknown) => {
           const ports = v as EndpointSlice['ports']
-          if (!ports?.length) return <span className="text-muted-foreground">-</span>
+          if (!ports?.length)
+            return <span className="text-muted-foreground">-</span>
           return (
             <span className="font-mono text-sm text-muted-foreground">
               {ports.map((p) => `${p.port}/${p.protocol ?? 'TCP'}`).join(', ')}
@@ -108,17 +113,22 @@ export function ServiceDetail(props: { name: string; namespace?: string }) {
     namespace
   )
 
-  const { data: endpointSlices = [] } = useResources('endpointslices', namespace, {
-    labelSelector: `kubernetes.io/service-name=${name}`,
-    staleTime: 5000,
-  })
+  const { data: endpointSlices = [] } = useResources(
+    'endpointslices',
+    namespace,
+    {
+      labelSelector: `kubernetes.io/service-name=${name}`,
+      staleTime: 5000,
+    }
+  )
 
   const endpointSummary = useMemo(() => {
     const slices = endpointSlices as EndpointSlice[]
     const total = slices.reduce((sum, s) => sum + (s.endpoints?.length ?? 0), 0)
     const ready = slices.reduce(
       (sum, s) =>
-        sum + (s.endpoints?.filter((e) => e.conditions?.ready !== false).length ?? 0),
+        sum +
+        (s.endpoints?.filter((e) => e.conditions?.ready !== false).length ?? 0),
       0
     )
     return { total, ready }
@@ -199,7 +209,9 @@ export function ServiceDetail(props: { name: string; namespace?: string }) {
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   {/* Created */}
                   <div>
-                    <Label className="text-xs text-muted-foreground">Created</Label>
+                    <Label className="text-xs text-muted-foreground">
+                      Created
+                    </Label>
                     <p className="text-sm">
                       {formatDate(data.metadata?.creationTimestamp || '')}
                     </p>
@@ -207,7 +219,9 @@ export function ServiceDetail(props: { name: string; namespace?: string }) {
 
                   {/* Type + ClusterIP */}
                   <div>
-                    <Label className="text-xs text-muted-foreground">Type</Label>
+                    <Label className="text-xs text-muted-foreground">
+                      Type
+                    </Label>
                     <div className="flex items-center gap-2 mt-1">
                       <Badge
                         variant={
@@ -220,11 +234,12 @@ export function ServiceDetail(props: { name: string; namespace?: string }) {
                       >
                         {data.spec?.type || 'ClusterIP'}
                       </Badge>
-                      {data.spec?.clusterIP && data.spec.clusterIP !== 'None' && (
-                        <span className="text-sm font-mono text-muted-foreground">
-                          {data.spec.clusterIP}
-                        </span>
-                      )}
+                      {data.spec?.clusterIP &&
+                        data.spec.clusterIP !== 'None' && (
+                          <span className="text-sm font-mono text-muted-foreground">
+                            {data.spec.clusterIP}
+                          </span>
+                        )}
                     </div>
                   </div>
 
@@ -233,7 +248,9 @@ export function ServiceDetail(props: { name: string; namespace?: string }) {
 
                   {/* Endpoint health */}
                   <div>
-                    <Label className="text-xs text-muted-foreground">Endpoints</Label>
+                    <Label className="text-xs text-muted-foreground">
+                      Endpoints
+                    </Label>
                     <div className="mt-1">
                       <Badge
                         variant={
@@ -255,7 +272,9 @@ export function ServiceDetail(props: { name: string; namespace?: string }) {
                   {data.spec?.type === 'LoadBalancer' &&
                     (data.status?.loadBalancer?.ingress?.length ?? 0) > 0 && (
                       <div>
-                        <Label className="text-xs text-muted-foreground">External IP</Label>
+                        <Label className="text-xs text-muted-foreground">
+                          External IP
+                        </Label>
                         <div className="flex flex-wrap gap-1 mt-1">
                           {data.status?.loadBalancer?.ingress?.map((ing, i) => {
                             const addr = ing.ip || ing.hostname || ''
@@ -278,11 +297,15 @@ export function ServiceDetail(props: { name: string; namespace?: string }) {
 
                   {/* Ports –enhanced: port →targetPort (proto) + nodePort badge */}
                   <div>
-                    <Label className="text-xs text-muted-foreground">Ports</Label>
+                    <Label className="text-xs text-muted-foreground">
+                      Ports
+                    </Label>
                     <div className="flex flex-col gap-1 mt-1">
                       {(data.spec?.ports || []).map((port) => {
                         const targetPort =
-                          port.targetPort !== undefined ? String(port.targetPort) : ''
+                          port.targetPort !== undefined
+                            ? String(port.targetPort)
+                            : ''
                         const proto = port.protocol || 'TCP'
                         const portLabel = port.name ? `${port.name}: ` : ''
                         return (
@@ -291,8 +314,10 @@ export function ServiceDetail(props: { name: string; namespace?: string }) {
                             className="flex items-center gap-2"
                           >
                             <a
-                              href={withSubPath(
-                                `/api/v1/namespaces/${namespace}/services/${name}:${port.port}/proxy/`
+                              href={withClusterRequestHref(
+                                withSubPath(
+                                  `/api/v1/namespaces/${namespace}/services/${name}:${port.port}/proxy/`
+                                )
                               )}
                               target="_blank"
                               rel="noopener noreferrer"
@@ -307,7 +332,10 @@ export function ServiceDetail(props: { name: string; namespace?: string }) {
                               <IconExternalLink className="w-3 h-3" />
                             </a>
                             {port.nodePort && (
-                              <Badge variant="outline" className="text-xs font-mono">
+                              <Badge
+                                variant="outline"
+                                className="text-xs font-mono"
+                              >
                                 nodePort: {port.nodePort}
                               </Badge>
                             )}
@@ -321,17 +349,21 @@ export function ServiceDetail(props: { name: string; namespace?: string }) {
                   {data.spec?.selector &&
                     Object.keys(data.spec.selector).length > 0 && (
                       <div>
-                        <Label className="text-xs text-muted-foreground">Selector</Label>
+                        <Label className="text-xs text-muted-foreground">
+                          Selector
+                        </Label>
                         <div className="flex flex-wrap gap-1 mt-1">
-                          {Object.entries(data.spec.selector).map(([key, value]) => (
-                            <Badge
-                              key={key}
-                              variant="secondary"
-                              className="text-xs font-mono"
-                            >
-                              {key}: {value}
-                            </Badge>
-                          ))}
+                          {Object.entries(data.spec.selector).map(
+                            ([key, value]) => (
+                              <Badge
+                                key={key}
+                                variant="secondary"
+                                className="text-xs font-mono"
+                              >
+                                {key}: {value}
+                              </Badge>
+                            )
+                          )}
                         </div>
                       </div>
                     )}
@@ -345,7 +377,8 @@ export function ServiceDetail(props: { name: string; namespace?: string }) {
                       <div className="mt-1">
                         <Badge variant="outline" className="text-xs">
                           ClientIP
-                          {data.spec.sessionAffinityConfig?.clientIP?.timeoutSeconds
+                          {data.spec.sessionAffinityConfig?.clientIP
+                            ?.timeoutSeconds
                             ? ` (${data.spec.sessionAffinityConfig.clientIP.timeoutSeconds}s)`
                             : ''}
                         </Badge>

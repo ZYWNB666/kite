@@ -3,8 +3,10 @@ import { IconExternalLink, IconLoader } from '@tabler/icons-react'
 
 import { RelatedResources, ResourceType } from '@/types/api'
 import { useRelatedResources } from '@/lib/api'
+import { withClusterHref } from '@/lib/current-cluster'
 import { getCRDResourcePath, isStandardK8sResource } from '@/lib/k8s'
 import { withSubPath } from '@/lib/subpath'
+import { useCluster } from '@/hooks/use-cluster'
 import {
   Dialog,
   DialogContent,
@@ -79,6 +81,7 @@ export function RelatedResourcesTable(props: {
 
 function RelatedResourceCell({ rs }: { rs: RelatedResources }) {
   const [open, setOpen] = useState(false)
+  const { currentCluster } = useCluster()
 
   const path = useMemo(() => {
     if (isStandardK8sResource(rs.type)) {
@@ -86,6 +89,12 @@ function RelatedResourceCell({ rs }: { rs: RelatedResources }) {
     }
     return getCRDResourcePath(rs.type, rs.apiVersion!, rs.namespace, rs.name)
   }, [rs])
+  const resourceHref = currentCluster
+    ? withClusterHref(withSubPath(path), currentCluster)
+    : withSubPath(path)
+  const iframeHref = currentCluster
+    ? withClusterHref(`${withSubPath(path)}?iframe=true`, currentCluster)
+    : `${withSubPath(path)}?iframe=true`
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -95,7 +104,7 @@ function RelatedResourceCell({ rs }: { rs: RelatedResources }) {
       <DialogContent className="!h-[calc(100dvh-1rem)] !max-w-[calc(100vw-1rem)] flex min-h-0 flex-col md:!h-[80%] md:!max-w-[60%]">
         <DialogHeader className="flex flex-row justify-between items-center">
           <DialogTitle className="capitalize">{rs.type}</DialogTitle>
-          <a href={withSubPath(path)} target="_blank" rel="noopener noreferrer">
+          <a href={resourceHref} target="_blank" rel="noopener noreferrer">
             <Button
               variant="outline"
               size="icon"
@@ -106,7 +115,7 @@ function RelatedResourceCell({ rs }: { rs: RelatedResources }) {
           </a>
         </DialogHeader>
         <iframe
-          src={`${withSubPath(path)}?iframe=true`}
+          src={iframeHref}
           className="min-h-0 w-full flex-grow border-none"
         />
       </DialogContent>

@@ -7,15 +7,10 @@ import {
   type UIEvent,
 } from 'react'
 import { useAIChatContext } from '@/contexts/ai-chat-context'
-import {
-  Bot,
-  Clock,
-  ExternalLink,
-  MessageSquarePlus,
-  X,
-} from 'lucide-react'
+import { Bot, Clock, ExternalLink, MessageSquarePlus, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { getCurrentCluster, withClusterHref } from '@/lib/current-cluster'
 import { withSubPath } from '@/lib/subpath'
 import { useAIChat } from '@/hooks/use-ai-chat'
 import { Button } from '@/components/ui/button'
@@ -136,7 +131,11 @@ export function AIChatPanel({
       params.set('sessionId', nextSessionId)
     }
     const url = withSubPath(`/ai-chat-box?${params.toString()}`)
-    window.open(url, '_blank', 'noopener,noreferrer')
+    const currentCluster = getCurrentCluster()
+    const clusterUrl = currentCluster
+      ? withClusterHref(url, currentCluster)
+      : url
+    window.open(clusterUrl, '_blank', 'noopener,noreferrer')
     closeChat()
   }, [
     closeChat,
@@ -229,8 +228,6 @@ export function AIChatPanel({
 
           <Separator orientation="vertical" className="mx-0.5 h-4" />
 
-
-
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -242,7 +239,9 @@ export function AIChatPanel({
                 <X className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top">{standalone ? 'Close' : 'Close'}</TooltipContent>
+            <TooltipContent side="top">
+              {standalone ? 'Close' : 'Close'}
+            </TooltipContent>
           </Tooltip>
         </div>
       </div>

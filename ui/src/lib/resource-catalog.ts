@@ -25,6 +25,8 @@ import {
   IconUsers,
 } from '@tabler/icons-react'
 
+import { getClusterQueryKey } from './current-cluster'
+
 type SidebarGroupKey =
   | 'sidebar.groups.workloads'
   | 'sidebar.groups.network'
@@ -603,7 +605,7 @@ export function getResourceQueryKey(
   namespace?: string,
   name?: string
 ) {
-  return [resource, namespace || '_all', name || '_all']
+  return getClusterQueryKey(resource, namespace || '_all', name || '_all')
 }
 
 export const clusterScopedResourceTypes = resourceMetadataList

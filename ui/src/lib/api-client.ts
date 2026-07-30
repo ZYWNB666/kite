@@ -44,21 +44,19 @@ class ApiClient {
   ): Promise<Response> {
     const fullUrl = withSubPath(this.baseUrl + url)
 
-    const headers: Record<string, string> = {
-      ...(options.headers as Record<string, string>),
-    }
+    const headers = new Headers(options.headers)
 
     // Only set default Content-Type to application/json if not already set and body is not FormData
-    if (!headers['Content-Type'] && !(options.body instanceof FormData)) {
-      headers['Content-Type'] = 'application/json'
+    if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
+      headers.set('Content-Type', 'application/json')
     }
 
     appendCurrentClusterHeader(headers)
 
     const defaultOptions: RequestInit = {
+      ...options,
       credentials: 'include',
       headers,
-      ...options,
     }
 
     try {

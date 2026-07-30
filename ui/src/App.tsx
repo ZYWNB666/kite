@@ -1,11 +1,12 @@
 import './App.css'
 
-import { ReactNode } from 'react'
+import { Fragment, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Outlet, useSearchParams } from 'react-router-dom'
 
 import { AIChatbox, StandaloneAIChatbox } from './components/ai-chat/ai-chatbox'
 import { AppSidebar } from './components/app-sidebar'
+import { ClusterAwareLinks } from './components/cluster-aware-links'
 import { ErrorBoundary } from './components/error-boundary'
 import { FloatingTerminal } from './components/floating-terminal'
 import { GlobalSearch } from './components/global-search'
@@ -23,7 +24,7 @@ import { useCluster } from './hooks/use-cluster'
 
 function ClusterGate({ children }: { children: ReactNode }) {
   const { t } = useTranslation()
-  const { isLoading, error } = useCluster()
+  const { currentCluster, isLoading, error } = useCluster()
 
   if (isLoading) {
     return (
@@ -46,7 +47,7 @@ function ClusterGate({ children }: { children: ReactNode }) {
     )
   }
 
-  return <>{children}</>
+  return <Fragment key={currentCluster}>{children}</Fragment>
 }
 
 function AppContent() {
@@ -61,6 +62,7 @@ function AppContent() {
 
   return (
     <>
+      <ClusterAwareLinks />
       <SidebarProvider>
         <AppSidebar variant="inset" />
         <SidebarInset className="h-screen overflow-y-auto scrollbar-hide">

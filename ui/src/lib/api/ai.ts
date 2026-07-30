@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 
+import { getClusterQueryKey } from '../current-cluster'
 import { fetchAPI } from './shared'
 
 export const getAIStatus = async (): Promise<{ enabled: boolean }> => {
@@ -8,7 +9,7 @@ export const getAIStatus = async (): Promise<{ enabled: boolean }> => {
 
 export const useAIStatus = () => {
   return useQuery({
-    queryKey: ['ai-status'],
+    queryKey: getClusterQueryKey('ai-status'),
     queryFn: getAIStatus,
     retry: false,
   })

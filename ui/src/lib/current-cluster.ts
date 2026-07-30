@@ -1,19 +1,35 @@
-const CURRENT_CLUSTER_STORAGE_KEY = 'current-cluster'
+const CURRENT_CLUSTER_SESSION_KEY = 'current-cluster'
+const CURRENT_CLUSTER_URL_KEY = 'cluster'
 const CURRENT_CLUSTER_HEADER_KEY = 'x-cluster-name'
-const CLEAR_COOKIE_EXPIRES = 'Thu, 01 Jan 1970 00:00:00 GMT'
+
+export function getClusterFromUrl() {
+  if (typeof window === 'undefined') {
+    return null
+  }
+
+  return new URLSearchParams(window.location.search).get(
+    CURRENT_CLUSTER_URL_KEY
+  )
+}
 
 export function getCurrentCluster() {
-  return localStorage.getItem(CURRENT_CLUSTER_STORAGE_KEY)
+  const urlCluster = getClusterFromUrl()
+  if (urlCluster) {
+    return urlCluster
+  }
+
+  if (typeof sessionStorage === 'undefined') {
+    return null
+  }
+  return sessionStorage.getItem(CURRENT_CLUSTER_SESSION_KEY)
 }
 
 export function setCurrentCluster(clusterName: string) {
-  localStorage.setItem(CURRENT_CLUSTER_STORAGE_KEY, clusterName)
-  document.cookie = `${CURRENT_CLUSTER_HEADER_KEY}=${clusterName}; path=/`
+  sessionStorage.setItem(CURRENT_CLUSTER_SESSION_KEY, clusterName)
 }
 
 export function clearCurrentCluster() {
-  localStorage.removeItem(CURRENT_CLUSTER_STORAGE_KEY)
-  document.cookie = `${CURRENT_CLUSTER_HEADER_KEY}=; path=/; expires=${CLEAR_COOKIE_EXPIRES}`
+  sessionStorage.removeItem(CURRENT_CLUSTER_SESSION_KEY)
 }
 
 export function appendCurrentClusterParam(
@@ -22,18 +38,64 @@ export function appendCurrentClusterParam(
 ) {
   const currentCluster = clusterName ?? getCurrentCluster()
   if (currentCluster) {
-    params.append(CURRENT_CLUSTER_HEADER_KEY, currentCluster)
+    params.set(CURRENT_CLUSTER_HEADER_KEY, currentCluster)
   }
 }
 
-export function appendCurrentClusterHeader(headers: Record<string, string>) {
-  const currentCluster = getCurrentCluster()
+export function appendCurrentClusterHeader(
+  headers: Record<string, string> | Headers,
+  clusterName?: string | null
+) {
+  const currentCluster = clusterName ?? getCurrentCluster()
   if (currentCluster) {
-    headers[CURRENT_CLUSTER_HEADER_KEY] = currentCluster
+    if (headers instanceof Headers) {
+      headers.set(CURRENT_CLUSTER_HEADER_KEY, currentCluster)
+    } else {
+      headers[CURRENT_CLUSTER_HEADER_KEY] = currentCluster
+    }
   }
 }
 
 export function getClusterScopedStorageKey(key: string) {
   const currentCluster = getCurrentCluster()
   return `${currentCluster || ''}${key}`
+}
+
+export function getClusterQueryKey(...parts: unknown[]) {
+  return ['cluster', getCurrentCluster() || '', ...parts]
+}
+
+export function withClusterHref(
+  href: string,
+  clusterName: string,
+  baseHref = window.location.href
+) {
+  const url = new URL(href, baseHref)
+  const baseUrl = new URL(baseHref)
+
+  if (url.origin !== baseUrl.origin) {
+    return href
+  }
+
+  url.searchParams.set(CURRENT_CLUSTER_URL_KEY, clusterName)
+  return `${url.pathname}${url.search}${url.hash}`
+}
+
+export function withClusterRequestHref(
+  href: string,
+  clusterName = getCurrentCluster(),
+  baseHref = window.location.href
+) {
+  if (!clusterName) {
+    return href
+  }
+
+  const url = new URL(href, baseHref)
+  const baseUrl = new URL(baseHref)
+  if (url.origin !== baseUrl.origin) {
+    return href
+  }
+
+  url.searchParams.set(CURRENT_CLUSTER_HEADER_KEY, clusterName)
+  return `${url.pathname}${url.search}${url.hash}`
 }

@@ -22,9 +22,11 @@ func ClusterMiddleware(cm *cluster.ClusterManager) gin.HandlerFunc {
 			if v, ok := c.GetQuery(ClusterNameHeader); ok {
 				clusterName = v
 			}
-			if clusterName == "" {
-				clusterName, _ = c.Cookie(ClusterNameHeader)
-			}
+		}
+		if clusterName == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "cluster name is required"})
+			c.Abort()
+			return
 		}
 		cluster, err := cm.GetClientSet(clusterName)
 		if err != nil {
