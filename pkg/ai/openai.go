@@ -164,7 +164,7 @@ func (a *Agent) runOpenAIConversation(
 					continue
 				}
 
-				sessionID := agentPendingSessions.save(pendingSession{
+				sessionID := a.savePendingSession(pendingSession{
 					Provider:              a.provider,
 					ConversationSessionID: conversationSessionID,
 					OpenAIMessages:        append([]openai.ChatCompletionMessageParamUnion(nil), messages...),
@@ -196,7 +196,7 @@ func (a *Agent) runOpenAIConversation(
 					messages = append(messages, openai.ToolMessage("Tool error: "+result, tc.ID))
 					continue
 				}
-				sessionID := agentPendingSessions.save(pendingSession{
+				sessionID := a.savePendingSession(pendingSession{
 					Provider:              a.provider,
 					ConversationSessionID: conversationSessionID,
 					OpenAIMessages:        append([]openai.ChatCompletionMessageParamUnion(nil), messages...),

@@ -27,4 +27,39 @@ describe('ApiClient cluster isolation', () => {
     expect(firstHeaders.get('x-request-id')).toBe('request-1')
     expect(secondHeaders.get('x-cluster-name')).toBe('cluster-b')
   })
+
+  it('binds every write request to the URL cluster at dispatch time', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 200 }))
+
+    await apiClient.post('/resources/apply', { yaml: 'kind: ConfigMap' })
+    window.history.replaceState({}, '', '/pods?cluster=cluster-b')
+    await apiClient.patch('/pods/default/example', {
+      metadata: { labels: { updated: 'true' } },
+    })
+    await apiClient.delete('/pods/default/example')
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+
+    const [applyUrl, applyOptions] = fetchMock.mock.calls[0]
+    const [patchUrl, patchOptions] = fetchMock.mock.calls[1]
+    const [deleteUrl, deleteOptions] = fetchMock.mock.calls[2]
+
+    expect(applyUrl).toBe('/api/v1/resources/apply')
+    expect(applyOptions?.method).toBe('POST')
+    expect((applyOptions?.headers as Headers).get('x-cluster-name')).toBe(
+      'cluster-a'
+    )
+    expect(patchUrl).toBe('/api/v1/pods/default/example')
+    expect(patchOptions?.method).toBe('PATCH')
+    expect((patchOptions?.headers as Headers).get('x-cluster-name')).toBe(
+      'cluster-b'
+    )
+    expect(deleteUrl).toBe('/api/v1/pods/default/example')
+    expect(deleteOptions?.method).toBe('DELETE')
+    expect((deleteOptions?.headers as Headers).get('x-cluster-name')).toBe(
+      'cluster-b'
+    )
+  })
 })

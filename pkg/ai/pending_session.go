@@ -22,6 +22,7 @@ type pendingToolCall struct {
 
 type pendingSession struct {
 	Provider              string
+	ClusterName           string
 	ConversationSessionID string
 	SystemPrompt          string
 	OpenAIMessages        []openai.ChatCompletionMessageParamUnion
@@ -40,6 +41,7 @@ func (s *pendingSessionStore) save(session pendingSession) string {
 
 	dbSession := &model.PendingSession{
 		SessionID:             sessionID,
+		ClusterName:           session.ClusterName,
 		Provider:              session.Provider,
 		ConversationSessionID: session.ConversationSessionID,
 		SystemPrompt:          session.SystemPrompt,
@@ -99,8 +101,26 @@ func (s *pendingSessionStore) delete(sessionID string) {
 	}
 }
 
-func (s *pendingSessionStore) take(sessionID string) (pendingSession, error) {
+func validatePendingSessionCluster(session pendingSession, clusterName string) error {
+	if clusterName == "" || session.ClusterName == "" || session.ClusterName != clusterName {
+		return fmt.Errorf("pending action belongs to a different cluster")
+	}
+	return nil
+}
+
+func (s *pendingSessionStore) loadForCluster(sessionID, clusterName string) (pendingSession, error) {
 	session, err := s.load(sessionID)
+	if err != nil {
+		return pendingSession{}, err
+	}
+	if err := validatePendingSessionCluster(session, clusterName); err != nil {
+		return pendingSession{}, err
+	}
+	return session, nil
+}
+
+func (s *pendingSessionStore) takeForCluster(sessionID, clusterName string) (pendingSession, error) {
+	session, err := s.loadForCluster(sessionID, clusterName)
 	if err != nil {
 		return pendingSession{}, err
 	}
@@ -111,6 +131,7 @@ func (s *pendingSessionStore) take(sessionID string) (pendingSession, error) {
 func pendingSessionFromModel(dbSession *model.PendingSession) (pendingSession, error) {
 	session := pendingSession{
 		Provider:              dbSession.Provider,
+		ClusterName:           dbSession.ClusterName,
 		ConversationSessionID: dbSession.ConversationSessionID,
 		SystemPrompt:          dbSession.SystemPrompt,
 		ExpiresAt:             dbSession.ExpiresAt,

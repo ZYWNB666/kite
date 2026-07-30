@@ -56,3 +56,31 @@ func TestLargeTextFieldMappings(t *testing.T) {
 		}
 	}
 }
+
+func TestPendingSessionClusterNameUsesBoundedMySQLType(t *testing.T) {
+	db, err := gorm.Open(mysql.New(mysql.Config{
+		DSN:                       "gorm:gorm@tcp(localhost:9910)/gorm?charset=utf8mb4&parseTime=True&loc=Local",
+		SkipInitializeWithVersion: true,
+	}), &gorm.Config{
+		DryRun:               true,
+		DisableAutomaticPing: true,
+	})
+	if err != nil {
+		t.Fatalf("open dry-run MySQL dialector: %v", err)
+	}
+
+	stmt := &gorm.Statement{DB: db}
+	if err := stmt.Parse(PendingSession{}); err != nil {
+		t.Fatalf("parse PendingSession schema: %v", err)
+	}
+	field := stmt.Schema.LookUpField("ClusterName")
+	if field == nil {
+		t.Fatal("PendingSession.ClusterName field not found")
+	}
+	if got := db.Dialector.DataTypeOf(field); got != "varchar(255)" {
+		t.Fatalf("PendingSession.ClusterName MySQL type = %q, want varchar(255)", got)
+	}
+	if _, indexed := field.TagSettings["INDEX"]; indexed {
+		t.Fatal("PendingSession.ClusterName must not create a MySQL index")
+	}
+}

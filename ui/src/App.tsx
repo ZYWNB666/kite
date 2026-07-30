@@ -125,13 +125,15 @@ function AppContent() {
 }
 
 function AppProviders({ children }: { children: ReactNode }) {
+  return <ClusterProvider>{children}</ClusterProvider>
+}
+
+function ClusterScopedProviders({ children }: { children: ReactNode }) {
   return (
     <TerminalProvider>
-      <ClusterProvider>
-        <GlobalSearchProvider>
-          <AIChatProvider>{children}</AIChatProvider>
-        </GlobalSearchProvider>
-      </ClusterProvider>
+      <GlobalSearchProvider>
+        <AIChatProvider>{children}</AIChatProvider>
+      </GlobalSearchProvider>
     </TerminalProvider>
   )
 }
@@ -140,7 +142,9 @@ function App() {
   return (
     <AppProviders>
       <ClusterGate>
-        <AppContent />
+        <ClusterScopedProviders>
+          <AppContent />
+        </ClusterScopedProviders>
       </ClusterGate>
     </AppProviders>
   )
@@ -150,7 +154,9 @@ export function StandaloneAIChatApp() {
   return (
     <AppProviders>
       <ClusterGate>
-        <StandaloneAIChatbox />
+        <ClusterScopedProviders>
+          <StandaloneAIChatbox />
+        </ClusterScopedProviders>
       </ClusterGate>
     </AppProviders>
   )

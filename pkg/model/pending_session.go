@@ -6,6 +6,7 @@ import (
 
 type PendingSession struct {
 	Model
+	ClusterName           string    `json:"cluster_name" gorm:"type:varchar(255)"`
 	SessionID             string    `json:"session_id" gorm:"type:varchar(64);uniqueIndex;not null"`
 	Provider              string    `json:"provider" gorm:"type:varchar(32);not null"`
 	ConversationSessionID string    `json:"conversation_session_id" gorm:"type:varchar(64)"`

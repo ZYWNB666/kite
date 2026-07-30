@@ -35,6 +35,7 @@ function generateId() {
 export function useAIChat() {
   const { user } = useAuth()
   const username = user?.Key() || 'anonymous'
+  const clusterName = getCurrentCluster() || ''
 
   const [state, dispatch] = useReducer(aiChatReducer, initialAIChatState)
   const messagesRef = useRef<ChatMessage[]>(state.messages)
@@ -75,7 +76,7 @@ export function useAIChat() {
       historyRef.current,
       state.currentSessionId,
       state.messages,
-      getCurrentCluster() || ''
+      clusterName
     )
 
     if (nextHistory !== historyRef.current) {
@@ -83,7 +84,21 @@ export function useAIChat() {
       dispatch({ type: 'history/set', history: nextHistory })
       saveHistoryToStorage(username, nextHistory)
     }
-  }, [state.currentSessionId, state.isLoading, state.messages, username])
+  }, [
+    clusterName,
+    state.currentSessionId,
+    state.isLoading,
+    state.messages,
+    username,
+  ])
+
+  useEffect(
+    () => () => {
+      abortControllerRef.current?.abort()
+      abortControllerRef.current = null
+    },
+    []
+  )
 
   const commitMessages = useCallback(
     (updater: (prev: ChatMessage[]) => ChatMessage[]) => {
@@ -258,7 +273,9 @@ export function useAIChat() {
             typeof result === 'string' ? result : JSON.stringify(result ?? '')
           // Truncate for display only; full result is stored server-side for LLM context
           const toolResult =
-            rawResult.length > 20000 ? rawResult.slice(0, 20000) + '…' : rawResult
+            rawResult.length > 20000
+              ? rawResult.slice(0, 20000) + '…'
+              : rawResult
           const inferredError =
             typeof is_error === 'boolean'
               ? is_error
@@ -531,7 +548,7 @@ export function useAIChat() {
         historyRef.current,
         resolvedSessionId,
         messagesRef.current,
-        getCurrentCluster() || ''
+        clusterName
       )
       commitHistory(nextHistory)
       if (currentSessionIdRef.current !== resolvedSessionId) {
@@ -539,7 +556,7 @@ export function useAIChat() {
       }
       return resolvedSessionId
     },
-    [commitCurrentSessionId, commitHistory]
+    [clusterName, commitCurrentSessionId, commitHistory]
   )
 
   const sendMessage = useCallback(
@@ -793,13 +810,13 @@ export function useAIChat() {
   const loadSession = useCallback(
     (sessionId: string) => {
       const session = historyRef.current.find((item) => item.id === sessionId)
-      if (!session) return
+      if (!session || session.clusterName !== clusterName) return
 
       messagesRef.current = session.messages
       commitMessages(() => session.messages)
       commitCurrentSessionId(sessionId)
     },
-    [commitCurrentSessionId, commitMessages]
+    [clusterName, commitCurrentSessionId, commitMessages]
   )
 
   const deleteSession = useCallback(
@@ -820,18 +837,25 @@ export function useAIChat() {
     if (oldSessionId) {
       const headers: Record<string, string> = {}
       appendCurrentClusterHeader(headers)
-      fetch(withSubPath(`/api/v1/ai/session/${encodeURIComponent(oldSessionId)}`), {
-        method: 'DELETE',
-        credentials: 'include',
-        headers,
-      }).catch(() => {/* best-effort */})
+      fetch(
+        withSubPath(`/api/v1/ai/session/${encodeURIComponent(oldSessionId)}`),
+        {
+          method: 'DELETE',
+          credentials: 'include',
+          headers,
+        }
+      ).catch(() => {
+        /* best-effort */
+      })
     }
   }, [clearMessages])
 
   return {
     messages: state.messages,
     isLoading: state.isLoading,
-    history: state.history,
+    history: state.history.filter(
+      (session) => session.clusterName === clusterName
+    ),
     currentSessionId: state.currentSessionId,
     sendMessage,
     executeAction,

@@ -324,8 +324,19 @@ func (a *Agent) ProcessChat(c *gin.Context, req *ChatRequest, sendEvent func(SSE
 	}
 }
 
+func (a *Agent) savePendingSession(session pendingSession) string {
+	if a.cs == nil {
+		return ""
+	}
+	session.ClusterName = a.cs.Name
+	return agentPendingSessions.save(session)
+}
+
 func (a *Agent) ContinuePendingAction(c *gin.Context, sessionID string, sendEvent func(SSEEvent)) error {
-	session, err := agentPendingSessions.take(sessionID)
+	if a.cs == nil {
+		return fmt.Errorf("no cluster selected")
+	}
+	session, err := agentPendingSessions.takeForCluster(sessionID, a.cs.Name)
 	if err != nil {
 		return err
 	}
@@ -339,7 +350,10 @@ func (a *Agent) ContinuePendingAction(c *gin.Context, sessionID string, sendEven
 }
 
 func (a *Agent) ContinuePendingInput(c *gin.Context, sessionID string, values map[string]interface{}, sendEvent func(SSEEvent)) error {
-	session, err := agentPendingSessions.load(sessionID)
+	if a.cs == nil {
+		return fmt.Errorf("no cluster selected")
+	}
+	session, err := agentPendingSessions.loadForCluster(sessionID, a.cs.Name)
 	if err != nil {
 		return err
 	}

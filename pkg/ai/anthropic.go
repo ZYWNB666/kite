@@ -167,7 +167,7 @@ func (a *Agent) runAnthropicConversation(
 					messages = append(messages, anthropic.NewUserMessage(toolResults...))
 					toolResults = nil
 				}
-				sessionID := agentPendingSessions.save(pendingSession{
+				sessionID := a.savePendingSession(pendingSession{
 					Provider:              a.provider,
 					ConversationSessionID: conversationSessionID,
 					SystemPrompt:          sysPrompt,
@@ -203,7 +203,7 @@ func (a *Agent) runAnthropicConversation(
 				if len(toolResults) > 0 {
 					messages = append(messages, anthropic.NewUserMessage(toolResults...))
 				}
-				sessionID := agentPendingSessions.save(pendingSession{
+				sessionID := a.savePendingSession(pendingSession{
 					Provider:              a.provider,
 					ConversationSessionID: conversationSessionID,
 					SystemPrompt:          sysPrompt,
