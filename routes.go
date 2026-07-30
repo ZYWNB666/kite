@@ -77,6 +77,7 @@ func registerAdminRoutes(r *gin.RouterGroup, authHandler *auth.AuthHandler, cm *
 
 	adminAPI.POST("/clusters/import", cm.ImportClustersFromKubeconfig)
 	adminAPI.GET("/audit-logs", handlers.ListAuditLogs)
+	adminAPI.GET("/audit-logs/:id", handlers.GetAuditLogDetail)
 
 	oauthProviderAPI := adminAPI.Group("/oauth-providers")
 	oauthProviderAPI.GET("/", authHandler.ListOAuthProviders)

@@ -29,6 +29,7 @@ interface ResourceTableViewProps<T> {
   isLoading: boolean
   data?: T[]
   allPageSize?: number
+  showAllPageSizeOption?: boolean
   maxBodyHeightClassName?: string
   containerClassName?: string
   fitViewportHeight?: boolean
@@ -47,6 +48,7 @@ export function ResourceTableView<T>({
   isLoading,
   data,
   allPageSize,
+  showAllPageSizeOption = true,
   maxBodyHeightClassName = 'max-h-[calc(100dvh-210px)]',
   containerClassName = 'flex flex-col gap-3',
   fitViewportHeight = false,
@@ -78,8 +80,11 @@ export function ResourceTableView<T>({
             key={cell.id}
             className={`align-middle ${index <= 1 ? 'text-left' : 'text-center'}`}
             style={
-              (cell.column.columnDef.meta as { style?: React.CSSProperties } | undefined)
-                ?.style
+              (
+                cell.column.columnDef.meta as
+                  | { style?: React.CSSProperties }
+                  | undefined
+              )?.style
             }
           >
             {cell.column.columnDef.cell
@@ -178,8 +183,11 @@ export function ResourceTableView<T>({
                           key={header.id}
                           className={index <= 1 ? 'text-left' : 'text-center'}
                           style={
-                            (header.column.columnDef.meta as { style?: React.CSSProperties } | undefined)
-                              ?.style
+                            (
+                              header.column.columnDef.meta as
+                                | { style?: React.CSSProperties }
+                                | undefined
+                            )?.style
                           }
                         >
                           {header.isPlaceholder ? null : header.column.getCanSort() ? (
@@ -265,7 +273,7 @@ export function ResourceTableView<T>({
                       {pageSize}
                     </SelectItem>
                   ))}
-                  {resolvedAllPageSize > 0 && (
+                  {showAllPageSizeOption && resolvedAllPageSize > 0 && (
                     <SelectItem value={`${resolvedAllPageSize}`}>
                       All
                     </SelectItem>

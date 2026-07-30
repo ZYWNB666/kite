@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import {
   APIKey,
+  AuditLogDetail,
   AuditLogResponse,
   Cluster,
   FetchUserListResponse,
@@ -261,7 +262,7 @@ export const useUserList = (
 export const fetchAuditLogs = async (
   page = 1,
   size = 20,
-  operatorId?: number,
+  operatorName?: string,
   search?: string,
   operation?: string,
   cluster?: string,
@@ -273,8 +274,8 @@ export const fetchAuditLogs = async (
     page: String(page),
     size: String(size),
   })
-  if (operatorId) {
-    params.set('operatorId', String(operatorId))
+  if (operatorName) {
+    params.set('operatorName', operatorName)
   }
   if (search) {
     params.set('search', search)
@@ -297,10 +298,13 @@ export const fetchAuditLogs = async (
   return fetchAPI<AuditLogResponse>(`/admin/audit-logs?${params.toString()}`)
 }
 
+export const fetchAuditLogDetail = (id: number): Promise<AuditLogDetail> =>
+  fetchAPI<AuditLogDetail>(`/admin/audit-logs/${id}`)
+
 export const useAuditLogs = (
   page = 1,
   size = 20,
-  operatorId?: number,
+  operatorName?: string,
   search?: string,
   operation?: string,
   cluster?: string,
@@ -313,7 +317,7 @@ export const useAuditLogs = (
       'audit-logs',
       page,
       size,
-      operatorId,
+      operatorName,
       search,
       operation,
       cluster,
@@ -325,7 +329,7 @@ export const useAuditLogs = (
       fetchAuditLogs(
         page,
         size,
-        operatorId,
+        operatorName,
         search,
         operation,
         cluster,

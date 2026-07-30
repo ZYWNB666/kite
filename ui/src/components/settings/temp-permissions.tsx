@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import { IconLoader2 } from '@tabler/icons-react'
-import { ColumnDef } from '@tanstack/react-table'
+import { ColumnDef, PaginationState } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -12,7 +12,13 @@ import {
   useRevokeAccess,
 } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 
 import { Action, ActionTable } from '../action-table'
 
@@ -73,17 +79,34 @@ function formatDuration(hours: number): string {
 function formatRiskLevel(level: string): React.ReactNode {
   const map: Record<string, { label: string; className: string }> = {
     low: { label: '🟢 低', className: 'text-green-600 dark:text-green-400' },
-    medium: { label: '🟡 中', className: 'text-yellow-600 dark:text-yellow-400' },
+    medium: {
+      label: '🟡 中',
+      className: 'text-yellow-600 dark:text-yellow-400',
+    },
     high: { label: '🔴 高', className: 'text-red-600 dark:text-red-400' },
   }
   const item = map[level]
-  if (!item) return <span className="text-xs text-muted-foreground">{level || '-'}</span>
-  return <span className={`text-xs font-medium ${item.className}`}>{item.label}</span>
+  if (!item)
+    return <span className="text-xs text-muted-foreground">{level || '-'}</span>
+  return (
+    <span className={`text-xs font-medium ${item.className}`}>
+      {item.label}
+    </span>
+  )
 }
 
 export function TempPermissionsManagement() {
   const { t } = useTranslation()
-  const { data: requests = [], isLoading, error } = useAllAccessRequests()
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 20,
+  })
+  const { data, isLoading, error } = useAllAccessRequests(
+    pagination.pageIndex + 1,
+    pagination.pageSize
+  )
+  const requests = data?.requests ?? []
+
   const revokeMutation = useRevokeAccess()
   const approveMutation = useApproveAccess()
 
@@ -93,14 +116,18 @@ export function TempPermissionsManagement() {
         id: 'requester',
         header: t('tempPermissions.table.requester', '申请人'),
         cell: ({ row: { original: r } }) => (
-          <span className="font-medium">{r.requesterName || `#${r.requesterId}`}</span>
+          <span className="font-medium">
+            {r.requesterName || `#${r.requesterId}`}
+          </span>
         ),
       },
       {
         id: 'namespace',
         header: t('tempPermissions.table.namespace', '命名空间'),
         cell: ({ row: { original: r } }) => (
-          <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{r.namespace}</code>
+          <code className="rounded bg-muted px-1.5 py-0.5 text-xs">
+            {r.namespace}
+          </code>
         ),
       },
       {
@@ -128,7 +155,9 @@ export function TempPermissionsManagement() {
         id: 'approver',
         header: t('tempPermissions.table.approver', '审批人'),
         cell: ({ row: { original: r } }) => (
-          <span className="text-sm text-muted-foreground">{r.approverName || '-'}</span>
+          <span className="text-sm text-muted-foreground">
+            {r.approverName || '-'}
+          </span>
         ),
       },
       {
@@ -162,9 +191,13 @@ export function TempPermissionsManagement() {
           try {
             await approveMutation.mutateAsync(r.id)
             toast.success(
-              t('tempPermissions.approveSuccess', '已批准 {{name}} 的权限申请', {
-                name: r.requesterName,
-              })
+              t(
+                'tempPermissions.approveSuccess',
+                '已批准 {{name}} 的权限申请',
+                {
+                  name: r.requesterName,
+                }
+              )
             )
           } catch {
             toast.error(t('tempPermissions.approveError', '审批失败'))
@@ -179,10 +212,14 @@ export function TempPermissionsManagement() {
           try {
             await revokeMutation.mutateAsync(r.id)
             toast.success(
-              t('tempPermissions.revokeSuccess', '已吊销 {{name}} 对 {{ns}} 的权限', {
-                name: r.requesterName,
-                ns: r.namespace,
-              })
+              t(
+                'tempPermissions.revokeSuccess',
+                '已吊销 {{name}} 对 {{ns}} 的权限',
+                {
+                  name: r.requesterName,
+                  ns: r.namespace,
+                }
+              )
             )
           } catch {
             toast.error(t('tempPermissions.revokeError', '吊销失败'))
@@ -218,6 +255,11 @@ export function TempPermissionsManagement() {
             data={requests}
             columns={columns}
             actions={actions}
+            pagination={{
+              state: pagination,
+              setPagination,
+              total: data?.total ?? 0,
+            }}
           />
         )}
       </CardContent>

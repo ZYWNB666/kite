@@ -19,6 +19,7 @@ type ResourceHistory struct {
 
 	ResourceYAML string `json:"resourceYaml" gorm:"size:16777215"`
 	PreviousYAML string `json:"previousYaml" gorm:"size:16777215"`
+	HasYAMLDiff  bool   `json:"hasYamlDiff" gorm:"->;-:migration;column:has_yaml_diff"`
 
 	Success      bool   `json:"success" gorm:"type:boolean"`
 	ErrorMessage string `json:"errorMessage" gorm:"type:text"`

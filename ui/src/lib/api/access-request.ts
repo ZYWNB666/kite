@@ -32,6 +32,13 @@ export interface AccessRequest {
   reviewNote?: string
 }
 
+export interface AccessRequestPage {
+  requests: AccessRequest[]
+  total: number
+  page: number
+  size: number
+}
+
 export interface FeishuApprover {
   name: string
   openId: string
@@ -68,8 +75,9 @@ export interface UpdateFeishuSettingBody {
 
 // ─── API Functions ────────────────────────────────────────────────────────────
 
-export const fetchMyAccessRequests = (): Promise<{ requests: AccessRequest[] }> =>
-  fetchAPI<{ requests: AccessRequest[] }>('/access-requests')
+export const fetchMyAccessRequests = (): Promise<{
+  requests: AccessRequest[]
+}> => fetchAPI<{ requests: AccessRequest[] }>('/access-requests')
 
 export const createAccessRequest = (
   body: CreateAccessRequestBody
@@ -83,8 +91,16 @@ export const remindAccessRequest = (id: number): Promise<{ message: string }> =>
   apiClient.post<{ message: string }>(`/access-requests/${id}/remind`, {})
 
 // Admin
-export const fetchAllAccessRequests = (): Promise<{ requests: AccessRequest[] }> =>
-  fetchAPI<{ requests: AccessRequest[] }>('/admin/access-requests/')
+export const fetchAllAccessRequests = (
+  page = 1,
+  size = 20
+): Promise<AccessRequestPage> => {
+  const params = new URLSearchParams({
+    page: String(page),
+    size: String(size),
+  })
+  return fetchAPI<AccessRequestPage>(`/admin/access-requests/?${params}`)
+}
 
 export const revokeAccess = (id: number): Promise<{ message: string }> =>
   apiClient.put<{ message: string }>(`/admin/access-requests/${id}/revoke`, {})
@@ -101,8 +117,9 @@ export const updateFeishuSetting = (
 ): Promise<FeishuSetting> =>
   apiClient.put<FeishuSetting>('/admin/feishu-setting/', body)
 
-export const fetchFeishuApprovers = (): Promise<{ approvers: FeishuApprover[] }> =>
-  fetchAPI<{ approvers: FeishuApprover[] }>('/feishu-approvers')
+export const fetchFeishuApprovers = (): Promise<{
+  approvers: FeishuApprover[]
+}> => fetchAPI<{ approvers: FeishuApprover[] }>('/feishu-approvers')
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
@@ -112,10 +129,10 @@ export const useMyAccessRequests = () =>
     queryFn: () => fetchMyAccessRequests().then((r) => r.requests),
   })
 
-export const useAllAccessRequests = () =>
+export const useAllAccessRequests = (page = 1, size = 20) =>
   useQuery({
-    queryKey: ['all-access-requests'],
-    queryFn: () => fetchAllAccessRequests().then((r) => r.requests),
+    queryKey: ['all-access-requests', page, size],
+    queryFn: () => fetchAllAccessRequests(page, size),
     refetchInterval: 30_000,
   })
 
@@ -154,7 +171,8 @@ export const useRevokeAccess = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: revokeAccess,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['all-access-requests'] }),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ['all-access-requests'] }),
   })
 }
 
@@ -162,7 +180,8 @@ export const useApproveAccess = () => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: approveAccess,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['all-access-requests'] }),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ['all-access-requests'] }),
   })
 }
 

@@ -335,12 +335,36 @@ func RemindAccessRequest(c *gin.Context) {
 
 // ListAllAccessRequests handles GET /api/v1/admin/access-requests
 func ListAllAccessRequests(c *gin.Context) {
-	reqs, err := model.ListAccessRequests()
+	page := 1
+	size := 20
+	if rawPage := strings.TrimSpace(c.Query("page")); rawPage != "" {
+		parsed, err := strconv.Atoi(rawPage)
+		if err != nil || parsed < 1 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid page parameter"})
+			return
+		}
+		page = parsed
+	}
+	if rawSize := strings.TrimSpace(c.Query("size")); rawSize != "" {
+		parsed, err := strconv.Atoi(rawSize)
+		if err != nil || parsed < 1 || parsed > 100 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid size parameter"})
+			return
+		}
+		size = parsed
+	}
+
+	reqs, total, err := model.ListAccessRequests(page, size)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list requests"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"requests": reqs})
+	c.JSON(http.StatusOK, gin.H{
+		"requests": reqs,
+		"total":    total,
+		"page":     page,
+		"size":     size,
+	})
 }
 
 // ApproveAccess handles PUT /api/v1/admin/access-requests/:id/approve

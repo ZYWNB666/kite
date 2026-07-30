@@ -107,11 +107,16 @@ func SaveFeishuNotificationSetting(s *FeishuNotificationSetting) error {
 	return DB.Save(s).Error
 }
 
-// ListAccessRequests returns all access requests (admin view), newest first.
-func ListAccessRequests() ([]AccessRequest, error) {
+// ListAccessRequests returns one page of access requests (admin view), newest first.
+func ListAccessRequests(page, size int) ([]AccessRequest, int64, error) {
 	var reqs []AccessRequest
-	err := DB.Order("created_at desc").Find(&reqs).Error
-	return reqs, err
+	var total int64
+	query := DB.Model(&AccessRequest{})
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	err := query.Order("created_at desc").Offset((page - 1) * size).Limit(size).Find(&reqs).Error
+	return reqs, total, err
 }
 
 // ListMyAccessRequests returns requests submitted by a specific user.

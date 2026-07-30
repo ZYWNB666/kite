@@ -514,6 +514,7 @@ export interface ResourceHistory {
   operationType: string
   operationSource: string
   resourceYaml: string
+  hasYamlDiff?: boolean
   previousYaml: string
   success: boolean
   errorMessage: string
@@ -544,6 +545,12 @@ export interface AuditLogResponse {
   total: number
   page: number
   size: number
+}
+
+export interface AuditLogDetail {
+  id: number
+  resourceYaml: string
+  previousYaml: string
 }
 export interface ResourceTemplate {
   id: number

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { IconEye } from '@tabler/icons-react'
+import { IconEye, IconLoader2 } from '@tabler/icons-react'
 import {
   ColumnDef,
   getCoreRowModel,
@@ -7,9 +7,15 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { ResourceHistory } from '@/types/api'
-import { useAuditLogs, useClusterList, useUserList } from '@/lib/api'
+import {
+  fetchAuditLogDetail,
+  useAuditLogs,
+  useClusterList,
+  useUserList,
+} from '@/lib/api'
 import { formatDate } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -31,13 +37,14 @@ export function AuditLog() {
     pageIndex: 0,
     pageSize: 20,
   })
-  const [operatorId, setOperatorId] = useState<number | undefined>(undefined)
+  const [operatorName, setOperatorName] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [operationFilter, setOperationFilter] = useState('')
   const [clusterFilter, setClusterFilter] = useState('')
   const [selectedHistory, setSelectedHistory] =
     useState<ResourceHistory | null>(null)
   const [isDiffOpen, setIsDiffOpen] = useState(false)
+  const [loadingDiffId, setLoadingDiffId] = useState<number | null>(null)
 
   const { data: usersData } = useUserList(1, 200)
   const { data: clusters = [] } = useClusterList()
@@ -49,7 +56,7 @@ export function AuditLog() {
   } = useAuditLogs(
     pagination.pageIndex + 1,
     pagination.pageSize,
-    operatorId,
+    operatorName || undefined,
     searchQuery,
     operationFilter || undefined,
     showCluster ? clusterFilter || undefined : undefined
@@ -61,14 +68,34 @@ export function AuditLog() {
     }
   }, [clusterFilter, showCluster])
 
+  const userNames = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (usersData?.users ?? [])
+            .map((user) => user.name?.trim())
+            .filter((name): name is string => Boolean(name))
+        )
+      ).sort((left, right) => left.localeCompare(right)),
+    [usersData]
+  )
+
   const handleUserFilterChange = useCallback((value: string) => {
     setPagination((prev) => ({ ...prev, pageIndex: 0 }))
-    if (value === 'all') {
-      setOperatorId(undefined)
-      return
+    setOperatorName(value === 'all' ? '' : value)
+  }, [])
+
+  const handleViewDiff = useCallback(async (item: ResourceHistory) => {
+    setLoadingDiffId(item.id)
+    try {
+      const detail = await fetchAuditLogDetail(item.id)
+      setSelectedHistory({ ...item, ...detail })
+      setIsDiffOpen(true)
+    } catch {
+      toast.error('Failed to load YAML diff')
+    } finally {
+      setLoadingDiffId(null)
     }
-    const parsed = Number(value)
-    setOperatorId(Number.isNaN(parsed) ? undefined : parsed)
   }, [])
 
   const handleSearchChange = useCallback((value: string) => {
@@ -214,20 +241,21 @@ export function AuditLog() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                setSelectedHistory(item)
-                setIsDiffOpen(true)
-              }}
-              disabled={!item.resourceYaml && !item.previousYaml}
+              onClick={() => void handleViewDiff(item)}
+              disabled={!item.hasYamlDiff || loadingDiffId !== null}
             >
-              <IconEye className="w-4 h-4 mr-1" />
+              {loadingDiffId === item.id ? (
+                <IconLoader2 className="w-4 h-4 mr-1 animate-spin" />
+              ) : (
+                <IconEye className="w-4 h-4 mr-1" />
+              )}
               {t('auditLog.actions.viewDiff', 'View Diff')}
             </Button>
           )
         },
       },
     ],
-    [getOperationTypeLabel, showCluster, t]
+    [getOperationTypeLabel, handleViewDiff, loadingDiffId, showCluster, t]
   )
 
   const table = useReactTable({
@@ -347,7 +375,7 @@ export function AuditLog() {
               </Select>
             )}
             <Select
-              value={operatorId ? String(operatorId) : 'all'}
+              value={operatorName || 'all'}
               onValueChange={handleUserFilterChange}
             >
               <SelectTrigger className="w-56">
@@ -359,9 +387,9 @@ export function AuditLog() {
                 <SelectItem value="all">
                   {t('auditLog.filters.allUsers', 'All users')}
                 </SelectItem>
-                {(usersData?.users ?? []).map((user) => (
-                  <SelectItem key={user.id} value={String(user.id)}>
-                    {user.username}
+                {userNames.map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -376,9 +404,10 @@ export function AuditLog() {
           isLoading={isLoading}
           data={auditData?.data}
           allPageSize={totalRowCount}
+          showAllPageSizeOption={false}
           emptyState={emptyState}
           hasActiveFilters={
-            Boolean(operatorId) ||
+            Boolean(operatorName) ||
             Boolean(searchQuery) ||
             Boolean(operationFilter) ||
             (showCluster && Boolean(clusterFilter))
