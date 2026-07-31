@@ -513,9 +513,8 @@ export interface ResourceHistory {
   namespace: string
   operationType: string
   operationSource: string
-  resourceYaml: string
-  hasYamlDiff?: boolean
-  previousYaml: string
+  resourceYaml?: string
+  previousYaml?: string
   success: boolean
   errorMessage: string
   operatorId: number

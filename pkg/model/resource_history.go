@@ -6,7 +6,7 @@ import (
 
 type ResourceHistory struct {
 	ID          uint      `json:"id" gorm:"primarykey"`
-	CreatedAt   time.Time `json:"createdAt" gorm:"index:idx_resource_histories_lookup_with_time,priority:5,sort:desc"`
+	CreatedAt   time.Time `json:"createdAt" gorm:"index:idx_resource_histories_created_at,sort:desc;index:idx_resource_histories_lookup_with_time,priority:5,sort:desc"`
 	UpdatedAt   time.Time `json:"updatedAt"`
 	ClusterName string    `json:"clusterName" gorm:"type:varchar(100);not null;index:idx_resource_histories_lookup_with_time,priority:1"`
 
@@ -19,7 +19,6 @@ type ResourceHistory struct {
 
 	ResourceYAML string `json:"resourceYaml" gorm:"size:16777215"`
 	PreviousYAML string `json:"previousYaml" gorm:"size:16777215"`
-	HasYAMLDiff  bool   `json:"hasYamlDiff" gorm:"->;-:migration;column:has_yaml_diff"`
 
 	Success      bool   `json:"success" gorm:"type:boolean"`
 	ErrorMessage string `json:"errorMessage" gorm:"type:text"`

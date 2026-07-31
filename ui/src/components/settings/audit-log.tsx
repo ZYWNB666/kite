@@ -85,18 +85,25 @@ export function AuditLog() {
     setOperatorName(value === 'all' ? '' : value)
   }, [])
 
-  const handleViewDiff = useCallback(async (item: ResourceHistory) => {
-    setLoadingDiffId(item.id)
-    try {
-      const detail = await fetchAuditLogDetail(item.id)
-      setSelectedHistory({ ...item, ...detail })
-      setIsDiffOpen(true)
-    } catch {
-      toast.error('Failed to load YAML diff')
-    } finally {
-      setLoadingDiffId(null)
-    }
-  }, [])
+  const handleViewDiff = useCallback(
+    async (item: ResourceHistory) => {
+      setLoadingDiffId(item.id)
+      try {
+        const detail = await fetchAuditLogDetail(item.id)
+        if (!detail.resourceYaml && !detail.previousYaml) {
+          toast.info(t('auditLog.noYamlDiff', 'No YAML diff available'))
+          return
+        }
+        setSelectedHistory({ ...item, ...detail })
+        setIsDiffOpen(true)
+      } catch {
+        toast.error('Failed to load YAML diff')
+      } finally {
+        setLoadingDiffId(null)
+      }
+    },
+    [t]
+  )
 
   const handleSearchChange = useCallback((value: string) => {
     setPagination((prev) => ({ ...prev, pageIndex: 0 }))
@@ -242,7 +249,7 @@ export function AuditLog() {
               variant="outline"
               size="sm"
               onClick={() => void handleViewDiff(item)}
-              disabled={!item.hasYamlDiff || loadingDiffId !== null}
+              disabled={loadingDiffId !== null}
             >
               {loadingDiffId === item.id ? (
                 <IconLoader2 className="w-4 h-4 mr-1 animate-spin" />

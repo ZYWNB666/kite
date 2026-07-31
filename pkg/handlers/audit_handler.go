@@ -5,11 +5,35 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/zxh326/kite/pkg/model"
 	"gorm.io/gorm"
 )
+
+type auditLogOperator struct {
+	ID       uint   `json:"id"`
+	Username string `json:"username"`
+	Name     string `json:"name,omitempty"`
+	Provider string `json:"provider,omitempty"`
+}
+
+type auditLogListItem struct {
+	ID              uint              `json:"id"`
+	CreatedAt       time.Time         `json:"createdAt"`
+	UpdatedAt       time.Time         `json:"updatedAt"`
+	ClusterName     string            `json:"clusterName"`
+	ResourceType    string            `json:"resourceType"`
+	ResourceName    string            `json:"resourceName"`
+	Namespace       string            `json:"namespace"`
+	OperationType   string            `json:"operationType"`
+	OperationSource string            `json:"operationSource"`
+	Success         bool              `json:"success"`
+	ErrorMessage    string            `json:"errorMessage"`
+	OperatorID      uint              `json:"operatorId"`
+	Operator        *auditLogOperator `json:"operator,omitempty"`
+}
 
 func ListAuditLogs(c *gin.Context) {
 	page := 1
@@ -73,6 +97,9 @@ func ListAuditLogs(c *gin.Context) {
 	}
 
 	history := []model.ResourceHistory{}
+	// Do not reference the YAML columns here, even for a presence check. Without
+	// that guarantee the database may read every large YAML value before applying
+	// ORDER BY/LIMIT. GetAuditLogDetail is the only audit endpoint that loads YAML.
 	if err := query.
 		Select(`resource_histories.id,
 			resource_histories.created_at,
@@ -85,13 +112,10 @@ func ListAuditLogs(c *gin.Context) {
 			resource_histories.operation_source,
 			resource_histories.success,
 			resource_histories.error_message,
-			resource_histories.operator_id,
-			CASE
-				WHEN resource_histories.resource_yaml <> '' OR resource_histories.previous_yaml <> ''
-				THEN true
-				ELSE false
-			END AS has_yaml_diff`).
-		Preload("Operator").
+			resource_histories.operator_id`).
+		Preload("Operator", func(operatorQuery *gorm.DB) *gorm.DB {
+			return operatorQuery.Select("id", "username", "name", "provider")
+		}).
 		Order("resource_histories.created_at DESC").
 		Offset((page - 1) * size).
 		Limit(size).
@@ -100,8 +124,36 @@ func ListAuditLogs(c *gin.Context) {
 		return
 	}
 
+	items := make([]auditLogListItem, 0, len(history))
+	for i := range history {
+		entry := history[i]
+		item := auditLogListItem{
+			ID:              entry.ID,
+			CreatedAt:       entry.CreatedAt,
+			UpdatedAt:       entry.UpdatedAt,
+			ClusterName:     entry.ClusterName,
+			ResourceType:    entry.ResourceType,
+			ResourceName:    entry.ResourceName,
+			Namespace:       entry.Namespace,
+			OperationType:   entry.OperationType,
+			OperationSource: entry.OperationSource,
+			Success:         entry.Success,
+			ErrorMessage:    entry.ErrorMessage,
+			OperatorID:      entry.OperatorID,
+		}
+		if entry.Operator != nil {
+			item.Operator = &auditLogOperator{
+				ID:       entry.Operator.ID,
+				Username: entry.Operator.Username,
+				Name:     entry.Operator.Name,
+				Provider: entry.Operator.Provider,
+			}
+		}
+		items = append(items, item)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"data":  history,
+		"data":  items,
 		"total": total,
 		"page":  page,
 		"size":  size,
