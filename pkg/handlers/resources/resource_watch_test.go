@@ -49,6 +49,7 @@ func TestRegisterRoutesAddsWatchToSupportedResources(t *testing.T) {
 	assertRouteCount("/api/v1/pods/:namespace/_watch", 1)
 	assertRouteCount("/api/v1/nodes/_all/_watch", 0)
 	assertRouteCount("/api/v1/:crd/:namespace/_watch", 1)
+	assertRouteCount("/api/v1/:crd/_all/_watch", 0)
 	assertRouteCount("/api/v1/services/:namespace/watch", 0)
 	assertRouteCount("/api/v1/:crd/:namespace/watch", 0)
 }

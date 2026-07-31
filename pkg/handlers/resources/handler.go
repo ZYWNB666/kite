@@ -130,7 +130,6 @@ func RegisterRoutes(group *gin.RouterGroup) {
 	{
 		otherGroup.GET("", crHandler.List)
 		otherGroup.GET("/_all", crHandler.List)
-		otherGroup.GET("/_all/_watch", crHandler.Watch)
 		otherGroup.GET("/_all/:name", crHandler.Get)
 		otherGroup.GET("/_all/:name/history", crHandler.ListHistory)
 		otherGroup.GET("/_all/:name/describe", crHandler.Describe)
