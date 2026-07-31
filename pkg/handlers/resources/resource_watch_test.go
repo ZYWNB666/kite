@@ -13,6 +13,7 @@ import (
 	"github.com/zxh326/kite/pkg/kube"
 	"github.com/zxh326/kite/pkg/model"
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -21,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/dynamic/fake"
 	ktesting "k8s.io/client-go/testing"
+	ctrlfake "sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 func TestRegisterRoutesAddsWatchToSupportedResources(t *testing.T) {
@@ -101,6 +103,44 @@ func TestWatchedPodWithMetricsKeepsStableIdentityWhenReduced(t *testing.T) {
 			pod.UID,
 			pod.ResourceVersion,
 		)
+	}
+}
+
+func TestCRWatchReturnsDiscoveryFailureAsSSE(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	scheme := runtime.NewScheme()
+	if err := apiextensionsv1.AddToScheme(scheme); err != nil {
+		t.Fatalf("AddToScheme() error = %v", err)
+	}
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/prometheuses.monitoring.coreos.com/_all/_watch",
+		nil,
+	)
+	c.Params = gin.Params{
+		{Key: "crd", Value: "prometheuses.monitoring.coreos.com"},
+		{Key: "namespace", Value: common.AllNamespaces},
+	}
+	c.Set("cluster", &cluster.ClientSet{
+		Name: "test",
+		K8sClient: &kube.K8sClient{
+			Client: ctrlfake.NewClientBuilder().WithScheme(scheme).Build(),
+		},
+	})
+
+	NewCRHandler().Watch(c)
+
+	if got := recorder.Header().Get("Content-Type"); got != "text/event-stream" {
+		t.Fatalf("Content-Type = %q, want text/event-stream", got)
+	}
+	body := recorder.Body.String()
+	if !strings.Contains(body, "event: watch-error") ||
+		!strings.Contains(body, `"fatal":true`) ||
+		!strings.Contains(body, "CustomResourceDefinition not found") {
+		t.Fatalf("watch response = %q, want fatal CRD discovery SSE error", body)
 	}
 }
 

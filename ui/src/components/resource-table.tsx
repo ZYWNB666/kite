@@ -149,9 +149,9 @@ export function ResourceTable<T>({
     toast.warning(
       t('resourceTable.watchUnavailable', {
         defaultValue: 'Watch is unavailable; switched to 5s refresh.',
-      })
+      }) + (error?.message ? ` (${error.message})` : '')
     )
-  }, [handleUseSSEChange, t, useSSE, watchUnavailable])
+  }, [error, handleUseSSEChange, t, useSSE, watchUnavailable])
   const displayResourceName = (() => {
     const resource = getResourceMetadata(resolvedResourceType)
     if (!resource) {

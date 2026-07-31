@@ -49,9 +49,14 @@ type resourceWatchStreamOptions struct {
 }
 
 func serveResourceWatch(c *gin.Context, options resourceWatchStreamOptions) {
+	flusher, ok := beginResourceWatchStream(c)
+	if !ok {
+		return
+	}
+
 	cs := c.MustGet("cluster").(*cluster.ClientSet)
 	if cs.K8sClient == nil || cs.K8sClient.WatchHub == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "resource watch is unavailable"})
+		writeResourceWatchFatal(c, "resource watch is unavailable")
 		return
 	}
 
@@ -60,6 +65,9 @@ func serveResourceWatch(c *gin.Context, options resourceWatchStreamOptions) {
 		namespace = ""
 	}
 
+	// Open the browser-to-Kite SSE connection before joining the internal
+	// subscription. Initial list work may take longer than the browser's
+	// connection deadline, so the response headers must already be flushed.
 	subscription, err := cs.K8sClient.WatchHub.Subscribe(kube.ResourceWatchOptions{
 		GVR:           options.GVR,
 		Namespace:     namespace,
@@ -67,27 +75,10 @@ func serveResourceWatch(c *gin.Context, options resourceWatchStreamOptions) {
 		FieldSelector: c.Query("fieldSelector"),
 	})
 	if err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
+		writeResourceWatchFatal(c, err.Error())
 		return
 	}
 	defer subscription.Close()
-
-	c.Writer.Header().Set("Content-Type", "text/event-stream")
-	c.Writer.Header().Set("Cache-Control", "no-cache, no-transform")
-	c.Writer.Header().Set("Connection", "keep-alive")
-	c.Writer.Header().Set("X-Accel-Buffering", "no")
-	c.Writer.Header().Set("Transfer-Encoding", "chunked")
-
-	flusher, ok := c.Writer.(http.Flusher)
-	if !ok {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "streaming unsupported"})
-		return
-	}
-
-	// EventSource uses this delay only when the browser-to-Kite connection
-	// fails. Kubernetes reconnection is handled inside the shared hub.
-	_, _ = fmt.Fprint(c.Writer, "retry: 2000\n\n")
-	flusher.Flush()
 
 	ticker := time.NewTicker(resourceWatchKeepAliveInterval)
 	defer ticker.Stop()
@@ -135,6 +126,40 @@ func serveResourceWatch(c *gin.Context, options resourceWatchStreamOptions) {
 			flusher.Flush()
 		}
 	}
+}
+
+// beginResourceWatchStream commits a successful SSE response immediately. It
+// is idempotent so dynamic-resource handlers can open the stream before doing
+// CRD discovery and still delegate the actual watch to serveResourceWatch.
+func beginResourceWatchStream(c *gin.Context) (http.Flusher, bool) {
+	flusher, ok := c.Writer.(http.Flusher)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "streaming unsupported"})
+		return nil, false
+	}
+
+	if c.Writer.Header().Get("Content-Type") == "text/event-stream" {
+		return flusher, true
+	}
+
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache, no-transform")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("X-Accel-Buffering", "no")
+	c.Writer.Header().Set("Transfer-Encoding", "chunked")
+
+	// EventSource uses this delay only when the browser-to-Kite connection
+	// fails. Kubernetes reconnection is handled inside the shared hub.
+	_, _ = fmt.Fprint(c.Writer, "retry: 2000\n\n")
+	flusher.Flush()
+	return flusher, true
+}
+
+func writeResourceWatchFatal(c *gin.Context, message string) {
+	_ = writeSSE(c, kube.ResourceWatchError, resourceWatchStatus{
+		Error: message,
+		Fatal: true,
+	})
 }
 
 func writeResourceWatchEvent(

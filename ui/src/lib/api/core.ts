@@ -597,13 +597,13 @@ export function useResourcesWatch<T extends ResourceType>(
           setIsConnected(false)
           attemptReportedError = true
           connectionErrorCountRef.current += 1
-          if (
-            es.readyState === EventSource.CLOSED ||
-            connectionErrorCountRef.current >= fallbackThreshold()
-          ) {
+          if (connectionErrorCountRef.current >= fallbackThreshold()) {
             markUnavailable(es)
             return
           }
+          // CLOSED is also reported for transient proxy/server disconnects.
+          // Give every failed attempt the same two-second reconnect window
+          // instead of permanently falling back after the first HTTP failure.
           armConnectTimer()
         }
       }

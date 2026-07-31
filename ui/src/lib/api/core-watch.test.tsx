@@ -160,20 +160,26 @@ describe('useResourcesWatch', () => {
     expect(MockEventSource.instances).toHaveLength(2)
   })
 
-  it('falls back immediately when the browser permanently closes SSE', () => {
+  it('retries a browser-closed SSE connection after two seconds', () => {
     const { result } = renderHook(() =>
       useResourcesWatch('services', 'default', { enabled: true })
     )
-    const source = MockEventSource.instances[0]
+    const firstSource = MockEventSource.instances[0]
 
     act(() => {
-      source.readyState = MockEventSource.CLOSED
-      source.onerror?.()
+      firstSource.readyState = MockEventSource.CLOSED
+      firstSource.onerror?.()
     })
 
-    expect(result.current.isUnsupported).toBe(true)
-    expect(result.current.isLoading).toBe(false)
-    expect(source.close).toHaveBeenCalledOnce()
+    expect(result.current.isUnsupported).toBe(false)
+    expect(MockEventSource.instances).toHaveLength(1)
+
+    act(() => {
+      vi.advanceTimersByTime(2000)
+    })
+
+    expect(firstSource.close).toHaveBeenCalledOnce()
+    expect(MockEventSource.instances).toHaveLength(2)
   })
 
   it('reconnects when SSE remains connecting for two seconds', () => {

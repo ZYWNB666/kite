@@ -169,26 +169,29 @@ func (h *CRHandler) Watch(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "CRD name is required"})
 		return
 	}
+	if _, ok := beginResourceWatchStream(c); !ok {
+		return
+	}
 
 	cs := c.MustGet("cluster").(*cluster.ClientSet)
 	crd, err := h.getCRDByName(c.Request.Context(), cs.K8sClient, crdName)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "CustomResourceDefinition not found"})
+			writeResourceWatchFatal(c, "CustomResourceDefinition not found")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		writeResourceWatchFatal(c, err.Error())
 		return
 	}
 
 	gvr := h.getGVRFromCRD(crd)
 	if gvr.Version == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "CustomResourceDefinition has no served version"})
+		writeResourceWatchFatal(c, "CustomResourceDefinition has no served version")
 		return
 	}
 
 	if crd.Spec.Scope != apiextensionsv1.ClusterScoped && c.Param("namespace") == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "namespace is required for namespaced custom resources"})
+		writeResourceWatchFatal(c, "namespace is required for namespaced custom resources")
 		return
 	}
 
