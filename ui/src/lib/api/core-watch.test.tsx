@@ -7,6 +7,8 @@ type EventListener = (event: MessageEvent<string>) => void
 
 class MockEventSource {
   static instances: MockEventSource[] = []
+  static readonly CONNECTING = 0
+  static readonly OPEN = 1
   static readonly CLOSED = 2
 
   readonly url: string
@@ -34,6 +36,11 @@ class MockEventSource {
     for (const listener of this.listeners.get(type) ?? []) {
       listener(event)
     }
+  }
+
+  open() {
+    this.readyState = MockEventSource.OPEN
+    this.onopen?.()
   }
 }
 
@@ -167,6 +174,62 @@ describe('useResourcesWatch', () => {
     expect(result.current.isUnsupported).toBe(true)
     expect(result.current.isLoading).toBe(false)
     expect(source.close).toHaveBeenCalledOnce()
+  })
+
+  it('reconnects when SSE remains connecting for two seconds', () => {
+    renderHook(() =>
+      useResourcesWatch('services', 'default', { enabled: true })
+    )
+    const firstSource = MockEventSource.instances[0]
+
+    act(() => {
+      vi.advanceTimersByTime(1999)
+    })
+    expect(MockEventSource.instances).toHaveLength(1)
+    expect(firstSource.close).not.toHaveBeenCalled()
+
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(firstSource.close).toHaveBeenCalledOnce()
+    expect(MockEventSource.instances).toHaveLength(2)
+  })
+
+  it('keeps an SSE connection that opens within two seconds', () => {
+    renderHook(() =>
+      useResourcesWatch('services', 'default', { enabled: true })
+    )
+    const source = MockEventSource.instances[0]
+
+    act(() => {
+      vi.advanceTimersByTime(1500)
+      source.open()
+      vi.advanceTimersByTime(1000)
+    })
+
+    expect(source.close).not.toHaveBeenCalled()
+    expect(MockEventSource.instances).toHaveLength(1)
+  })
+
+  it('starts a new two-second deadline after an open SSE disconnects', () => {
+    renderHook(() =>
+      useResourcesWatch('services', 'default', { enabled: true })
+    )
+    const source = MockEventSource.instances[0]
+
+    act(() => {
+      source.open()
+      source.readyState = MockEventSource.CONNECTING
+      source.onerror?.()
+      vi.advanceTimersByTime(1999)
+    })
+    expect(MockEventSource.instances).toHaveLength(1)
+
+    act(() => {
+      vi.advanceTimersByTime(1)
+    })
+    expect(source.close).toHaveBeenCalledOnce()
+    expect(MockEventSource.instances).toHaveLength(2)
   })
 
   it('falls back after repeated reconnect failures before a snapshot', () => {

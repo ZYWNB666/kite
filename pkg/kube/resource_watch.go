@@ -27,10 +27,13 @@ const (
 )
 
 const (
-	resourceWatchBufferSize = 512
-	resourceWatchTimeout    = 10 * time.Minute
-	resourceWatchMaxBackoff = 30 * time.Second
+	resourceWatchBufferSize     = 512
+	resourceWatchTimeout        = 10 * time.Minute
+	resourceWatchConnectTimeout = 2 * time.Second
+	resourceWatchMaxBackoff     = 30 * time.Second
 )
+
+var errResourceWatchConnectTimeout = errors.New("resource watch connection timed out")
 
 // ResourceWatchOptions identifies a shareable Kubernetes list-watch stream.
 // Different selectors intentionally use different streams so each subscriber
@@ -276,17 +279,30 @@ func (e *resourceWatchEntry) run(ctx context.Context) {
 		}
 
 		timeoutSeconds := int64(resourceWatchTimeout / time.Second)
-		watcher, err := resourceClient.Watch(ctx, metav1.ListOptions{
+		watchOptions := metav1.ListOptions{
 			LabelSelector:       e.options.LabelSelector,
 			FieldSelector:       e.options.FieldSelector,
 			ResourceVersion:     e.currentVersion(),
 			AllowWatchBookmarks: true,
 			TimeoutSeconds:      &timeoutSeconds,
-		})
+		}
+		watcher, cancelWatch, err := startResourceWatch(
+			ctx,
+			resourceClient,
+			watchOptions,
+			resourceWatchConnectTimeout,
+		)
 		if err != nil {
 			e.setWatching(false)
 			if apierrors.IsResourceExpired(err) || apierrors.IsGone(err) {
 				needsList = true
+				continue
+			}
+			if errors.Is(err, errResourceWatchConnectTimeout) {
+				e.broadcast(ResourceWatchEvent{
+					Type:  ResourceWatchError,
+					Error: err.Error(),
+				})
 				continue
 			}
 			if e.handleFailure(ctx, fmt.Errorf("watch %s: %w", e.options.GVR.String(), err), backoff) {
@@ -301,6 +317,7 @@ func (e *resourceWatchEntry) run(ctx context.Context) {
 
 		relist, stopped := e.consumeWatch(ctx, watcher)
 		watcher.Stop()
+		cancelWatch()
 		e.setWatching(false)
 		if stopped {
 			return
@@ -316,6 +333,57 @@ func (e *resourceWatchEntry) run(ctx context.Context) {
 		if !sleepResourceWatch(ctx, wait.Jitter(time.Second, 0.2)) {
 			return
 		}
+	}
+}
+
+type resourceWatchStartResult struct {
+	watcher watch.Interface
+	err     error
+}
+
+func startResourceWatch(
+	ctx context.Context,
+	resourceClient dynamic.ResourceInterface,
+	options metav1.ListOptions,
+	timeout time.Duration,
+) (watch.Interface, context.CancelFunc, error) {
+	attemptCtx, cancel := context.WithCancel(ctx)
+	result := make(chan resourceWatchStartResult)
+	go func() {
+		watcher, err := resourceClient.Watch(attemptCtx, options)
+		select {
+		case result <- resourceWatchStartResult{watcher: watcher, err: err}:
+		case <-attemptCtx.Done():
+			if watcher != nil {
+				watcher.Stop()
+			}
+		}
+	}()
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		cancel()
+		return nil, nil, ctx.Err()
+	case <-timer.C:
+		cancel()
+		return nil, nil, fmt.Errorf(
+			"%w after %s",
+			errResourceWatchConnectTimeout,
+			timeout,
+		)
+	case watchResult := <-result:
+		if watchResult.err != nil {
+			cancel()
+			return nil, nil, watchResult.err
+		}
+		if watchResult.watcher == nil {
+			cancel()
+			return nil, nil, errors.New("resource watch returned no watcher")
+		}
+		return watchResult.watcher, cancel, nil
 	}
 }
 

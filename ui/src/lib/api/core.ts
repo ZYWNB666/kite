@@ -354,6 +354,8 @@ export const useResources = <T extends ResourceType>(
 }
 
 // Hook: SSE watch for resource lists (initial snapshot + ADDED/MODIFIED/DELETED)
+const RESOURCE_WATCH_CONNECT_TIMEOUT_MS = 2000
+
 export function useResourcesWatch<T extends ResourceType>(
   resource: T,
   namespace?: string,
@@ -376,6 +378,7 @@ export function useResourcesWatch<T extends ResourceType>(
     ResourceWatchDelta<ResourceTypeMap[T] & WatchableResource>[]
   >([])
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const connectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const activeUrlRef = useRef<string | null>(null)
   const hasSnapshotRef = useRef(false)
   const connectionErrorCountRef = useRef(0)
@@ -401,7 +404,15 @@ export function useResourcesWatch<T extends ResourceType>(
     options?.cluster,
   ])
 
+  const clearConnectTimer = useCallback(() => {
+    if (connectTimerRef.current) {
+      clearTimeout(connectTimerRef.current)
+      connectTimerRef.current = null
+    }
+  }, [])
+
   const disconnect = useCallback(() => {
+    clearConnectTimer()
     if (eventSourceRef.current) {
       eventSourceRef.current.close()
       eventSourceRef.current = null
@@ -411,7 +422,7 @@ export function useResourcesWatch<T extends ResourceType>(
       flushTimerRef.current = null
     }
     pendingDeltasRef.current = []
-  }, [])
+  }, [clearConnectTimer])
 
   const flushDeltas = useCallback(() => {
     flushTimerRef.current = null
@@ -457,94 +468,155 @@ export function useResourcesWatch<T extends ResourceType>(
     setIsLoading(true)
 
     try {
-      const es = new EventSource(url, { withCredentials: true })
-      eventSourceRef.current = es
-      const isCurrentConnection = () => eventSourceRef.current === es
-
-      es.addEventListener('snapshot', (e: MessageEvent<string>) => {
-        if (!isCurrentConnection()) return
-        const payload = JSON.parse(e.data) as {
-          items?: (ResourceTypeMap[T] & WatchableResource)[]
-        }
-        if (flushTimerRef.current) {
-          clearTimeout(flushTimerRef.current)
-          flushTimerRef.current = null
-        }
-        pendingDeltasRef.current = []
-        const items = sortWatchedResources([...(payload.items || [])])
-        hasSnapshotRef.current = true
-        connectionErrorCountRef.current = 0
-        dataRef.current = items as ResourceTypeMap[T][]
-        setData(items as ResourcesItems<T>)
-        setError(null)
+      const markUnavailable = (es: EventSource) => {
+        clearConnectTimer()
+        setError(new Error('Resource watch connection is unavailable'))
         setIsLoading(false)
         setIsConnected(false)
-      })
-
-      es.addEventListener('added', (e: MessageEvent<string>) => {
-        if (!isCurrentConnection()) return
-        enqueueDelta('added', e.data)
-      })
-      es.addEventListener('modified', (e: MessageEvent<string>) => {
-        if (!isCurrentConnection()) return
-        enqueueDelta('modified', e.data)
-      })
-      es.addEventListener('deleted', (e: MessageEvent<string>) => {
-        if (!isCurrentConnection()) return
-        enqueueDelta('deleted', e.data)
-      })
-
-      es.addEventListener('ready', () => {
-        if (!isCurrentConnection()) return
-        connectionErrorCountRef.current = 0
-        setError(null)
-        setIsLoading(false)
-        setIsConnected(true)
-      })
-
-      es.addEventListener('watch-error', (e: MessageEvent<string>) => {
-        if (!isCurrentConnection()) return
-        const payload = JSON.parse(e.data) as {
-          error?: string
-          fatal?: boolean
-        }
-        setError(new Error(payload.error || 'Resource watch failed'))
-        setIsLoading(false)
-        setIsConnected(false)
-        if (payload.fatal) {
-          setIsUnsupported(true)
-          es.close()
-          if (eventSourceRef.current === es) {
-            eventSourceRef.current = null
-          }
-        }
-      })
-
-      es.onerror = () => {
-        if (!isCurrentConnection()) return
-        setIsConnected(false)
-        connectionErrorCountRef.current += 1
-        const fallbackThreshold = hasSnapshotRef.current ? 5 : 3
-        if (
-          es.readyState === EventSource.CLOSED ||
-          connectionErrorCountRef.current >= fallbackThreshold
-        ) {
-          setError(new Error('Resource watch connection is unavailable'))
-          setIsLoading(false)
-          setIsUnsupported(true)
-          es.close()
-          if (eventSourceRef.current === es) {
-            eventSourceRef.current = null
-          }
+        setIsUnsupported(true)
+        es.close()
+        if (eventSourceRef.current === es) {
+          eventSourceRef.current = null
         }
       }
+
+      const openEventSource = () => {
+        let es: EventSource
+        try {
+          es = new EventSource(url, { withCredentials: true })
+        } catch (err) {
+          clearConnectTimer()
+          setError(
+            err instanceof Error
+              ? err
+              : new Error('Resource watch connection is unavailable')
+          )
+          setIsLoading(false)
+          setIsConnected(false)
+          setIsUnsupported(true)
+          return
+        }
+        eventSourceRef.current = es
+        let attemptReportedError = false
+        const isCurrentConnection = () => eventSourceRef.current === es
+        const fallbackThreshold = () => (hasSnapshotRef.current ? 5 : 3)
+
+        const armConnectTimer = () => {
+          clearConnectTimer()
+          connectTimerRef.current = setTimeout(() => {
+            connectTimerRef.current = null
+            if (!isCurrentConnection()) return
+
+            if (!attemptReportedError) {
+              connectionErrorCountRef.current += 1
+            }
+            if (connectionErrorCountRef.current >= fallbackThreshold()) {
+              markUnavailable(es)
+              return
+            }
+
+            es.close()
+            if (eventSourceRef.current === es) {
+              eventSourceRef.current = null
+            }
+            openEventSource()
+          }, RESOURCE_WATCH_CONNECT_TIMEOUT_MS)
+        }
+
+        armConnectTimer()
+
+        es.onopen = () => {
+          if (!isCurrentConnection()) return
+          clearConnectTimer()
+        }
+
+        es.addEventListener('snapshot', (e: MessageEvent<string>) => {
+          if (!isCurrentConnection()) return
+          clearConnectTimer()
+          const payload = JSON.parse(e.data) as {
+            items?: (ResourceTypeMap[T] & WatchableResource)[]
+          }
+          if (flushTimerRef.current) {
+            clearTimeout(flushTimerRef.current)
+            flushTimerRef.current = null
+          }
+          pendingDeltasRef.current = []
+          const items = sortWatchedResources([...(payload.items || [])])
+          hasSnapshotRef.current = true
+          connectionErrorCountRef.current = 0
+          dataRef.current = items as ResourceTypeMap[T][]
+          setData(items as ResourcesItems<T>)
+          setError(null)
+          setIsLoading(false)
+          setIsConnected(false)
+        })
+
+        es.addEventListener('added', (e: MessageEvent<string>) => {
+          if (!isCurrentConnection()) return
+          enqueueDelta('added', e.data)
+        })
+        es.addEventListener('modified', (e: MessageEvent<string>) => {
+          if (!isCurrentConnection()) return
+          enqueueDelta('modified', e.data)
+        })
+        es.addEventListener('deleted', (e: MessageEvent<string>) => {
+          if (!isCurrentConnection()) return
+          enqueueDelta('deleted', e.data)
+        })
+
+        es.addEventListener('ready', () => {
+          if (!isCurrentConnection()) return
+          clearConnectTimer()
+          connectionErrorCountRef.current = 0
+          setError(null)
+          setIsLoading(false)
+          setIsConnected(true)
+        })
+
+        es.addEventListener('watch-error', (e: MessageEvent<string>) => {
+          if (!isCurrentConnection()) return
+          const payload = JSON.parse(e.data) as {
+            error?: string
+            fatal?: boolean
+          }
+          setError(new Error(payload.error || 'Resource watch failed'))
+          setIsLoading(false)
+          setIsConnected(false)
+          if (payload.fatal) {
+            clearConnectTimer()
+            setIsUnsupported(true)
+            es.close()
+            if (eventSourceRef.current === es) {
+              eventSourceRef.current = null
+            }
+          }
+        })
+
+        es.onerror = () => {
+          if (!isCurrentConnection()) return
+          setIsConnected(false)
+          attemptReportedError = true
+          connectionErrorCountRef.current += 1
+          if (
+            es.readyState === EventSource.CLOSED ||
+            connectionErrorCountRef.current >= fallbackThreshold()
+          ) {
+            markUnavailable(es)
+            return
+          }
+          armConnectTimer()
+        }
+      }
+
+      openEventSource()
     } catch (err) {
+      clearConnectTimer()
       if (err instanceof Error) setError(err)
       setIsLoading(false)
       setIsConnected(false)
       setIsUnsupported(true)
     }
-  }, [buildUrl, disconnect, enqueueDelta, options?.enabled])
+  }, [buildUrl, clearConnectTimer, disconnect, enqueueDelta, options?.enabled])
 
   const refetch = useCallback(() => {
     connect()

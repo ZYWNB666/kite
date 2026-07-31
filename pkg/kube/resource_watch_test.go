@@ -2,6 +2,7 @@ package kube
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -172,6 +173,47 @@ func TestResourceWatchHubDoesNotReportReadyBeforeWatchStarts(t *testing.T) {
 
 	release()
 	_ = waitForResourceWatchEvent(t, subscription.Events, ResourceWatchReady)
+}
+
+func TestStartResourceWatchTimesOutAndCancelsStalledConnection(t *testing.T) {
+	gvr := schema.GroupVersionResource{Version: "v1", Resource: "services"}
+	client := fake.NewSimpleDynamicClientWithCustomListKinds(
+		runtime.NewScheme(),
+		map[schema.GroupVersionResource]string{gvr: "ServiceList"},
+	)
+	watchStarted := make(chan struct{})
+	releaseWatch := make(chan struct{})
+	var startOnce sync.Once
+	client.PrependWatchReactor("services", func(action ktesting.Action) (bool, watch.Interface, error) {
+		startOnce.Do(func() { close(watchStarted) })
+		<-releaseWatch
+		return true, watch.NewRaceFreeFake(), nil
+	})
+
+	resourceClient := client.Resource(gvr).Namespace("default")
+	startedAt := time.Now()
+	watcher, cancel, err := startResourceWatch(
+		context.Background(),
+		resourceClient,
+		metav1.ListOptions{},
+		20*time.Millisecond,
+	)
+	close(releaseWatch)
+
+	if watcher != nil || cancel != nil {
+		t.Fatalf("timed out watch returned watcher=%v cancel=%v", watcher, cancel)
+	}
+	if !errors.Is(err, errResourceWatchConnectTimeout) {
+		t.Fatalf("startResourceWatch() error = %v, want connect timeout", err)
+	}
+	if elapsed := time.Since(startedAt); elapsed > time.Second {
+		t.Fatalf("watch timeout took %s, want a bounded connection attempt", elapsed)
+	}
+	select {
+	case <-watchStarted:
+	default:
+		t.Fatal("watch connection attempt never started")
+	}
 }
 
 func TestResourceWatchHubTreatsInvalidSelectorAsPermanent(t *testing.T) {
