@@ -29,7 +29,7 @@ const (
 const (
 	resourceWatchBufferSize     = 512
 	resourceWatchTimeout        = 10 * time.Minute
-	resourceWatchConnectTimeout = 2 * time.Second
+	resourceWatchConnectTimeout = 5 * time.Second
 	resourceWatchMaxBackoff     = 30 * time.Second
 )
 

@@ -160,7 +160,7 @@ describe('useResourcesWatch', () => {
     expect(MockEventSource.instances).toHaveLength(2)
   })
 
-  it('retries a browser-closed SSE connection after two seconds', () => {
+  it('retries a browser-closed SSE connection after five seconds', () => {
     const { result } = renderHook(() =>
       useResourcesWatch('services', 'default', { enabled: true })
     )
@@ -175,21 +175,21 @@ describe('useResourcesWatch', () => {
     expect(MockEventSource.instances).toHaveLength(1)
 
     act(() => {
-      vi.advanceTimersByTime(2000)
+      vi.advanceTimersByTime(5000)
     })
 
     expect(firstSource.close).toHaveBeenCalledOnce()
     expect(MockEventSource.instances).toHaveLength(2)
   })
 
-  it('reconnects when SSE remains connecting for two seconds', () => {
+  it('reconnects when SSE remains connecting for five seconds', () => {
     renderHook(() =>
       useResourcesWatch('services', 'default', { enabled: true })
     )
     const firstSource = MockEventSource.instances[0]
 
     act(() => {
-      vi.advanceTimersByTime(1999)
+      vi.advanceTimersByTime(4999)
     })
     expect(MockEventSource.instances).toHaveLength(1)
     expect(firstSource.close).not.toHaveBeenCalled()
@@ -201,14 +201,14 @@ describe('useResourcesWatch', () => {
     expect(MockEventSource.instances).toHaveLength(2)
   })
 
-  it('keeps an SSE connection that opens within two seconds', () => {
+  it('keeps an SSE connection that opens within five seconds', () => {
     renderHook(() =>
       useResourcesWatch('services', 'default', { enabled: true })
     )
     const source = MockEventSource.instances[0]
 
     act(() => {
-      vi.advanceTimersByTime(1500)
+      vi.advanceTimersByTime(4500)
       source.open()
       vi.advanceTimersByTime(1000)
     })
@@ -217,7 +217,7 @@ describe('useResourcesWatch', () => {
     expect(MockEventSource.instances).toHaveLength(1)
   })
 
-  it('starts a new two-second deadline after an open SSE disconnects', () => {
+  it('starts a new five-second deadline after an open SSE disconnects', () => {
     renderHook(() =>
       useResourcesWatch('services', 'default', { enabled: true })
     )
@@ -227,7 +227,7 @@ describe('useResourcesWatch', () => {
       source.open()
       source.readyState = MockEventSource.CONNECTING
       source.onerror?.()
-      vi.advanceTimersByTime(1999)
+      vi.advanceTimersByTime(4999)
     })
     expect(MockEventSource.instances).toHaveLength(1)
 

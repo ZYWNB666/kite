@@ -150,7 +150,7 @@ func beginResourceWatchStream(c *gin.Context) (http.Flusher, bool) {
 
 	// EventSource uses this delay only when the browser-to-Kite connection
 	// fails. Kubernetes reconnection is handled inside the shared hub.
-	_, _ = fmt.Fprint(c.Writer, "retry: 2000\n\n")
+	_, _ = fmt.Fprint(c.Writer, "retry: 5000\n\n")
 	flusher.Flush()
 	return flusher, true
 }

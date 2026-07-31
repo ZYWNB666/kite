@@ -354,7 +354,7 @@ export const useResources = <T extends ResourceType>(
 }
 
 // Hook: SSE watch for resource lists (initial snapshot + ADDED/MODIFIED/DELETED)
-const RESOURCE_WATCH_CONNECT_TIMEOUT_MS = 2000
+const RESOURCE_WATCH_CONNECT_TIMEOUT_MS = 5000
 
 export function useResourcesWatch<T extends ResourceType>(
   resource: T,
