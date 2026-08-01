@@ -7,11 +7,16 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/zxh326/kite/pkg/cluster"
+	"github.com/zxh326/kite/pkg/common"
 	"github.com/zxh326/kite/pkg/model"
 	"k8s.io/kubectl/pkg/describe"
 )
 
-func (h *GenericResourceHandler[T, V]) registerCustomRoutes(group *gin.RouterGroup) {}
+func (h *GenericResourceHandler[T, V]) registerCustomRoutes(group *gin.RouterGroup) {
+	if h.name == string(common.CRDs) {
+		group.GET("/_all/_summaries", h.listCRDSummaries)
+	}
+}
 
 func (h *GenericResourceHandler[T, V]) ListHistory(c *gin.Context) {
 	cs := c.MustGet("cluster").(*cluster.ClientSet)

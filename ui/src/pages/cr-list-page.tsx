@@ -1,23 +1,13 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { createColumnHelper } from '@tanstack/react-table'
-import * as yaml from 'js-yaml'
-import { CustomResourceDefinition } from 'kubernetes-types/apiextensions/v1'
-import { Eye } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 
 import { CustomResource, ResourceType } from '@/types/api'
-import { useResource } from '@/lib/api'
+import { useCRDSummaries } from '@/lib/api'
 import { createSearchFilter, getPrinterColumnValue } from '@/lib/k8s'
 import { formatDate } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { ErrorMessage } from '@/components/error-message'
 import { ResourceTable } from '@/components/resource-table'
-import { YamlEditor } from '@/components/yaml-editor'
 
 const searchQueryFilter = createSearchFilter<CustomResource>(
   (cr) => cr.metadata?.name,
@@ -29,30 +19,20 @@ const searchQueryFilter = createSearchFilter<CustomResource>(
 )
 
 export function CRListPage() {
-  const [isYamlDialogOpen, setIsYamlDialogOpen] = useState(false)
-  const [yamlContent, setYamlContent] = useState('')
   const { crd } = useParams<{ crd: string }>()
-  const { data: crdData, isLoading: isLoadingCRD } = useResource('crds', crd!)
+  const {
+    data: crds,
+    isLoading: isLoadingCRD,
+    isError: isCRDError,
+    error: crdError,
+    refetch: refetchCRDs,
+  } = useCRDSummaries()
+  const crdData = useMemo(
+    () => crds?.find((item) => item.name === crd),
+    [crd, crds]
+  )
 
   const columnHelper = createColumnHelper<CustomResource>()
-  const handleViewYaml = useCallback((crd: CustomResourceDefinition) => {
-    setYamlContent(yaml.dump(crd, { indent: 2 }))
-    setIsYamlDialogOpen(true)
-  }, [])
-  const extraToolbars = useMemo(() => {
-    return [
-      <Button
-        variant="outline"
-        size="default"
-        onClick={() => {
-          handleViewYaml(crdData as CustomResourceDefinition)
-        }}
-      >
-        <Eye className="h-4 w-4 mr-1" />
-        View YAML
-      </Button>,
-    ]
-  }, [crdData, handleViewYaml])
   const columns = useMemo(() => {
     const baseColumns = [
       columnHelper.accessor('metadata.name', {
@@ -72,76 +52,64 @@ export function CRListPage() {
         },
       }),
     ]
-    const additionalColumns =
-      crdData?.spec.versions[0].additionalPrinterColumns?.map(
-        (printerColumn) => {
-          const jsonPath = printerColumn.jsonPath
+    const additionalColumns = crdData?.versions
+      .find((version) => version.served)
+      ?.additionalPrinterColumns?.map((printerColumn) => {
+        const jsonPath = printerColumn.jsonPath
 
-          return columnHelper.accessor(
-            (row) => getPrinterColumnValue(row, jsonPath),
-            {
-              id: jsonPath || printerColumn.name,
-              header: printerColumn.name,
-              cell: ({ getValue }) => {
-                const type = printerColumn.type
-                const value = getValue()
-                if (!value) {
-                  return (
-                    <span className="text-sm text-muted-foreground">-</span>
-                  )
-                }
-                if (type === 'date') {
-                  return (
-                    <span className="text-sm text-muted-foreground">
-                      {formatDate(value)}
-                    </span>
-                  )
-                }
+        return columnHelper.accessor(
+          (row) => getPrinterColumnValue(row, jsonPath),
+          {
+            id: jsonPath || printerColumn.name,
+            header: printerColumn.name,
+            cell: ({ getValue }) => {
+              const type = printerColumn.type
+              const value = getValue()
+              if (!value) {
+                return <span className="text-sm text-muted-foreground">-</span>
+              }
+              if (type === 'date') {
                 return (
-                  <span className="text-sm text-muted-foreground">{value}</span>
+                  <span className="text-sm text-muted-foreground">
+                    {formatDate(value)}
+                  </span>
                 )
-              },
-            }
-          )
-        }
-      )
+              }
+              return (
+                <span className="text-sm text-muted-foreground">{value}</span>
+              )
+            },
+          }
+        )
+      })
     return [...baseColumns, ...(additionalColumns ?? [])]
-  }, [columnHelper, crd, crdData?.spec.versions])
+  }, [columnHelper, crd, crdData?.versions])
 
   if (isLoadingCRD) {
     return <div>Loading...</div>
   }
 
+  if (isCRDError) {
+    return (
+      <ErrorMessage
+        resourceName="Custom Resource Definitions"
+        error={crdError}
+        refetch={refetchCRDs}
+      />
+    )
+  }
+
   if (!crdData) {
-    return <div>Error: CRD name is required</div>
+    return <div>Error: Custom Resource Definition {crd} was not found</div>
   }
 
   return (
-    <>
-      <ResourceTable
-        resourceName={crdData.spec.names.kind || 'Custom Resources'}
-        resourceType={crd as ResourceType}
-        columns={columns}
-        clusterScope={crdData.spec.scope === 'Cluster'}
-        searchQueryFilter={searchQueryFilter}
-        extraToolbars={extraToolbars}
-      />
-
-      <Dialog open={isYamlDialogOpen} onOpenChange={setIsYamlDialogOpen}>
-        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              YAML Configuration: {crdData?.metadata?.name ?? 'Unknown'}
-            </DialogTitle>
-          </DialogHeader>
-          <YamlEditor
-            value={yamlContent}
-            readOnly={true}
-            showControls={false}
-            minHeight={600}
-          />
-        </DialogContent>
-      </Dialog>
-    </>
+    <ResourceTable
+      resourceName={crdData.kind || 'Custom Resources'}
+      resourceType={crd as ResourceType}
+      columns={columns}
+      clusterScope={crdData.scope === 'Cluster'}
+      searchQueryFilter={searchQueryFilter}
+    />
   )
 }

@@ -12,12 +12,11 @@ import {
   IconLoader2,
   IconRefresh,
 } from '@tabler/icons-react'
-import { CustomResourceDefinition } from 'kubernetes-types/apiextensions/v1'
 import { ChevronDown } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { Link, useLocation } from 'react-router-dom'
 
-import { useResources, useVersionInfo } from '@/lib/api'
+import { CRDSummary, useCRDSummaries, useVersionInfo } from '@/lib/api'
 import { isSidebarRouteActive } from '@/lib/sidebar-route'
 import {
   Sidebar,
@@ -65,26 +64,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     isError: isCRDError,
     isFetching: isFetchingCRDs,
     refetch: refetchCRDs,
-  } = useResources('crds', undefined, {
-    staleTime: 30000,
-    disable: isLoading || !config,
+  } = useCRDSummaries({
+    enabled: !isLoading && Boolean(config),
   })
 
   // Group CRDs by spec.group
   const crdsByGroup = useMemo(() => {
-    if (!crdItems) return new Map<string, CustomResourceDefinition[]>()
-    const map = new Map<string, CustomResourceDefinition[]>()
+    if (!crdItems) return new Map<string, CRDSummary[]>()
+    const map = new Map<string, CRDSummary[]>()
     for (const crd of crdItems) {
-      const group = crd.spec?.group ?? 'other'
+      const group = crd.group || 'other'
       if (!map.has(group)) map.set(group, [])
       map.get(group)!.push(crd)
     }
     // Sort each group's CRDs by kind
-    map.forEach((crds) =>
-      crds.sort((a, b) =>
-        (a.spec?.names?.kind ?? '').localeCompare(b.spec?.names?.kind ?? '')
-      )
-    )
+    map.forEach((crds) => crds.sort((a, b) => a.kind.localeCompare(b.kind)))
     return map
   }, [crdItems])
 
@@ -561,8 +555,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         <CollapsibleContent>
                           <SidebarMenu className="ml-3 border-l border-border/50 pl-2">
                             {crds.map((crd) => {
-                              const crdName = crd.metadata?.name ?? ''
-                              const kind = crd.spec?.names?.kind ?? crdName
+                              const crdName = crd.name
+                              const kind = crd.kind || crdName
                               const url = `/crds/${crdName}`
                               return (
                                 <SidebarMenuItem key={crdName}>

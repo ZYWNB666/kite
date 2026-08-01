@@ -235,10 +235,12 @@ func prepareWatchObject(obj *unstructured.Unstructured) *unstructured.Unstructur
 	return prepared
 }
 
-// ConfigMap and Secret tables only need keys. Avoid continuously sending
-// potentially large or sensitive values over a long-lived list watch.
+// Avoid continuously sending fields that table views do not consume. CRD
+// schemas can be very large; ConfigMap and Secret tables only need data keys.
 func reduceWatchObject(resource string, obj *unstructured.Unstructured) {
 	switch resource {
+	case string(common.CRDs):
+		reduceUnstructuredCustomResourceDefinition(obj)
 	case string(common.ConfigMaps):
 		emptyNestedMapValues(obj.Object, "data")
 		emptyNestedMapValues(obj.Object, "binaryData")
@@ -283,6 +285,9 @@ func filterAndSortWatchSnapshot(
 }
 
 func canStreamWatchObject(c *gin.Context, resource string, obj *unstructured.Unstructured) bool {
+	if !matchesRequestedNamespace(c, obj.GetNamespace()) {
+		return false
+	}
 	user := c.MustGet("user").(model.User)
 	cs := c.MustGet("cluster").(*cluster.ClientSet)
 

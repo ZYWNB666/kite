@@ -120,6 +120,19 @@ describe('useResourcesWatch', () => {
     expect(source.close).toHaveBeenCalledOnce()
   })
 
+  it('sends selected namespaces on an all-namespaces watch', () => {
+    renderHook(() =>
+      useResourcesWatch('services', '_all', {
+        enabled: true,
+        namespaces: ['team-a', 'team-b'],
+      })
+    )
+
+    const source = MockEventSource.instances[0]
+    expect(source.url).toContain('/services/_all/_watch')
+    expect(source.url).toContain('namespaces=team-a%2Cteam-b')
+  })
+
   it('marks a fatal server error as unsupported for polling fallback', () => {
     const { result } = renderHook(() =>
       useResourcesWatch('configmaps', 'default', { enabled: true })

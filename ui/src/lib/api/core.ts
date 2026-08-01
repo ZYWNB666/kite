@@ -38,6 +38,7 @@ export const fetchResources = <T>(
     labelSelector?: string
     fieldSelector?: string
     reduce?: boolean
+    namespaces?: string[]
   }
 ): Promise<T> => {
   let endpoint = namespace ? `/${resource}/${namespace}` : `/${resource}`
@@ -57,6 +58,9 @@ export const fetchResources = <T>(
   }
   if (opts?.reduce) {
     params.append('reduce', 'true')
+  }
+  if (opts?.namespaces?.length) {
+    params.append('namespaces', opts.namespaces.join(','))
   }
 
   if (params.toString()) {
@@ -78,6 +82,44 @@ export interface SearchResult {
 export interface SearchResponse {
   results: SearchResult[]
   total: number
+}
+
+export interface CRDVersionSummary {
+  name: string
+  served: boolean
+  storage: boolean
+  additionalPrinterColumns?: Array<{
+    name: string
+    type: string
+    jsonPath: string
+    description?: string
+    format?: string
+    priority?: number
+  }>
+}
+
+export interface CRDSummary {
+  name: string
+  group: string
+  kind: string
+  scope: 'Cluster' | 'Namespaced'
+  createdAt?: string
+  established: boolean
+  versions: CRDVersionSummary[]
+}
+
+interface CRDSummaryResponse {
+  items: CRDSummary[]
+}
+
+export const useCRDSummaries = (options?: { enabled?: boolean }) => {
+  return useQuery({
+    queryKey: getClusterQueryKey('crd-summaries'),
+    queryFn: () => fetchAPI<CRDSummaryResponse>('/crds/_all/_summaries'),
+    select: (data) => data.items,
+    enabled: options?.enabled ?? true,
+    staleTime: 30000,
+  })
 }
 
 // Global search API
@@ -326,6 +368,7 @@ export const useResources = <T extends ResourceType>(
     refreshInterval?: number
     disable?: boolean
     reduce?: boolean
+    namespaces?: string[]
   }
 ) => {
   return useQuery({
@@ -334,7 +377,8 @@ export const useResources = <T extends ResourceType>(
       namespace,
       options?.limit,
       options?.labelSelector,
-      options?.fieldSelector
+      options?.fieldSelector,
+      options?.namespaces?.join(',')
     ),
     queryFn: () => {
       return fetchResources<ResourcesTypeMap[T]>(resource, namespace, {
@@ -343,13 +387,14 @@ export const useResources = <T extends ResourceType>(
         labelSelector: options?.labelSelector,
         fieldSelector: options?.fieldSelector,
         reduce: options?.reduce,
+        namespaces: options?.namespaces,
       })
     },
     enabled: !options?.disable,
     select: (data: ResourcesTypeMap[T]): ResourcesItems<T> => data.items,
     placeholderData: (prevData) => prevData,
     refetchInterval: options?.refreshInterval || 0,
-    staleTime: options?.staleTime || (resource === 'crds' ? 5000 : 1000),
+    staleTime: options?.staleTime || (resource === 'crds' ? 30000 : 1000),
   })
 }
 
@@ -365,6 +410,7 @@ export function useResourcesWatch<T extends ResourceType>(
     reduce?: boolean
     enabled?: boolean
     cluster?: string | null
+    namespaces?: string[]
   }
 ) {
   const [data, setData] = useState<ResourcesItems<T> | undefined>(undefined)
@@ -391,6 +437,8 @@ export function useResourcesWatch<T extends ResourceType>(
       params.append('labelSelector', options.labelSelector)
     if (options?.fieldSelector)
       params.append('fieldSelector', options.fieldSelector)
+    if (options?.namespaces?.length)
+      params.append('namespaces', options.namespaces.join(','))
     appendCurrentClusterParam(params, options?.cluster)
     return withSubPath(
       `${API_BASE_URL}/${resource}/${ns}/_watch?${params.toString()}`
@@ -402,6 +450,7 @@ export function useResourcesWatch<T extends ResourceType>(
     options?.labelSelector,
     options?.fieldSelector,
     options?.cluster,
+    options?.namespaces,
   ])
 
   const clearConnectTimer = useCallback(() => {

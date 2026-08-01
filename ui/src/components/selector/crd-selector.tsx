@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react'
-import { CustomResourceDefinition } from 'kubernetes-types/apiextensions/v1'
 import { Check, ChevronsUpDown } from 'lucide-react'
 
-import { useResources } from '@/lib/api'
+import { useCRDSummaries } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -40,17 +39,17 @@ export function CRDSelector({
     data: crdsData,
     isLoading: crdsLoading,
     error: crdsError,
-  } = useResources('crds', undefined, { disable: !open })
+  } = useCRDSummaries({ enabled: open })
 
   const availableCRDs = useMemo<CRDOption[]>(() => {
     if (!crdsData) return []
-    return (crdsData as CustomResourceDefinition[])
+    return crdsData
       .map((crd) => ({
-        name: crd.metadata?.name || '',
-        kind: crd.spec?.names?.kind || '',
-        group: crd.spec?.group || '',
-        scope: crd.spec?.scope || 'Namespaced',
-        versions: crd.spec?.versions?.map((v) => v.name).join(', ') || '',
+        name: crd.name,
+        kind: crd.kind,
+        group: crd.group,
+        scope: crd.scope,
+        versions: crd.versions.map((version) => version.name).join(', '),
       }))
       .filter((crd) => crd.name)
       .sort((a, b) => a.name.localeCompare(b.name))

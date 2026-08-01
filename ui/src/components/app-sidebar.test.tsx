@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useResources } from '@/lib/api'
+import { useCRDSummaries } from '@/lib/api'
 import { SidebarProvider } from '@/components/ui/sidebar'
 
 import { AppSidebar } from './app-sidebar'
@@ -29,7 +29,7 @@ vi.mock('@/contexts/sidebar-config-context', () => ({
 }))
 
 vi.mock('@/lib/api', () => ({
-  useResources: vi.fn(),
+  useCRDSummaries: vi.fn(),
   useVersionInfo: () => ({ data: undefined }),
 }))
 
@@ -39,13 +39,13 @@ vi.mock('./version-info', () => ({ VersionInfo: () => null }))
 describe('AppSidebar CRDs', () => {
   beforeEach(() => {
     refetchCRDs.mockReset()
-    vi.mocked(useResources).mockReturnValue({
+    vi.mocked(useCRDSummaries).mockReturnValue({
       data: undefined,
       isLoading: false,
       isError: true,
       isFetching: false,
       refetch: refetchCRDs,
-    } as ReturnType<typeof useResources>)
+    } as ReturnType<typeof useCRDSummaries>)
   })
 
   it('keeps the CRD definitions entry visible when CRD loading fails', async () => {

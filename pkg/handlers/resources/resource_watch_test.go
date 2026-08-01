@@ -49,9 +49,60 @@ func TestRegisterRoutesAddsWatchToSupportedResources(t *testing.T) {
 	assertRouteCount("/api/v1/pods/:namespace/_watch", 1)
 	assertRouteCount("/api/v1/nodes/_all/_watch", 0)
 	assertRouteCount("/api/v1/:crd/:namespace/_watch", 1)
-	assertRouteCount("/api/v1/:crd/_all/_watch", 0)
+	assertRouteCount("/api/v1/:crd/_all/_watch", 1)
+	assertRouteCount("/api/v1/crds/_all/_summaries", 1)
 	assertRouteCount("/api/v1/services/:namespace/watch", 0)
 	assertRouteCount("/api/v1/:crd/:namespace/watch", 0)
+}
+
+func TestCRAllNamespacesWatchDoesNotResolveAsGet(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	scheme := runtime.NewScheme()
+	if err := apiextensionsv1.AddToScheme(scheme); err != nil {
+		t.Fatalf("AddToScheme() error = %v", err)
+	}
+	crd := &apiextensionsv1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{Name: "leaderworkersets.leaderworkerset.x-k8s.io"},
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Group: "leaderworkerset.x-k8s.io",
+			Names: apiextensionsv1.CustomResourceDefinitionNames{
+				Plural:   "leaderworkersets",
+				Kind:     "LeaderWorkerSet",
+				ListKind: "LeaderWorkerSetList",
+			},
+			Scope: apiextensionsv1.NamespaceScoped,
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+				Name: "v1", Served: true, Storage: true,
+			}},
+		},
+	}
+
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set("cluster", &cluster.ClientSet{
+			Name: "test",
+			K8sClient: &kube.K8sClient{
+				Client: ctrlfake.NewClientBuilder().WithScheme(scheme).WithObjects(crd).Build(),
+			},
+		})
+		c.Next()
+	})
+	RegisterRoutes(router.Group("/api/v1"))
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/leaderworkersets.leaderworkerset.x-k8s.io/_all/_watch?reduce=true",
+		nil,
+	)
+	router.ServeHTTP(recorder, request)
+
+	if got := recorder.Header().Get("Content-Type"); got != "text/event-stream" {
+		t.Fatalf("Content-Type = %q, want text/event-stream; body = %q", got, recorder.Body.String())
+	}
+	if body := recorder.Body.String(); !strings.Contains(body, "resource watch is unavailable") {
+		t.Fatalf("watch response = %q, want watch handler response", body)
+	}
 }
 
 func TestReduceWatchObjectPreservesConfigMapAndSecretKeys(t *testing.T) {
@@ -82,6 +133,77 @@ func TestReduceWatchObjectPreservesConfigMapAndSecretKeys(t *testing.T) {
 				t.Fatalf("reduced values = %#v, want empty values with keys preserved", values)
 			}
 		})
+	}
+}
+
+func TestReduceWatchObjectRemovesCRDSchemas(t *testing.T) {
+	obj := &unstructured.Unstructured{Object: map[string]any{
+		"spec": map[string]any{
+			"group": "leaderworkerset.x-k8s.io",
+			"versions": []any{map[string]any{
+				"name":                     "v1",
+				"served":                   true,
+				"schema":                   map[string]any{"openAPIV3Schema": map[string]any{"type": "object"}},
+				"additionalPrinterColumns": []any{map[string]any{"name": "Ready", "jsonPath": ".status.readyReplicas"}},
+			}},
+		},
+	}}
+
+	reduceWatchObject(string(common.CRDs), obj)
+
+	versions, found, err := unstructured.NestedSlice(obj.Object, "spec", "versions")
+	if err != nil || !found || len(versions) != 1 {
+		t.Fatalf("versions = (%#v, %v, %v), want one version", versions, found, err)
+	}
+	version := versions[0].(map[string]any)
+	if _, exists := version["schema"]; exists {
+		t.Fatalf("reduced CRD still contains schema: %#v", version)
+	}
+	if _, exists := version["additionalPrinterColumns"]; !exists {
+		t.Fatalf("reduced CRD lost printer columns: %#v", version)
+	}
+}
+
+func TestReduceResourceObjectRemovesTypedCRDSchemas(t *testing.T) {
+	crd := &apiextensionsv1.CustomResourceDefinition{
+		Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+			Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+				Name:   "v1",
+				Served: true,
+				Schema: &apiextensionsv1.CustomResourceValidation{
+					OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{Type: "object"},
+				},
+				AdditionalPrinterColumns: []apiextensionsv1.CustomResourceColumnDefinition{{
+					Name: "Ready", Type: "integer", JSONPath: ".status.readyReplicas",
+				}},
+			}},
+		},
+	}
+
+	reduceResourceObject(string(common.CRDs), crd)
+
+	if crd.Spec.Versions[0].Schema != nil {
+		t.Fatal("reduced typed CRD still contains schema")
+	}
+	if len(crd.Spec.Versions[0].AdditionalPrinterColumns) != 1 {
+		t.Fatal("reduced typed CRD lost printer columns")
+	}
+}
+
+func TestMatchesRequestedNamespace(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/leaderworkersets.example.io/_all/_watch?namespaces=team-a,team-b",
+		nil,
+	)
+
+	if !matchesRequestedNamespace(c, "team-a") || !matchesRequestedNamespace(c, "team-b") {
+		t.Fatal("selected namespaces should match")
+	}
+	if matchesRequestedNamespace(c, "team-c") {
+		t.Fatal("unselected namespace should not match")
 	}
 }
 

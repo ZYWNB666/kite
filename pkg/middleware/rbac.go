@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
@@ -9,6 +10,8 @@ import (
 	"github.com/zxh326/kite/pkg/common"
 	"github.com/zxh326/kite/pkg/model"
 	"github.com/zxh326/kite/pkg/rbac"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 func RBACMiddleware() gin.HandlerFunc {
@@ -33,7 +36,15 @@ func RBACMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		canAccess := rbac.CanAccess(user, resource, verbs, cs.Name, ns, resourceName)
+		canAccess := canAccessResourceRequest(
+			c,
+			user,
+			cs,
+			resource,
+			verbs,
+			ns,
+			resourceName,
+		)
 		if canAccess {
 			c.Next()
 		} else {
@@ -41,6 +52,47 @@ func RBACMiddleware() gin.HandlerFunc {
 				gin.H{"error": rbac.NoAccess(user.Key(), verbs, resource, ns, cs.Name)})
 		}
 	}
+}
+
+func canAccessResourceRequest(
+	c *gin.Context,
+	user model.User,
+	cs *cluster.ClientSet,
+	resource string,
+	verb string,
+	namespace string,
+	resourceName string,
+) bool {
+	if verb != string(common.VerbGet) || namespace != common.AllNamespaces || resourceName != "" {
+		return rbac.CanAccess(user, resource, verb, cs.Name, namespace, resourceName)
+	}
+
+	namespaces, restricted := common.ParseRequestedNamespaces(c.Query("namespaces"))
+	if !restricted || !isNamespaceScopedResource(c.Request.Context(), cs, resource) {
+		return rbac.CanAccess(user, resource, verb, cs.Name, namespace, resourceName)
+	}
+
+	for _, requestedNamespace := range namespaces {
+		if !rbac.CanAccess(user, resource, verb, cs.Name, requestedNamespace, resourceName) {
+			return false
+		}
+	}
+	return true
+}
+
+func isNamespaceScopedResource(ctx context.Context, cs *cluster.ClientSet, resource string) bool {
+	if resourceMeta := common.LookupResource(resource); resourceMeta != nil {
+		return !resourceMeta.ClusterScoped
+	}
+	if cs == nil || cs.K8sClient == nil {
+		return false
+	}
+
+	var crd apiextensionsv1.CustomResourceDefinition
+	if err := cs.K8sClient.Get(ctx, types.NamespacedName{Name: resource}, &crd); err != nil {
+		return false
+	}
+	return crd.Spec.Scope == apiextensionsv1.NamespaceScoped
 }
 
 func method2verb(method string) string {

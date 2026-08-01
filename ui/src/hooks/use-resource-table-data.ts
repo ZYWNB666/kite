@@ -7,9 +7,8 @@ interface UseResourceTableDataOptions {
   resourceName: string
   resourceType?: ResourceType
   namespace?: string
-  /** When provided and contains fewer namespaces than the API query (i.e.
-   * multiple namespaces selected), the hook fetches `_all` and filters the
-   * result client-side to only these namespaces. */
+  /** When multiple namespaces are selected, request only those namespaces
+   * from `_all` and retain client-side filtering for backward compatibility. */
   clientFilterNamespaces?: string[]
   currentCluster?: string | null
   useSSE: boolean
@@ -28,24 +27,30 @@ export function useResourceTableData<T>({
   const resolvedResourceType = (resourceType ??
     (resourceName.toLowerCase() as ResourceType)) as ResourceType
 
-  const query = useResources(resolvedResourceType, namespace, {
-    refreshInterval: useSSE ? 0 : refreshInterval,
-    reduce: true,
-    disable: useSSE,
-  })
-
   const watch = useResourcesWatch(resolvedResourceType, namespace, {
     reduce: true,
     enabled: useSSE,
     cluster: currentCluster,
+    namespaces: clientFilterNamespaces,
+  })
+
+  const useQueryFallback = !useSSE || watch.isUnsupported
+  const query = useResources(resolvedResourceType, namespace, {
+    refreshInterval: useQueryFallback ? refreshInterval || 5000 : 0,
+    reduce: true,
+    disable: !useQueryFallback,
+    namespaces: clientFilterNamespaces,
   })
 
   const rawSSEData = watch.data
   // Preserve the last query result while the initial watch snapshot is being
   // established, avoiding an empty-table flash during mode changes.
-  const rawData = useSSE ? (rawSSEData ?? query.data) : query.data
+  const rawData = useSSE
+    ? (rawSSEData ?? query.data)
+    : (query.data ?? rawSSEData)
+  const isUsingWatch = useSSE && !watch.isUnsupported
 
-  // When multiple namespaces are selected we fetch _all and filter here.
+  // Keep client-side filtering so this UI remains compatible with older APIs.
   const data = useMemo(() => {
     if (!rawData) return undefined
     if (
@@ -65,15 +70,17 @@ export function useResourceTableData<T>({
   return {
     resourceType: resolvedResourceType,
     data,
-    isLoading: useSSE ? watch.isLoading : query.isLoading,
-    isError: useSSE
+    isLoading: isUsingWatch
+      ? watch.isLoading
+      : query.isLoading && rawData === undefined,
+    isError: isUsingWatch
       ? Boolean(
           watch.error && rawSSEData === undefined && query.data === undefined
         )
-      : query.isError,
-    error: (useSSE ? watch.error : query.error) as Error | null,
-    refetch: useSSE ? watch.refetch : query.refetch,
-    isConnected: watch.isConnected,
+      : Boolean(query.isError && rawData === undefined),
+    error: (isUsingWatch ? watch.error : query.error) as Error | null,
+    refetch: isUsingWatch ? watch.refetch : query.refetch,
+    isConnected: isUsingWatch && watch.isConnected,
     watchUnavailable: watch.isUnsupported,
   }
 }

@@ -115,8 +115,14 @@ func (h *GenericResourceHandler[T, V]) list(c *gin.Context) (V, error) {
 		if h.Name() == string(common.Namespaces) && !rbac.CanAccessNamespace(user, cs.Name, obj.GetName()) {
 			continue
 		}
+		if !matchesRequestedNamespace(c, obj.GetNamespace()) {
+			continue
+		}
 		if namespace == common.AllNamespaces && obj.GetNamespace() != "" && !rbac.CanAccessNamespace(user, cs.Name, obj.GetNamespace()) {
 			continue
+		}
+		if c.Query("reduce") == "true" {
+			reduceResourceObject(h.name, items[i])
 		}
 		filterItems = append(filterItems, items[i])
 	}

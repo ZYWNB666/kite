@@ -130,6 +130,11 @@ func RegisterRoutes(group *gin.RouterGroup) {
 	{
 		otherGroup.GET("", crHandler.List)
 		otherGroup.GET("/_all", crHandler.List)
+		// A static route prevents /_all/_watch from being handled as /_all/:name.
+		otherGroup.GET("/_all/_watch", func(c *gin.Context) {
+			c.Params = append(c.Params, gin.Param{Key: "namespace", Value: common.AllNamespaces})
+			crHandler.Watch(c)
+		})
 		otherGroup.GET("/_all/:name", crHandler.Get)
 		otherGroup.GET("/_all/:name/history", crHandler.ListHistory)
 		otherGroup.GET("/_all/:name/describe", crHandler.Describe)

@@ -6,6 +6,14 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/zxh326/kite/pkg/cluster"
+	"github.com/zxh326/kite/pkg/common"
+	"github.com/zxh326/kite/pkg/kube"
+	"github.com/zxh326/kite/pkg/model"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	ctrlfake "sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 func TestUrl2NamespaceResource(t *testing.T) {
@@ -181,6 +189,139 @@ func TestUrl2NamespaceResourceUsesMatchedGinRoute(t *testing.T) {
 			}
 			if got := recorder.Header().Get("X-Test-Resource-Name"); got != tt.wantResourceName {
 				t.Fatalf("resource name = %q, want %q", got, tt.wantResourceName)
+			}
+		})
+	}
+}
+
+func TestRBACMiddlewareAuthorizesRequestedNamespacesForNamespacedCRD(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	const crdName = "leaderworkersets.leaderworkerset.x-k8s.io"
+
+	tests := []struct {
+		name           string
+		method         string
+		scope          apiextensionsv1.ResourceScope
+		roleNamespaces []string
+		roleVerbs      []string
+		query          string
+		wantStatus     int
+	}{
+		{
+			name:           "allows every explicitly authorized namespace",
+			method:         http.MethodGet,
+			scope:          apiextensionsv1.NamespaceScoped,
+			roleNamespaces: []string{"team-a", "team-b"},
+			roleVerbs:      []string{"get"},
+			query:          "?namespaces=team-a,team-b",
+			wantStatus:     http.StatusNoContent,
+		},
+		{
+			name:           "rejects when one requested namespace is unauthorized",
+			method:         http.MethodGet,
+			scope:          apiextensionsv1.NamespaceScoped,
+			roleNamespaces: []string{"team-a"},
+			roleVerbs:      []string{"get"},
+			query:          "?namespaces=team-a,team-b",
+			wantStatus:     http.StatusForbidden,
+		},
+		{
+			name:           "retains all-namespaces authorization without a selection",
+			method:         http.MethodGet,
+			scope:          apiextensionsv1.NamespaceScoped,
+			roleNamespaces: []string{"team-a", "team-b"},
+			roleVerbs:      []string{"get"},
+			wantStatus:     http.StatusForbidden,
+		},
+		{
+			name:           "does not bypass cluster-scoped authorization",
+			method:         http.MethodGet,
+			scope:          apiextensionsv1.ClusterScoped,
+			roleNamespaces: []string{"team-a"},
+			roleVerbs:      []string{"get"},
+			query:          "?namespaces=team-a",
+			wantStatus:     http.StatusForbidden,
+		},
+		{
+			name:           "retains wildcard all-namespaces authorization",
+			method:         http.MethodGet,
+			scope:          apiextensionsv1.NamespaceScoped,
+			roleNamespaces: []string{"*"},
+			roleVerbs:      []string{"get"},
+			wantStatus:     http.StatusNoContent,
+		},
+		{
+			name:           "does not apply namespace selection to writes",
+			method:         http.MethodPost,
+			scope:          apiextensionsv1.NamespaceScoped,
+			roleNamespaces: []string{"team-a"},
+			roleVerbs:      []string{"create"},
+			query:          "?namespaces=team-a",
+			wantStatus:     http.StatusForbidden,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scheme := runtime.NewScheme()
+			if err := apiextensionsv1.AddToScheme(scheme); err != nil {
+				t.Fatalf("AddToScheme() error = %v", err)
+			}
+			crd := &apiextensionsv1.CustomResourceDefinition{
+				ObjectMeta: metav1.ObjectMeta{Name: crdName},
+				Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+					Group: "leaderworkerset.x-k8s.io",
+					Names: apiextensionsv1.CustomResourceDefinitionNames{
+						Plural: "leaderworkersets",
+						Kind:   "LeaderWorkerSet",
+					},
+					Scope: tt.scope,
+					Versions: []apiextensionsv1.CustomResourceDefinitionVersion{{
+						Name: "v1", Served: true, Storage: true,
+					}},
+				},
+			}
+			user := model.User{
+				Username: "alice",
+				Roles: []common.Role{{
+					Name:       "lws-reader",
+					Clusters:   []string{"test"},
+					Resources:  []string{crdName},
+					Namespaces: tt.roleNamespaces,
+					Verbs:      tt.roleVerbs,
+				}},
+			}
+			clientSet := &cluster.ClientSet{
+				Name: "test",
+				K8sClient: &kube.K8sClient{
+					Client: ctrlfake.NewClientBuilder().WithScheme(scheme).WithObjects(crd).Build(),
+				},
+			}
+
+			router := gin.New()
+			router.Use(func(c *gin.Context) {
+				c.Set("user", user)
+				c.Set("cluster", clientSet)
+				c.Next()
+			})
+			router.Use(RBACMiddleware())
+			router.GET("/api/v1/:crd/_all/_watch", func(c *gin.Context) {
+				c.Status(http.StatusNoContent)
+			})
+			router.POST("/api/v1/:crd/_all/_watch", func(c *gin.Context) {
+				c.Status(http.StatusNoContent)
+			})
+
+			recorder := httptest.NewRecorder()
+			request := httptest.NewRequest(
+				tt.method,
+				"/api/v1/"+crdName+"/_all/_watch"+tt.query,
+				nil,
+			)
+			router.ServeHTTP(recorder, request)
+
+			if recorder.Code != tt.wantStatus {
+				t.Fatalf("status = %d, want %d; body = %q", recorder.Code, tt.wantStatus, recorder.Body.String())
 			}
 		})
 	}

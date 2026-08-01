@@ -159,6 +159,21 @@ func (h *CRHandler) List(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	filtered := make([]unstructured.Unstructured, 0, len(crList.Items))
+	for i := range crList.Items {
+		item := &crList.Items[i]
+		if crd.Spec.Scope == apiextensionsv1.NamespaceScoped && !matchesRequestedNamespace(c, item.GetNamespace()) {
+			continue
+		}
+		item.SetManagedFields(nil)
+		annotations := item.GetAnnotations()
+		if annotations != nil {
+			delete(annotations, common.KubectlAnnotation)
+			item.SetAnnotations(annotations)
+		}
+		filtered = append(filtered, *item)
+	}
+	crList.Items = filtered
 
 	c.JSON(http.StatusOK, crList)
 }
