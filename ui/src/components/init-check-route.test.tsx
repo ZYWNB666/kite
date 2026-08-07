@@ -84,4 +84,35 @@ describe('InitCheckRoute', () => {
     expect(screen.getByText('setup')).toBeInTheDocument()
     expect(mockNavigate).not.toHaveBeenCalled()
   })
+
+  it('shows a retryable error instead of redirecting when the initial check fails', () => {
+    mockUseInitCheck.mockReturnValue({
+      data: undefined,
+      error: new Error('database unavailable'),
+      isError: true,
+      isLoading: false,
+      refetch: vi.fn(),
+    })
+
+    render(<InitCheckRoute>setup</InitCheckRoute>)
+
+    expect(screen.getByRole('button')).toBeInTheDocument()
+    expect(mockNavigate).not.toHaveBeenCalled()
+    expect(screen.queryByText('setup')).not.toBeInTheDocument()
+  })
+
+  it('keeps rendering children when a background init check fails', () => {
+    mockUseInitCheck.mockReturnValue({
+      data: { initialized: true },
+      error: new Error('database unavailable'),
+      isError: true,
+      isLoading: false,
+      refetch: vi.fn(),
+    })
+
+    render(<InitCheckRoute>setup</InitCheckRoute>)
+
+    expect(screen.getByText('setup')).toBeInTheDocument()
+    expect(mockNavigate).not.toHaveBeenCalled()
+  })
 })

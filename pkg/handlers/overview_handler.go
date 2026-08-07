@@ -10,6 +10,7 @@ import (
 	"github.com/zxh326/kite/pkg/utils"
 	"golang.org/x/sync/errgroup"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/klog/v2"
 )
 
 type OverviewData struct {
@@ -166,17 +167,33 @@ func GetOverview(c *gin.Context) {
 	c.JSON(http.StatusOK, overview)
 }
 
+var (
+	countUsersForInitCheck    = model.CountUsers
+	countClustersForInitCheck = model.CountClusters
+)
+
 func InitCheck(c *gin.Context) {
 	step := 0
-	uc, _ := model.CountUsers()
+	uc, err := countUsersForInitCheck()
+	if err != nil {
+		klog.Errorf("Failed to count users during initialization check: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check initialization status"})
+		return
+	}
 	if uc == 0 && !common.AnonymousUserEnabled {
 		c.SetCookie("auth_token", "", -1, "/", "", false, true)
 		c.JSON(http.StatusOK, gin.H{"initialized": false, "step": step})
+		return
 	}
 	if uc > 0 || common.AnonymousUserEnabled {
 		step++
 	}
-	cc, _ := model.CountClusters()
+	cc, err := countClustersForInitCheck()
+	if err != nil {
+		klog.Errorf("Failed to count clusters during initialization check: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check initialization status"})
+		return
+	}
 	if cc > 0 {
 		step++
 	}
