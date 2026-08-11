@@ -40,7 +40,7 @@ func TestGetUserRoles(t *testing.T) {
 	user := model.User{Roles: userRoles}
 	roles = GetUserRoles(user)
 	if len(roles) != 1 || roles[0].Name != "direct" {
-		t.Fatalf("expected direct roles to be returned, got %#v", roles)
+		t.Fatalf("expected request-scoped roles to be returned, got %#v", roles)
 	}
 }
 
@@ -99,6 +99,21 @@ func TestMatch(t *testing.T) {
 				t.Fatalf("match() = %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestMatchResourceNameUsesLiteralNames(t *testing.T) {
+	if !matchResourceName([]string{"gateway.prod"}, "gateway.prod") {
+		t.Fatal("expected exact resource name to match")
+	}
+	if matchResourceName([]string{"gateway.prod"}, "gatewayXprod") {
+		t.Fatal("resource names must not be interpreted as regular expressions")
+	}
+	if matchResourceName([]string{".*"}, "anything") {
+		t.Fatal("resource names must not accept regular-expression wildcards")
+	}
+	if !matchResourceName([]string{"*"}, "anything") {
+		t.Fatal("expected explicit wildcard to match")
 	}
 }
 

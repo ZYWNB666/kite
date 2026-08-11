@@ -295,9 +295,11 @@ func canStreamWatchObject(c *gin.Context, resource string, obj *unstructured.Uns
 		return rbac.CanAccessNamespace(user, cs.Name, obj.GetName())
 	}
 	if c.Param("namespace") == common.AllNamespaces && obj.GetNamespace() != "" {
-		return rbac.CanAccessNamespace(user, cs.Name, obj.GetNamespace())
+		if !rbac.CanAccessNamespace(user, cs.Name, obj.GetNamespace()) {
+			return false
+		}
 	}
-	return true
+	return canReadResourceObject(user, resource, cs.Name, obj.GetNamespace(), obj.GetName())
 }
 
 func writeSSE(c *gin.Context, event string, payload any) error {

@@ -92,7 +92,14 @@ export function RBACManagement() {
         cell: ({ row: { original: r } }) => (
           <div className="text-sm text-muted-foreground">
             {r.resources.length > 0 ? (
-              r.resources.join(', ')
+              <>
+                <div>{r.resources.join(', ')}</div>
+                {r.resourceNames && r.resourceNames.length > 0 && (
+                  <div className="text-xs">
+                    Names: {r.resourceNames.join(', ')}
+                  </div>
+                )}
+              </>
             ) : (
               <span className="text-xs text-muted-foreground">-</span>
             )}

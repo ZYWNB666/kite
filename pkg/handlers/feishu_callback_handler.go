@@ -58,6 +58,31 @@ func isApproverMatched(expectedUID string, candidates ...string) bool {
 	return false
 }
 
+func buildFeishuCardCallbackResponse(schema, toastType, toastContent string, card map[string]interface{}) gin.H {
+	toast := gin.H{
+		"type":    toastType,
+		"content": toastContent,
+	}
+	if schema == "2.0" {
+		return gin.H{
+			"toast": toast,
+			"card": gin.H{
+				"type": "raw",
+				"data": card,
+			},
+		}
+	}
+
+	// The legacy card.action.trigger_v1 response expects raw card fields at
+	// the response root rather than under card.data.
+	response := gin.H{}
+	for key, value := range card {
+		response[key] = value
+	}
+	response["toast"] = toast
+	return response
+}
+
 // isKiteAdminByOpenID looks up a kite user by Feishu open_id (stored in the
 // users.sub column for OAuth users) and checks whether the user has the admin role.
 func isKiteAdminByOpenID(openID string) (*model.User, bool) {
@@ -308,8 +333,6 @@ func HandleFeishuCardCallback(c *gin.Context) {
 		return
 	}
 
-	go updateCardToResult(req)
-
 	// Record audit for feishu callback actions
 	auditSource := "feishu_callback"
 	if isPrimaryApprover {
@@ -353,10 +376,12 @@ func HandleFeishuCardCallback(c *gin.Context) {
 	} else {
 		toastMsg = fmt.Sprintf("已拒绝 %s 的申请", req.RequesterName)
 	}
-	c.JSON(http.StatusOK, gin.H{"toast": map[string]interface{}{
-		"type":    "success",
-		"content": toastMsg,
-	}})
+	// Return the complete updated card in the callback response. Feishu requires
+	// immediate card updates to be returned synchronously; PATCHing the message
+	// concurrently with the callback can race with the client's interaction state
+	// and restore an older card that drops report links or request-specific fields.
+	card := buildAccessRequestResultCard(req)
+	c.JSON(http.StatusOK, buildFeishuCardCallbackResponse(cb.Schema, "success", toastMsg, card))
 }
 
 func localizeStatus(s string) string {

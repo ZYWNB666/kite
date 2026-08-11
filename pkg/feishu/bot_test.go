@@ -3,6 +3,7 @@ package feishu
 import (
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -69,4 +70,72 @@ func TestTextMessageIDs(t *testing.T) {
 	if err != nil || groupID != "group-text" {
 		t.Fatalf("SendText() = %q, %v", groupID, err)
 	}
+}
+
+func TestBuildResultCardKeepsRequestCardFields(t *testing.T) {
+	requestTypes := []RequestCardData{
+		{
+			RequestType: "full_update",
+			ReportLink:  "https://example.com/full-report/42",
+		},
+		{
+			RequestType: "canary_update",
+			ReportLink:  "https://example.com/canary-report/42",
+		},
+		{
+			RequestType:     "route_adjust",
+			TargetResources: []string{"route-a", "route-b"},
+		},
+	}
+	statuses := []string{"approved", "rejected", "withdrawn", "expired"}
+
+	for _, requestType := range requestTypes {
+		requestType := requestType
+		t.Run(requestType.RequestType, func(t *testing.T) {
+			requestType.RequestID = 42
+			requestType.RequesterName = "申请人"
+			requestType.Cluster = "yunqiao"
+			requestType.Namespace = "envoy-gateway-system"
+			requestType.DurationHours = 1
+			requestType.RiskLevel = "low"
+			requestType.Reason = "测试权限申请模板"
+			requestType.ApproverOpenID = "ou_approver"
+			requestType.ApproverName = "审批人"
+
+			requestFields := cardFields(t, BuildRequestCardFromData(requestType))
+			for _, status := range statuses {
+				t.Run(status, func(t *testing.T) {
+					resultCard := BuildResultCardFromData(requestType, status, "审批备注")
+					resultFields := cardFields(t, resultCard)
+					if !reflect.DeepEqual(resultFields, requestFields) {
+						t.Fatalf("result card fields changed:\nrequest: %#v\nresult:  %#v", requestFields, resultFields)
+					}
+
+					for _, element := range resultCard["elements"].([]interface{}) {
+						elementMap, ok := element.(map[string]interface{})
+						if ok && elementMap["tag"] == "action" {
+							t.Fatal("result card must not keep action buttons")
+						}
+					}
+				})
+			}
+		})
+	}
+}
+
+func cardFields(t *testing.T, card map[string]interface{}) []interface{} {
+	t.Helper()
+	elements, ok := card["elements"].([]interface{})
+	if !ok || len(elements) == 0 {
+		t.Fatalf("card elements = %#v, want a non-empty slice", card["elements"])
+	}
+	fieldElement, ok := elements[0].(map[string]interface{})
+	if !ok {
+		t.Fatalf("first card element = %#v, want map", elements[0])
+	}
+	fields, ok := fieldElement["fields"].([]interface{})
+	if !ok {
+		t.Fatalf("first card element fields = %#v, want slice", fieldElement["fields"])
+	}
+	return fields
 }

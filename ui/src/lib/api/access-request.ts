@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { apiClient } from '../api-client'
+import { CURRENT_CLUSTER_HEADER_KEY } from '../current-cluster'
 import { fetchAPI } from './shared'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -12,6 +13,14 @@ export type AccessRequestStatus =
   | 'withdrawn'
   | 'expired'
 
+export type RequestType = 'full_update' | 'canary_update' | 'route_adjust'
+
+export const REQUEST_TYPE_OPTIONS: { label: string; value: RequestType }[] = [
+  { label: '全量更新', value: 'full_update' },
+  { label: '灰度更新', value: 'canary_update' },
+  { label: '路由调整', value: 'route_adjust' },
+]
+
 export interface AccessRequest {
   id: number
   createdAt: string
@@ -20,6 +29,9 @@ export interface AccessRequest {
   requesterName: string
   cluster: string
   namespace: string
+  requestType: RequestType
+  reportLink?: string
+  targetResources?: string[]
   durationHours: number
   riskLevel: string
   reason: string
@@ -57,6 +69,9 @@ export interface FeishuSetting {
 export interface CreateAccessRequestBody {
   cluster: string
   namespaces: string[]
+  requestType: RequestType
+  reportLink?: string
+  targetResources?: string[]
   durationHours: number
   riskLevel: string
   reason: string
@@ -82,7 +97,9 @@ export const fetchMyAccessRequests = (): Promise<{
 export const createAccessRequest = (
   body: CreateAccessRequestBody
 ): Promise<AccessRequest> =>
-  apiClient.post<AccessRequest>('/access-requests', body)
+  apiClient.post<AccessRequest>('/access-requests', body, {
+    headers: { [CURRENT_CLUSTER_HEADER_KEY]: body.cluster },
+  })
 
 export const withdrawAccessRequest = (id: number): Promise<AccessRequest> =>
   apiClient.put<AccessRequest>(`/access-requests/${id}/withdraw`, {})

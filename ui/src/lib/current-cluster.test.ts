@@ -56,6 +56,12 @@ describe('tab-scoped cluster context', () => {
     expect(params.getAll('x-cluster-name')).toEqual(['cluster-b'])
   })
 
+  it('does not overwrite an explicitly selected request cluster', () => {
+    const headers = new Headers({ 'x-cluster-name': 'cluster-b' })
+    appendCurrentClusterHeader(headers)
+    expect(headers.get('x-cluster-name')).toBe('cluster-b')
+  })
+
   it('creates a same-origin URL for a different cluster', () => {
     expect(withClusterHref('/nodes?view=wide#top', 'cluster-b')).toBe(
       '/nodes?view=wide&cluster=cluster-b#top'

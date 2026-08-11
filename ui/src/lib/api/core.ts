@@ -22,6 +22,7 @@ import {
 import { API_BASE_URL, apiClient } from '../api-client'
 import {
   appendCurrentClusterParam,
+  CURRENT_CLUSTER_HEADER_KEY,
   getClusterQueryKey,
 } from '../current-cluster'
 import { withSubPath } from '../subpath'
@@ -39,6 +40,7 @@ export const fetchResources = <T>(
     fieldSelector?: string
     reduce?: boolean
     namespaces?: string[]
+    cluster?: string
   }
 ): Promise<T> => {
   let endpoint = namespace ? `/${resource}/${namespace}` : `/${resource}`
@@ -67,7 +69,12 @@ export const fetchResources = <T>(
     endpoint += `?${params.toString()}`
   }
 
-  return fetchAPI<T>(endpoint)
+  return apiClient.get<T>(
+    endpoint,
+    opts?.cluster
+      ? { headers: { [CURRENT_CLUSTER_HEADER_KEY]: opts.cluster } }
+      : undefined
+  )
 }
 
 // Search API types
@@ -369,6 +376,7 @@ export const useResources = <T extends ResourceType>(
     disable?: boolean
     reduce?: boolean
     namespaces?: string[]
+    cluster?: string
   }
 ) => {
   return useQuery({
@@ -378,7 +386,8 @@ export const useResources = <T extends ResourceType>(
       options?.limit,
       options?.labelSelector,
       options?.fieldSelector,
-      options?.namespaces?.join(',')
+      options?.namespaces?.join(','),
+      options?.cluster
     ),
     queryFn: () => {
       return fetchResources<ResourcesTypeMap[T]>(resource, namespace, {
@@ -388,6 +397,7 @@ export const useResources = <T extends ResourceType>(
         fieldSelector: options?.fieldSelector,
         reduce: options?.reduce,
         namespaces: options?.namespaces,
+        cluster: options?.cluster,
       })
     },
     enabled: !options?.disable,

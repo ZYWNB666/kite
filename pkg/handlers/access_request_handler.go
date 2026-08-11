@@ -6,14 +6,17 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/zxh326/kite/pkg/cluster"
 	"github.com/zxh326/kite/pkg/feishu"
 	"github.com/zxh326/kite/pkg/model"
 	"github.com/zxh326/kite/pkg/rbac"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/klog/v2"
 )
 
@@ -32,13 +35,55 @@ var (
 // ─── Request/Response types ──────────────────────────────────────────────────
 
 type createAccessRequestBody struct {
-	Cluster       string   `json:"cluster" binding:"required"`
-	Namespaces    []string `json:"namespaces"`
-	DurationHours int      `json:"durationHours" binding:"required,min=1,max=720"`
-	RiskLevel     string   `json:"riskLevel" binding:"required,oneof=low medium high"`
-	Reason        string   `json:"reason" binding:"required"`
-	ApproverUID   string   `json:"approverUid" binding:"required"`
-	ApproverName  string   `json:"approverName"`
+	Cluster         string   `json:"cluster" binding:"required"`
+	Namespaces      []string `json:"namespaces"`
+	RequestType     string   `json:"requestType" binding:"required,oneof=full_update canary_update route_adjust"`
+	ReportLink      string   `json:"reportLink"`
+	TargetResources []string `json:"targetResources"`
+	DurationHours   int      `json:"durationHours" binding:"required,min=1,max=720"`
+	RiskLevel       string   `json:"riskLevel" binding:"required,oneof=low medium high"`
+	Reason          string   `json:"reason" binding:"required"`
+	ApproverUID     string   `json:"approverUid" binding:"required"`
+	ApproverName    string   `json:"approverName"`
+}
+
+func normalizeReportLink(raw string) (string, error) {
+	link := strings.TrimSpace(raw)
+	if link == "" {
+		return "", fmt.Errorf("测试报告链接不能为空")
+	}
+	if len(link) > 500 {
+		return "", fmt.Errorf("测试报告链接不能超过 500 个字符")
+	}
+	parsed, err := url.ParseRequestURI(link)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return "", fmt.Errorf("测试报告链接必须是有效的 HTTP(S) URL")
+	}
+	return link, nil
+}
+
+func normalizeTargetResources(resources []string) ([]string, error) {
+	if len(resources) == 0 {
+		return nil, fmt.Errorf("请至少选择一个网关配置 (configmap)")
+	}
+	if len(resources) > 100 {
+		return nil, fmt.Errorf("一次最多选择 100 个网关配置 (configmap)")
+	}
+
+	seen := make(map[string]struct{}, len(resources))
+	result := make([]string, 0, len(resources))
+	for _, raw := range resources {
+		name := strings.TrimSpace(raw)
+		if errs := validation.IsDNS1123Subdomain(name); len(errs) > 0 {
+			return nil, fmt.Errorf("无效的 ConfigMap 名称 %q: %s", raw, strings.Join(errs, "; "))
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		result = append(result, name)
+	}
+	return result, nil
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -63,7 +108,13 @@ func sendRequestCard(req *model.AccessRequest) {
 	if requesterName == "" {
 		requesterName = fmt.Sprintf("用户#%d", req.RequesterID)
 	}
-	card := feishu.BuildRequestCard(req.ID, requesterName, req.Cluster, req.Namespace, req.DurationHours, req.RiskLevel, req.Reason, req.ApproverUID, req.ApproverName)
+	card := feishu.BuildRequestCardFromData(feishu.RequestCardData{
+		RequestID: req.ID, RequesterName: requesterName, Cluster: req.Cluster,
+		Namespace: req.Namespace, RequestType: req.RequestType, ReportLink: req.ReportLink,
+		TargetResources: req.TargetResources, DurationHours: req.DurationHours,
+		RiskLevel: req.RiskLevel, Reason: req.Reason,
+		ApproverOpenID: req.ApproverUID, ApproverName: req.ApproverName,
+	})
 	msgID, err := bot.SendCard(setting.GroupChatID, card)
 	if err != nil {
 		klog.Warningf("access_request: failed to send feishu card for request %d: %v", req.ID, err)
@@ -75,21 +126,67 @@ func sendRequestCard(req *model.AccessRequest) {
 	}
 }
 
-// createTempRole creates a temporary Kite role granting full access to the requested namespace.
-func createTempRole(req *model.AccessRequest) error {
-	roleName := fmt.Sprintf("temp-access-req-%d", req.ID)
-	namespaces := strings.Split(req.Namespace, ",")
-	cluster := req.Cluster
-	if cluster == "" {
-		cluster = "*"
+// buildTempRole builds a least-privilege role from an access request. Unknown or
+// incomplete request data must fail closed instead of falling back to wildcard
+// permissions.
+func buildTempRole(req *model.AccessRequest) (*model.Role, error) {
+	if req == nil {
+		return nil, fmt.Errorf("access request is nil")
 	}
+	if req.ExpiresAt == nil {
+		return nil, fmt.Errorf("access request %d has no expiry", req.ID)
+	}
+	clusterName := strings.TrimSpace(req.Cluster)
+	if clusterName == "" {
+		return nil, fmt.Errorf("access request %d has no cluster", req.ID)
+	}
+
+	roleName := fmt.Sprintf("temp-access-req-%d", req.ID)
+	namespaceNames := make([]string, 0)
+	for _, namespace := range strings.Split(req.Namespace, ",") {
+		if namespace = strings.TrimSpace(namespace); namespace != "" {
+			namespaceNames = append(namespaceNames, namespace)
+		}
+	}
+	if len(namespaceNames) == 0 {
+		return nil, fmt.Errorf("access request %d has no namespace", req.ID)
+	}
+
 	role := &model.Role{
 		Name:        roleName,
-		Description: fmt.Sprintf("临时授权 #%d: 用户 %s 访问 %s/%s (过期: %s)", req.ID, req.RequesterName, cluster, req.Namespace, req.ExpiresAt.Format("2006-01-02 15:04")),
-		Clusters:    []string{cluster},
-		Resources:   []string{"*"},
-		Namespaces:  namespaces,
-		Verbs:       []string{"*"},
+		Description: fmt.Sprintf("临时授权 #%d: 用户 %s 访问 %s/%s (过期: %s)", req.ID, req.RequesterName, clusterName, req.Namespace, req.ExpiresAt.Format("2006-01-02 15:04")),
+		Clusters:    []string{clusterName},
+		Namespaces:  namespaceNames,
+	}
+
+	switch req.RequestType {
+	case model.RequestTypeRouteAdjust:
+		if len(namespaceNames) != 1 || namespaceNames[0] != "envoy-gateway-system" {
+			return nil, fmt.Errorf("route adjustment request %d has invalid namespace %q", req.ID, req.Namespace)
+		}
+		targetResources, err := normalizeTargetResources([]string(req.TargetResources))
+		if err != nil {
+			return nil, fmt.Errorf("route adjustment request %d: %w", req.ID, err)
+		}
+		// RouteAdjust: only configmaps with resourceNames, only create/update/patch (no delete)
+		role.Resources = []string{"configmaps"}
+		role.ResourceNames = model.SliceString(targetResources)
+		role.Verbs = []string{"get", "list", "create", "update", "patch"}
+	case model.RequestTypeFullUpdate, model.RequestTypeCanaryUpdate:
+		// FullUpdate / CanaryUpdate retain full access within the requested namespace.
+		role.Resources = []string{"*"}
+		role.Verbs = []string{"*"}
+	default:
+		return nil, fmt.Errorf("access request %d has unsupported request type %q", req.ID, req.RequestType)
+	}
+	return role, nil
+}
+
+// createTempRole creates and assigns a temporary Kite role scoped to the request type.
+func createTempRole(req *model.AccessRequest) error {
+	role, err := buildTempRole(req)
+	if err != nil {
+		return err
 	}
 	if err := model.DB.Create(role).Error; err != nil {
 		return fmt.Errorf("create temp role: %w", err)
@@ -103,12 +200,52 @@ func createTempRole(req *model.AccessRequest) error {
 		_ = model.DB.Delete(role).Error
 		return fmt.Errorf("find requester: %w", err)
 	}
-	if err := model.AddRoleAssignment(roleName, model.SubjectTypeUser, user.Username); err != nil {
+	if err := model.AddRoleAssignment(role.Name, model.SubjectTypeUser, user.Username); err != nil {
 		_ = model.DB.Delete(role).Error
 		return fmt.Errorf("assign role: %w", err)
 	}
 	rbac.TriggerSync()
 	return nil
+}
+
+// reconcileActiveRouteAdjustmentRoles repairs roles created by older versions
+// that granted wildcard permissions for route-adjustment requests. It only
+// touches active roles that are linked to an approved route-adjustment request.
+func reconcileActiveRouteAdjustmentRoles() {
+	var requests []model.AccessRequest
+	if err := model.DB.Where(
+		"status = ? AND request_type = ? AND role_id IS NOT NULL",
+		model.AccessRequestApproved,
+		model.RequestTypeRouteAdjust,
+	).Find(&requests).Error; err != nil {
+		klog.Warningf("access_request: failed to find route adjustment roles to reconcile: %v", err)
+		return
+	}
+
+	repaired := 0
+	for i := range requests {
+		req := &requests[i]
+		desired, err := buildTempRole(req)
+		if err != nil {
+			klog.Warningf("access_request: refusing to reconcile invalid request %d: %v", req.ID, err)
+			continue
+		}
+		result := model.DB.Model(&model.Role{}).
+			Where("id = ?", *req.RoleID).
+			Select("Clusters", "Namespaces", "Resources", "ResourceNames", "Verbs").
+			Updates(desired)
+		if result.Error != nil {
+			klog.Warningf("access_request: failed to reconcile role %d for request %d: %v", *req.RoleID, req.ID, result.Error)
+			continue
+		}
+		if result.RowsAffected > 0 {
+			repaired++
+		}
+	}
+	if repaired > 0 {
+		klog.Infof("access_request: reconciled %d route adjustment role(s) to selected ConfigMaps", repaired)
+		rbac.TriggerSync()
+	}
 }
 
 // deleteTempRole removes the temporary role (and cascades to RoleAssignment).
@@ -150,16 +287,25 @@ func recordAccessRequestAuditByID(req *model.AccessRequest, action string, opera
 	}
 }
 
+func buildAccessRequestResultCard(req *model.AccessRequest) map[string]interface{} {
+	requesterName := req.RequesterName
+	if requesterName == "" {
+		requesterName = fmt.Sprintf("用户#%d", req.RequesterID)
+	}
+	return feishu.BuildResultCardFromData(feishu.RequestCardData{
+		RequestID: req.ID, RequesterName: requesterName, Cluster: req.Cluster,
+		Namespace: req.Namespace, RequestType: req.RequestType, ReportLink: req.ReportLink,
+		TargetResources: req.TargetResources, DurationHours: req.DurationHours,
+		RiskLevel: req.RiskLevel, Reason: req.Reason, ApproverName: req.ApproverName,
+	}, req.Status, req.ReviewNote)
+}
+
 func updateCardToResult(req *model.AccessRequest) {
 	bot, setting, err := getFeishuBot()
 	if err != nil || bot == nil || req.MessageID == "" || setting.GroupChatID == "" {
 		return
 	}
-	requesterName := req.RequesterName
-	if requesterName == "" {
-		requesterName = fmt.Sprintf("用户#%d", req.RequesterID)
-	}
-	card := feishu.BuildResultCard(req.ID, requesterName, req.Cluster, req.Namespace, req.DurationHours, req.RiskLevel, req.Reason, req.ApproverName, req.Status, req.ReviewNote)
+	card := buildAccessRequestResultCard(req)
 	if err := bot.PatchCard(req.MessageID, card); err != nil {
 		klog.Warningf("access_request: failed to update card for request %d: %v", req.ID, err)
 	}
@@ -180,9 +326,53 @@ func CreateAccessRequest(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if len(body.Namespaces) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "at least one namespace is required"})
+	selectedClusterValue, exists := c.Get("cluster")
+	selectedCluster, ok := selectedClusterValue.(*cluster.ClientSet)
+	if !exists || !ok || selectedCluster == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "申请集群上下文缺失"})
 		return
+	}
+	if body.Cluster != selectedCluster.Name {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "申请集群与请求集群不一致"})
+		return
+	}
+
+	// Type-specific validation
+	switch body.RequestType {
+	case model.RequestTypeFullUpdate:
+		reportLink, err := normalizeReportLink(body.ReportLink)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		body.ReportLink = reportLink
+		body.TargetResources = nil
+		if len(body.Namespaces) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "at least one namespace is required"})
+			return
+		}
+	case model.RequestTypeCanaryUpdate:
+		reportLink, err := normalizeReportLink(body.ReportLink)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		body.ReportLink = reportLink
+		body.TargetResources = nil
+		if len(body.Namespaces) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "at least one namespace is required"})
+			return
+		}
+	case model.RequestTypeRouteAdjust:
+		targetResources, err := normalizeTargetResources(body.TargetResources)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		body.TargetResources = targetResources
+		body.ReportLink = ""
+		// Force namespace to envoy-gateway-system regardless of user selection
+		body.Namespaces = []string{"envoy-gateway-system"}
 	}
 
 	// Validate approver is in the configured list
@@ -212,16 +402,19 @@ func CreateAccessRequest(c *gin.Context) {
 	}
 
 	req := &model.AccessRequest{
-		RequesterID:   currentUser.ID,
-		RequesterName: requesterName,
-		Cluster:       body.Cluster,
-		Namespace:     strings.Join(body.Namespaces, ","),
-		DurationHours: body.DurationHours,
-		RiskLevel:     body.RiskLevel,
-		Reason:        body.Reason,
-		ApproverUID:   body.ApproverUID,
-		ApproverName:  resolvedApproverName,
-		Status:        model.AccessRequestPending,
+		RequesterID:     currentUser.ID,
+		RequesterName:   requesterName,
+		Cluster:         body.Cluster,
+		Namespace:       strings.Join(body.Namespaces, ","),
+		RequestType:     body.RequestType,
+		ReportLink:      body.ReportLink,
+		TargetResources: model.SliceString(body.TargetResources),
+		DurationHours:   body.DurationHours,
+		RiskLevel:       body.RiskLevel,
+		Reason:          body.Reason,
+		ApproverUID:     body.ApproverUID,
+		ApproverName:    resolvedApproverName,
+		Status:          model.AccessRequestPending,
 	}
 	if err := model.CreateAccessRequest(req); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create request"})
@@ -318,7 +511,13 @@ func RemindAccessRequest(c *gin.Context) {
 	if requesterName == "" {
 		requesterName = fmt.Sprintf("用户#%d", req.RequesterID)
 	}
-	card := feishu.BuildReminderCard(req.ID, requesterName, req.Cluster, req.Namespace, req.DurationHours, req.RiskLevel, req.Reason, req.ApproverUID, req.ApproverName)
+	card := feishu.BuildReminderCardFromData(feishu.RequestCardData{
+		RequestID: req.ID, RequesterName: requesterName, Cluster: req.Cluster,
+		Namespace: req.Namespace, RequestType: req.RequestType, ReportLink: req.ReportLink,
+		TargetResources: req.TargetResources, DurationHours: req.DurationHours,
+		RiskLevel: req.RiskLevel, Reason: req.Reason,
+		ApproverOpenID: req.ApproverUID, ApproverName: req.ApproverName,
+	})
 	msgID, err := bot.SendCard(setting.GroupChatID, card)
 	if err != nil {
 		klog.Warningf("access_request: failed to send reminder for request %d: %v", req.ID, err)
@@ -561,6 +760,7 @@ func StartAccessRequestExpiryWorker() {
 		defer ticker.Stop()
 
 		// Run immediately so restart recovery does not wait for the first tick.
+		reconcileActiveRouteAdjustmentRoles()
 		runAccessRequestMaintenanceSafely()
 		for {
 			select {

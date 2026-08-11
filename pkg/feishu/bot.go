@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -299,117 +300,199 @@ func (c *BotClient) SendText(chatID, text string) (string, error) {
 	return result.Data.MessageID, nil
 }
 
-// BuildRequestCard creates the interactive card payload for a new access request.
-func BuildRequestCard(requestID uint, requesterName, cluster, namespace string, durationHours int, riskLevel, reason, approverOpenID, approverName string) map[string]interface{} {
-	durationStr := formatDuration(durationHours)
-	riskStr := formatRiskLevel(riskLevel)
-	atMention := fmt.Sprintf(`<at id="%s">%s</at>`, approverOpenID, approverName)
+// RequestCardData holds all optional fields for building richer request cards.
+type RequestCardData struct {
+	RequestID       uint
+	RequesterName   string
+	Cluster         string
+	Namespace       string
+	RequestType     string // "full_update" | "canary_update" | "route_adjust" | ""
+	ReportLink      string
+	TargetResources []string
+	DurationHours   int
+	RiskLevel       string
+	Reason          string
+	ApproverOpenID  string
+	ApproverName    string
+}
+
+// BuildRequestCardFromData creates the interactive card payload for a new access request.
+func BuildRequestCardFromData(d RequestCardData) map[string]interface{} {
+	durationStr := formatDuration(d.DurationHours)
+	riskStr := formatRiskLevel(d.RiskLevel)
+	atMention := fmt.Sprintf(`<at id="%s">%s</at>`, d.ApproverOpenID, d.ApproverName)
+
+	titleSuffix, template, noteText := requestCardTypeInfo(d.RequestType)
+
+	fields := []interface{}{
+		map[string]interface{}{
+			"is_short": true,
+			"text": map[string]interface{}{
+				"tag":     "lark_md",
+				"content": fmt.Sprintf("**申请人**\n%s", d.RequesterName),
+			},
+		},
+		map[string]interface{}{
+			"is_short": true,
+			"text": map[string]interface{}{
+				"tag":     "lark_md",
+				"content": fmt.Sprintf("**集群**\n%s", d.Cluster),
+			},
+		},
+		map[string]interface{}{
+			"is_short": true,
+			"text": map[string]interface{}{
+				"tag":     "lark_md",
+				"content": fmt.Sprintf("**命名空间**\n%s", d.Namespace),
+			},
+		},
+		map[string]interface{}{
+			"is_short": true,
+			"text": map[string]interface{}{
+				"tag":     "lark_md",
+				"content": fmt.Sprintf("**申请时长**\n%s", durationStr),
+			},
+		},
+		map[string]interface{}{
+			"is_short": true,
+			"text": map[string]interface{}{
+				"tag":     "lark_md",
+				"content": fmt.Sprintf("**预估风险**\n%s", riskStr),
+			},
+		},
+	}
+
+	// Add report link as full-width field if present
+	if d.ReportLink != "" {
+		linkLabel := "🔗 测试报告"
+		if d.RequestType == "full_update" {
+			linkLabel = "🔗 灰度测试报告"
+		}
+		fields = append(fields, map[string]interface{}{
+			"is_short": false,
+			"text": map[string]interface{}{
+				"tag":     "lark_md",
+				"content": fmt.Sprintf("**%s**\n%s", linkLabel, d.ReportLink),
+			},
+		})
+	}
+
+	// Add target resources for route_adjust
+	if len(d.TargetResources) > 0 {
+		fields = append(fields, map[string]interface{}{
+			"is_short": false,
+			"text": map[string]interface{}{
+				"tag":     "lark_md",
+				"content": fmt.Sprintf("**目标配置**\n%s", strings.Join(d.TargetResources, "、")),
+			},
+		})
+	}
+
+	fields = append(fields, map[string]interface{}{
+		"is_short": false,
+		"text": map[string]interface{}{
+			"tag":     "lark_md",
+			"content": fmt.Sprintf("**申请原因**\n%s", d.Reason),
+		},
+	})
+
+	elements := []interface{}{
+		map[string]interface{}{
+			"tag":    "div",
+			"fields": fields,
+		},
+		map[string]interface{}{
+			"tag": "note",
+			"elements": []interface{}{
+				map[string]interface{}{
+					"tag":     "lark_md",
+					"content": fmt.Sprintf("申请编号 #%d · 审批人: %s%s", d.RequestID, atMention, noteText),
+				},
+			},
+		},
+		map[string]interface{}{
+			"tag": "action",
+			"actions": []interface{}{
+				map[string]interface{}{
+					"tag":  "button",
+					"type": "primary",
+					"text": map[string]interface{}{
+						"tag":     "plain_text",
+						"content": "✅ 批准",
+					},
+					"value": map[string]interface{}{
+						"action":     "approve",
+						"request_id": fmt.Sprintf("%d", d.RequestID),
+					},
+				},
+				map[string]interface{}{
+					"tag":  "button",
+					"type": "danger",
+					"text": map[string]interface{}{
+						"tag":     "plain_text",
+						"content": "❌ 拒绝",
+					},
+					"value": map[string]interface{}{
+						"action":     "reject",
+						"request_id": fmt.Sprintf("%d", d.RequestID),
+					},
+				},
+			},
+		},
+	}
+
 	return map[string]interface{}{
 		"config": map[string]interface{}{
 			"wide_screen_mode": true,
 			"update_multi":     true,
 		},
 		"header": map[string]interface{}{
-			"template": "blue",
+			"template": template,
 			"title": map[string]interface{}{
 				"tag":     "plain_text",
-				"content": "🔐 Kite 权限申请",
+				"content": fmt.Sprintf("🔐 Kite 权限申请%s", titleSuffix),
 			},
 		},
-		"elements": []interface{}{
-			map[string]interface{}{
-				"tag": "div",
-				"fields": []interface{}{
-					map[string]interface{}{
-						"is_short": true,
-						"text": map[string]interface{}{
-							"tag":     "lark_md",
-							"content": fmt.Sprintf("**申请人**\n%s", requesterName),
-						},
-					},
-					map[string]interface{}{
-						"is_short": true,
-						"text": map[string]interface{}{
-							"tag":     "lark_md",
-							"content": fmt.Sprintf("**集群**\n%s", cluster),
-						},
-					},
-					map[string]interface{}{
-						"is_short": true,
-						"text": map[string]interface{}{
-							"tag":     "lark_md",
-							"content": fmt.Sprintf("**命名空间**\n%s", namespace),
-						},
-					},
-					map[string]interface{}{
-						"is_short": true,
-						"text": map[string]interface{}{
-							"tag":     "lark_md",
-							"content": fmt.Sprintf("**申请时长**\n%s", durationStr),
-						},
-					},
-					map[string]interface{}{
-						"is_short": true,
-						"text": map[string]interface{}{
-							"tag":     "lark_md",
-							"content": fmt.Sprintf("**预估风险**\n%s", riskStr),
-						},
-					},
-					map[string]interface{}{
-						"is_short": false,
-						"text": map[string]interface{}{
-							"tag":     "lark_md",
-							"content": fmt.Sprintf("**申请原因**\n%s", reason),
-						},
-					},
-				},
-			},
-			map[string]interface{}{
-				"tag": "note",
-				"elements": []interface{}{
-					map[string]interface{}{
-						"tag":     "lark_md",
-						"content": fmt.Sprintf("申请编号 #%d · 审批人: %s", requestID, atMention),
-					},
-				},
-			},
-			map[string]interface{}{
-				"tag": "action",
-				"actions": []interface{}{
-					map[string]interface{}{
-						"tag":  "button",
-						"type": "primary",
-						"text": map[string]interface{}{
-							"tag":     "plain_text",
-							"content": "✅ 批准",
-						},
-						"value": map[string]interface{}{
-							"action":     "approve",
-							"request_id": fmt.Sprintf("%d", requestID),
-						},
-					},
-					map[string]interface{}{
-						"tag":  "button",
-						"type": "danger",
-						"text": map[string]interface{}{
-							"tag":     "plain_text",
-							"content": "❌ 拒绝",
-						},
-						"value": map[string]interface{}{
-							"action":     "reject",
-							"request_id": fmt.Sprintf("%d", requestID),
-						},
-					},
-				},
-			},
-		},
+		"elements": elements,
+	}
+}
+
+// BuildRequestCard creates the interactive card payload for a new access request.
+// Kept for backward compatibility — delegates to BuildRequestCardFromData.
+func BuildRequestCard(requestID uint, requesterName, cluster, namespace string, durationHours int, riskLevel, reason, approverOpenID, approverName string) map[string]interface{} {
+	return BuildRequestCardFromData(RequestCardData{
+		RequestID: requestID, RequesterName: requesterName, Cluster: cluster,
+		Namespace: namespace, DurationHours: durationHours, RiskLevel: riskLevel,
+		Reason: reason, ApproverOpenID: approverOpenID, ApproverName: approverName,
+	})
+}
+
+// requestCardTypeInfo returns title suffix, template color, and note suffix per request type.
+func requestCardTypeInfo(requestType string) (titleSuffix, template, noteSuffix string) {
+	switch requestType {
+	case "full_update":
+		return "· 全量更新", "blue", ""
+	case "canary_update":
+		return "· 灰度更新", "turquoise", ""
+	case "route_adjust":
+		return "· 路由调整", "violet", " · 仅配置增改查（禁删除）"
+	default:
+		return "", "blue", ""
 	}
 }
 
 // BuildResultCard creates the card to replace the action buttons after approval/rejection.
 func BuildResultCard(requestID uint, requesterName, cluster, namespace string, durationHours int, riskLevel, reason, approverName, status, note string) map[string]interface{} {
-	durationStr := formatDuration(durationHours)
-	riskStr := formatRiskLevel(riskLevel)
+	return BuildResultCardFromData(RequestCardData{
+		RequestID: requestID, RequesterName: requesterName, Cluster: cluster,
+		Namespace: namespace, DurationHours: durationHours, RiskLevel: riskLevel,
+		Reason: reason, ApproverName: approverName,
+	}, status, note)
+}
+
+// BuildResultCardFromData creates the result card with full request type support.
+func BuildResultCardFromData(d RequestCardData, status, note string) map[string]interface{} {
+	titleSuffix, _, _ := requestCardTypeInfo(d.RequestType)
 	var template, statusText string
 	switch status {
 	case "approved":
@@ -429,54 +512,22 @@ func BuildResultCard(requestID uint, requesterName, cluster, namespace string, d
 		statusText = status
 	}
 
-	elements := []interface{}{
-		map[string]interface{}{
-			"tag": "div",
-			"fields": []interface{}{
-				map[string]interface{}{
-					"is_short": true,
-					"text": map[string]interface{}{
-						"tag":     "lark_md",
-						"content": fmt.Sprintf("**申请人**\n%s", requesterName),
-					},
-				},
-				map[string]interface{}{
-					"is_short": true,
-					"text": map[string]interface{}{
-						"tag":     "lark_md",
-						"content": fmt.Sprintf("**集群**\n%s", cluster),
-					},
-				},
-				map[string]interface{}{
-					"is_short": true,
-					"text": map[string]interface{}{
-						"tag":     "lark_md",
-						"content": fmt.Sprintf("**命名空间**\n%s", namespace),
-					},
-				},
-				map[string]interface{}{
-					"is_short": true,
-					"text": map[string]interface{}{
-						"tag":     "lark_md",
-						"content": fmt.Sprintf("**申请时长**\n%s", durationStr),
-					},
-				},
-				map[string]interface{}{
-					"is_short": true,
-					"text": map[string]interface{}{
-						"tag":     "lark_md",
-						"content": fmt.Sprintf("**预估风险**\n%s", riskStr),
-					},
-				},
-				map[string]interface{}{
-					"is_short": false,
-					"text": map[string]interface{}{
-						"tag":     "lark_md",
-						"content": fmt.Sprintf("**申请原因**\n%s", reason),
-					},
-				},
-			},
-		},
+	// Reuse the request card as the single source of truth for labels, field order,
+	// links and request-type-specific content. A result card only changes the
+	// status header and replaces the pending note/actions with the result details.
+	card := BuildRequestCardFromData(d)
+	requestElements, _ := card["elements"].([]interface{})
+	elements := make([]interface{}, 0, len(requestElements))
+	for _, element := range requestElements {
+		elementMap, ok := element.(map[string]interface{})
+		if !ok {
+			elements = append(elements, element)
+			continue
+		}
+		if tag, _ := elementMap["tag"].(string); tag == "note" || tag == "action" {
+			continue
+		}
+		elements = append(elements, element)
 	}
 	if note != "" {
 		elements = append(elements, map[string]interface{}{
@@ -492,27 +543,38 @@ func BuildResultCard(requestID uint, requesterName, cluster, namespace string, d
 		"elements": []interface{}{
 			map[string]interface{}{
 				"tag":     "plain_text",
-				"content": fmt.Sprintf("申请编号 #%d · 审批人: %s", requestID, approverName),
+				"content": fmt.Sprintf("申请编号 #%d · 审批人: %s", d.RequestID, d.ApproverName),
 			},
 		},
 	})
-	return map[string]interface{}{
-		"config": map[string]interface{}{"wide_screen_mode": true, "update_multi": true},
-		"header": map[string]interface{}{
-			"template": template,
-			"title": map[string]interface{}{
-				"tag":     "plain_text",
-				"content": fmt.Sprintf("🔐 Kite 权限申请 · %s", statusText),
-			},
+	card["header"] = map[string]interface{}{
+		"template": template,
+		"title": map[string]interface{}{
+			"tag":     "plain_text",
+			"content": fmt.Sprintf("🔐 Kite 权限申请%s · %s", titleSuffix, statusText),
 		},
-		"elements": elements,
 	}
+	card["elements"] = elements
+	return card
 }
 
 // BuildReminderCard creates a reminder card for a pending request.
 func BuildReminderCard(requestID uint, requesterName, cluster, namespace string, durationHours int, riskLevel, reason, approverOpenID, approverName string) map[string]interface{} {
 	card := BuildRequestCard(requestID, requesterName, cluster, namespace, durationHours, riskLevel, reason, approverOpenID, approverName)
 	// Update header to indicate it's a reminder
+	card["header"] = map[string]interface{}{
+		"template": "orange",
+		"title": map[string]interface{}{
+			"tag":     "plain_text",
+			"content": "🔔 Kite 权限申请（催办）",
+		},
+	}
+	return card
+}
+
+// BuildReminderCardFromData creates a reminder card with full request type support.
+func BuildReminderCardFromData(d RequestCardData) map[string]interface{} {
+	card := BuildRequestCardFromData(d)
 	card["header"] = map[string]interface{}{
 		"template": "orange",
 		"title": map[string]interface{}{

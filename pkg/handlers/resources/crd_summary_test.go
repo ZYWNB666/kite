@@ -66,7 +66,13 @@ func TestListCRDSummariesExcludesLargeDefinitionFields(t *testing.T) {
 			Client: ctrlfake.NewClientBuilder().WithScheme(scheme).WithObjects(crd).Build(),
 		},
 	})
-	c.Set("user", model.User{})
+	c.Set("user", model.User{Roles: []common.Role{{
+		Name:       "test-admin",
+		Clusters:   []string{"*"},
+		Namespaces: []string{"*"},
+		Resources:  []string{"*"},
+		Verbs:      []string{"*"},
+	}}})
 
 	handler := NewGenericResourceHandler[
 		*apiextensionsv1.CustomResourceDefinition,

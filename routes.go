@@ -22,7 +22,7 @@ func setupAPIRouter(r *gin.RouterGroup, cm *cluster.ClusterManager) {
 
 	registerBaseRoutes(r, authHandler)
 	registerAuthRoutes(r, authHandler)
-	registerUserRoutes(r, authHandler)
+	registerUserRoutes(r, authHandler, cm)
 	registerAdminRoutes(r, authHandler, cm)
 	registerProtectedRoutes(r, authHandler, cm)
 }
@@ -51,7 +51,7 @@ func registerAuthRoutes(r *gin.RouterGroup, authHandler *auth.AuthHandler) {
 	authGroup.GET("/user", authHandler.RequireAuth(), authHandler.GetUser)
 }
 
-func registerUserRoutes(r *gin.RouterGroup, authHandler *auth.AuthHandler) {
+func registerUserRoutes(r *gin.RouterGroup, authHandler *auth.AuthHandler, cm *cluster.ClusterManager) {
 	userGroup := r.Group("/api/users")
 	userGroup.POST("/sidebar_preference", authHandler.RequireAuth(), handlers.UpdateSidebarPreference)
 
@@ -62,7 +62,7 @@ func registerUserRoutes(r *gin.RouterGroup, authHandler *auth.AuthHandler) {
 	arGroup := r.Group("/api/v1/access-requests")
 	arGroup.Use(authHandler.RequireAuth())
 	arGroup.GET("", handlers.ListMyAccessRequests)
-	arGroup.POST("", handlers.CreateAccessRequest)
+	arGroup.POST("", middleware.ClusterMiddleware(cm), handlers.CreateAccessRequest)
 	arGroup.PUT("/:id/withdraw", handlers.WithdrawAccessRequest)
 	arGroup.POST("/:id/remind", handlers.RemindAccessRequest)
 

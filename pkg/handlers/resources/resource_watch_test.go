@@ -310,7 +310,13 @@ func TestServeResourceWatchEndsAtConnectionLifetime(t *testing.T) {
 			WatchHub: hub,
 		},
 	})
-	c.Set("user", model.User{})
+	c.Set("user", model.User{Roles: []common.Role{{
+		Name:       "test-admin",
+		Clusters:   []string{"*"},
+		Namespaces: []string{"*"},
+		Resources:  []string{"*"},
+		Verbs:      []string{"*"},
+	}}})
 
 	started := time.Now()
 	serveResourceWatch(c, resourceWatchStreamOptions{

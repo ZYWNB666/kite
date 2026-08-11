@@ -53,11 +53,6 @@ func (h *ResourceApplyHandler) ApplyResource(c *gin.Context) {
 	}
 
 	resource := strings.ToLower(obj.GetKind()) + "s"
-	if !rbac.CanAccess(user, resource, "create", cs.Name, obj.GetNamespace()) {
-		c.JSON(http.StatusForbidden, gin.H{
-			"error": rbac.NoAccess(user.Key(), string(common.VerbCreate), resource, obj.GetNamespace(), cs.Name)})
-		return
-	}
 
 	ctx := c.Request.Context()
 
@@ -70,6 +65,22 @@ func (h *ResourceApplyHandler) ApplyResource(c *gin.Context) {
 		Name:      obj.GetName(),
 		Namespace: obj.GetNamespace(),
 	}, existingObj)
+	verb := string(common.VerbCreate)
+	switch {
+	case err == nil:
+		verb = string(common.VerbUpdate)
+	case apierrors.IsNotFound(err):
+		// Creating a new resource keeps the create verb.
+	default:
+		klog.Errorf("Failed to get resource before authorization: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get resource: " + err.Error()})
+		return
+	}
+	if !rbac.CanAccess(user, resource, verb, cs.Name, obj.GetNamespace(), obj.GetName()) {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": rbac.NoAccess(user.Key(), verb, resource, obj.GetNamespace(), cs.Name)})
+		return
+	}
 
 	defer func() {
 		previousYAML := []byte{}

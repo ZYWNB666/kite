@@ -202,6 +202,9 @@ func GetUserByUsername(username string) (*User, error) {
 // GetUserRolesFromDB retrieves all roles assigned to a user from the database.
 // This includes both direct user assignments and group assignments.
 func GetUserRolesFromDB(username string) ([]common.Role, error) {
+	if DB == nil {
+		return nil, fmt.Errorf("database not initialized")
+	}
 	type RoleWithAssignment struct {
 		Role
 		SubjectType string

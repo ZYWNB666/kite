@@ -153,22 +153,17 @@ func generateAccessUsageAnalysis(req *model.AccessRequest, histories []model.Res
 		return "", fmt.Errorf("创建 AI Agent 失败: %w", err)
 	}
 
-	systemPrompt := `你是 Kubernetes 安全审计助手。请根据用户在临时权限期间的操作记录，生成一份详细的使用总结。
+	systemPrompt := `你是 Kubernetes 安全审计助手。请根据用户在临时权限期间的操作记录，生成一份简洁的使用总结。
 
 要求：
-1. 概述用户执行了哪些类型的操作（创建、更新、删除等）及其数量
-2. 详细描述每个操作的具体内容：
-   - 对于 create/apply 操作：说明创建了什么资源，关键配置（镜像、副本数、端口、环境变量、资源限制等）
-   - 对于 update/patch 操作：对比变更前后的 YAML，明确指出具体改了哪些字段（如镜像版本、副本数、配置项等）
+1. 总结用户执行了哪些操作（创建、更新、删除等）及其数量
+2. 描述每个操作的具体内容：
+   - 对于 create/apply 操作：说明创建了什么资源
+   - 对于 update/patch 操作：说明改了哪些字段（如镜像版本、副本数、配置项等）
    - 对于 delete 操作：说明删除了什么资源
-3. 明确标注是否存在高危操作，包括但不限于：
-   - 删除操作（delete）
-   - 涉及 model-serving、envoy-gateway-system、kube-system等命名空间的操作
-   - AI 触发的自动操作
-   - 失败的操作
-   - 修改了安全相关字段（如 securityContext、hostNetwork、privileged 等）
-4. 如果存在高危操作，请在开头用 ⚠️ 标注
-5. 用中文回复，内容要详尽完整，不要省略操作细节`
+3. 指出每个操作对线上环境的影响和风险（如果有的话）
+4. 如涉及删除操作或高危变更，在开头用 ⚠️ 标注
+5. 用中文回复，内容简洁即可，不需要分析配置的合理性和改进建议`
 
 	userMessage := buildUsagePrompt(req, histories, stats)
 

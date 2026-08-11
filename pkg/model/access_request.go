@@ -19,40 +19,48 @@ const (
 	AccessSummaryFailed         = "failed"
 	AccessSummarySent           = "sent"
 	AccessSummaryFailedNotified = "failed_notified"
+
+	// Request types — drive different approval flows and temp role narrowing
+	RequestTypeFullUpdate   = "full_update"   // 全量更新: requires 灰度测试报告链接
+	RequestTypeCanaryUpdate = "canary_update" // 灰度更新: requires 测试报告链接
+	RequestTypeRouteAdjust  = "route_adjust"  // 路由调整: select CMs in envoy-gateway-system, no delete
 )
 
 // AccessRequest records a namespace permission request submitted by a user.
 type AccessRequest struct {
 	Model
-	RequesterID             uint       `json:"requesterId" gorm:"index;not null"`
-	RequesterName           string     `json:"requesterName" gorm:"type:varchar(100)"`
-	Cluster                 string     `json:"cluster" gorm:"type:varchar(255)"`
-	Namespace               string     `json:"namespace" gorm:"type:varchar(255);not null"`
-	DurationHours           int        `json:"durationHours" gorm:"not null"`
-	RiskLevel               string     `json:"riskLevel" gorm:"type:varchar(50);not null;default:'low'"`
-	Reason                  string     `json:"reason" gorm:"type:text"`
-	ApproverUID             string     `json:"approverUid" gorm:"type:varchar(255)"` // Feishu open_id of approver
-	ApproverName            string     `json:"approverName" gorm:"type:varchar(100)"`
-	Status                  string     `json:"status" gorm:"type:varchar(20);index;not null;default:'pending'"`
-	ExpiresAt               *time.Time `json:"expiresAt"`
-	ApprovedAt              *time.Time `json:"approvedAt"`                                                      // when the request was approved (for usage query)
-	EndedAt                 *time.Time `json:"endedAt"`                                                         // when access actually ended (scheduled expiry or manual revoke)
-	ExpiringSoonNotified    bool       `json:"expiringSoonNotified" gorm:"type:boolean;not null;default:false"` // whether the expiring-soon notification has been sent
-	MessageID               string     `json:"messageId" gorm:"type:varchar(255)"`                              // Feishu message_id for card update
-	RoleID                  *uint      `json:"roleId"`                                                          // temp role ID, deleted on revoke/expire
-	ReviewNote              string     `json:"reviewNote" gorm:"type:text"`
-	SummaryStatus           string     `json:"summaryStatus" gorm:"type:varchar(20);index"`
-	SummaryAttempts         int        `json:"summaryAttempts" gorm:"not null;default:0"`
-	SummaryAIAttempts       int        `json:"summaryAiAttempts" gorm:"not null;default:0"`
-	SummaryDeliveryAttempts int        `json:"summaryDeliveryAttempts" gorm:"not null;default:0"`
-	SummaryLastError        string     `json:"summaryLastError" gorm:"type:text"`
-	SummaryNextRetryAt      *time.Time `json:"summaryNextRetryAt" gorm:"index"`
-	SummaryClaimedAt        *time.Time `json:"summaryClaimedAt" gorm:"index"`
-	SummaryClaimToken       string     `json:"-" gorm:"type:varchar(64)"`
-	SummaryCompletedAt      *time.Time `json:"summaryCompletedAt"`
-	SummaryMessageID        string     `json:"summaryMessageId" gorm:"type:varchar(255)"`
-	SummaryContent          string     `json:"-" gorm:"type:text"`
-	SummaryStats            string     `json:"-" gorm:"type:text"`
+	RequesterID             uint        `json:"requesterId" gorm:"index;not null"`
+	RequesterName           string      `json:"requesterName" gorm:"type:varchar(100)"`
+	Cluster                 string      `json:"cluster" gorm:"type:varchar(255)"`
+	Namespace               string      `json:"namespace" gorm:"type:varchar(255);not null"`
+	RequestType             string      `json:"requestType" gorm:"type:varchar(30);not null;default:''"`
+	ReportLink              string      `json:"reportLink" gorm:"type:varchar(500)"` // 灰度/测试报告链接
+	TargetResources         SliceString `json:"targetResources" gorm:"type:text"`    // 路由调整的目标 ConfigMaps (JSON)
+	DurationHours           int         `json:"durationHours" gorm:"not null"`
+	RiskLevel               string      `json:"riskLevel" gorm:"type:varchar(50);not null;default:'low'"`
+	Reason                  string      `json:"reason" gorm:"type:text"`
+	ApproverUID             string      `json:"approverUid" gorm:"type:varchar(255)"` // Feishu open_id of approver
+	ApproverName            string      `json:"approverName" gorm:"type:varchar(100)"`
+	Status                  string      `json:"status" gorm:"type:varchar(20);index;not null;default:'pending'"`
+	ExpiresAt               *time.Time  `json:"expiresAt"`
+	ApprovedAt              *time.Time  `json:"approvedAt"`                                                      // when the request was approved (for usage query)
+	EndedAt                 *time.Time  `json:"endedAt"`                                                         // when access actually ended (scheduled expiry or manual revoke)
+	ExpiringSoonNotified    bool        `json:"expiringSoonNotified" gorm:"type:boolean;not null;default:false"` // whether the expiring-soon notification has been sent
+	MessageID               string      `json:"messageId" gorm:"type:varchar(255)"`                              // Feishu message_id for card update
+	RoleID                  *uint       `json:"roleId"`                                                          // temp role ID, deleted on revoke/expire
+	ReviewNote              string      `json:"reviewNote" gorm:"type:text"`
+	SummaryStatus           string      `json:"summaryStatus" gorm:"type:varchar(20);index"`
+	SummaryAttempts         int         `json:"summaryAttempts" gorm:"not null;default:0"`
+	SummaryAIAttempts       int         `json:"summaryAiAttempts" gorm:"not null;default:0"`
+	SummaryDeliveryAttempts int         `json:"summaryDeliveryAttempts" gorm:"not null;default:0"`
+	SummaryLastError        string      `json:"summaryLastError" gorm:"type:text"`
+	SummaryNextRetryAt      *time.Time  `json:"summaryNextRetryAt" gorm:"index"`
+	SummaryClaimedAt        *time.Time  `json:"summaryClaimedAt" gorm:"index"`
+	SummaryClaimToken       string      `json:"-" gorm:"type:varchar(64)"`
+	SummaryCompletedAt      *time.Time  `json:"summaryCompletedAt"`
+	SummaryMessageID        string      `json:"summaryMessageId" gorm:"type:varchar(255)"`
+	SummaryContent          string      `json:"-" gorm:"type:text"`
+	SummaryStats            string      `json:"-" gorm:"type:text"`
 }
 
 // FeishuNotificationSetting stores the Feishu bot configuration (singleton, id=1).

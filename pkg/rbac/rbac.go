@@ -140,13 +140,20 @@ func CanAccessNamespace(user model.User, cluster, name string) bool {
 	return false
 }
 
-// GetUserRoles returns all roles for a user/oidcGroups
+// GetUserRoles returns all roles for a user/oidcGroups.
+// If user.Roles is already populated (e.g. by auth middleware), it is returned
+// as-is for performance. Otherwise it falls back to querying DB + config.
 func GetUserRoles(user model.User) []common.Role {
-	// Only return cached roles if they exist and are non-empty
+	rolesMap := make(map[string]common.Role)
+
+	// Only use cached roles if they exist AND were explicitly set (non-empty)
+	// AND the user doesn't need to pick up newly approved temp roles.
+	// In practice, the auth middleware sets user.Roles on every request via
+	// RequireAuth(), so most of the time this branch is sufficient.
+	// The key subtlety: user.Roles is per-request, not per-session.
 	if user.Roles != nil && len(user.Roles) > 0 {
 		return user.Roles
 	}
-	rolesMap := make(map[string]common.Role)
 
 	// Load roles from database (role_assignments table)
 	dbRoles, err := model.GetUserRolesFromDB(user.Username)
@@ -217,8 +224,10 @@ func match(list []string, val string) bool {
 }
 
 // matchResourceName checks whether resourceName is allowed by the role's ResourceNames list.
-// An empty list or a list containing "*" means all names are allowed.
-// When resourceName itself is empty (e.g. list operations), we always allow.
+// Resource names are matched literally: unlike clusters/namespaces/resources, Kubernetes
+// object names must not be interpreted as regular expressions. An empty list or a list
+// containing "*" means all names are allowed. Collection operations are authorized first
+// and their returned objects are filtered separately by the resource handlers.
 func matchResourceName(resourceNames []string, resourceName string) bool {
 	if resourceName == "" || len(resourceNames) == 0 {
 		return true
@@ -228,7 +237,7 @@ func matchResourceName(resourceNames []string, resourceName string) bool {
 	if len(resourceNames) == 1 && resourceNames[0] == "" {
 		return true
 	}
-	return match(resourceNames, resourceName)
+	return contains(resourceNames, "*") || contains(resourceNames, resourceName)
 }
 
 func contains(list []string, val string) bool {

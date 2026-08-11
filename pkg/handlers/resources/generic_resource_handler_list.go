@@ -20,6 +20,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+func canReadResourceObject(user model.User, resource, clusterName, namespace, resourceName string) bool {
+	return rbac.CanAccess(
+		user,
+		resource,
+		string(common.VerbGet),
+		clusterName,
+		namespace,
+		resourceName,
+	)
+}
+
 func (h *GenericResourceHandler[T, V]) list(c *gin.Context) (V, error) {
 	var zero V
 	cs := c.MustGet("cluster").(*cluster.ClientSet)
@@ -121,6 +132,11 @@ func (h *GenericResourceHandler[T, V]) list(c *gin.Context) (V, error) {
 		if namespace == common.AllNamespaces && obj.GetNamespace() != "" && !rbac.CanAccessNamespace(user, cs.Name, obj.GetNamespace()) {
 			continue
 		}
+		if h.Name() != string(common.Namespaces) && !canReadResourceObject(
+			user, h.Name(), cs.Name, obj.GetNamespace(), obj.GetName(),
+		) {
+			continue
+		}
 		if c.Query("reduce") == "true" {
 			reduceResourceObject(h.name, items[i])
 		}
@@ -183,6 +199,11 @@ func (h *GenericResourceHandler[T, V]) Search(c *gin.Context, q string, limit in
 			continue
 		}
 		if obj.GetNamespace() != "" && !rbac.CanAccessNamespace(user, cs.Name, obj.GetNamespace()) {
+			continue
+		}
+		if h.Name() != string(common.Namespaces) && !canReadResourceObject(
+			user, h.Name(), cs.Name, obj.GetNamespace(), obj.GetName(),
+		) {
 			continue
 		}
 		result := common.SearchResult{

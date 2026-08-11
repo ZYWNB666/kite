@@ -1,6 +1,6 @@
 const CURRENT_CLUSTER_SESSION_KEY = 'current-cluster'
 const CURRENT_CLUSTER_URL_KEY = 'cluster'
-const CURRENT_CLUSTER_HEADER_KEY = 'x-cluster-name'
+export const CURRENT_CLUSTER_HEADER_KEY = 'x-cluster-name'
 
 export function getClusterFromUrl() {
   if (typeof window === 'undefined') {
@@ -46,6 +46,13 @@ export function appendCurrentClusterHeader(
   headers: Record<string, string> | Headers,
   clusterName?: string | null
 ) {
+  if (
+    clusterName == null &&
+    headers instanceof Headers &&
+    headers.has(CURRENT_CLUSTER_HEADER_KEY)
+  ) {
+    return
+  }
   const currentCluster = clusterName ?? getCurrentCluster()
   if (currentCluster) {
     if (headers instanceof Headers) {
