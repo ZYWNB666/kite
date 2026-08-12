@@ -15,6 +15,16 @@ export type AccessRequestStatus =
 
 export type RequestType = 'full_update' | 'canary_update' | 'route_adjust'
 
+export const ROUTE_ADJUST_NAMESPACE = 'envoy-gateway-system'
+
+export function getSelectableAccessRequestNamespaces(
+  namespaces: string[],
+  requestType: RequestType
+): string[] {
+  if (requestType === 'route_adjust') return []
+  return namespaces.filter((namespace) => namespace !== ROUTE_ADJUST_NAMESPACE)
+}
+
 export const REQUEST_TYPE_OPTIONS: { label: string; value: RequestType }[] = [
   { label: '全量更新', value: 'full_update' },
   { label: '灰度更新', value: 'canary_update' },

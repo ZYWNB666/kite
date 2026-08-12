@@ -54,6 +54,57 @@ func TestNormalizeTargetResources(t *testing.T) {
 	}
 }
 
+func TestNormalizeUpdateNamespacesRejectsRouteAdjustmentNamespace(t *testing.T) {
+	for _, namespaces := range [][]string{
+		{routeAdjustmentNamespace},
+		{"default", routeAdjustmentNamespace},
+		{" " + routeAdjustmentNamespace + " "},
+	} {
+		if _, err := normalizeUpdateNamespaces(namespaces); err == nil {
+			t.Fatalf("normalizeUpdateNamespaces(%#v) unexpectedly succeeded", namespaces)
+		}
+	}
+
+	got, err := normalizeUpdateNamespaces([]string{" default ", "default", "production"})
+	if err != nil {
+		t.Fatalf("normalizeUpdateNamespaces() error = %v", err)
+	}
+	if !reflect.DeepEqual(got, []string{"default", "production"}) {
+		t.Fatalf("normalizeUpdateNamespaces() = %#v", got)
+	}
+}
+
+func TestCreateAccessRequestRejectsReservedNamespaceForUpdates(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, requestType := range []string{model.RequestTypeFullUpdate, model.RequestTypeCanaryUpdate} {
+		t.Run(requestType, func(t *testing.T) {
+			body := fmt.Sprintf(`{
+				"cluster":"cluster-a",
+				"namespaces":["default","%s"],
+				"requestType":"%s",
+				"reportLink":"https://example.com/report",
+				"durationHours":1,
+				"riskLevel":"low",
+				"reason":"test",
+				"approverUid":"approver"
+			}`, routeAdjustmentNamespace, requestType)
+
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/access-requests", strings.NewReader(body))
+			c.Request.Header.Set("Content-Type", "application/json")
+			c.Set("user", model.User{Model: model.Model{ID: 1}})
+			c.Set("cluster", &cluster.ClientSet{Name: "cluster-a"})
+
+			CreateAccessRequest(c)
+
+			if recorder.Code != http.StatusBadRequest || !strings.Contains(recorder.Body.String(), "仅允许通过路由调整申请访问") {
+				t.Fatalf("status/body = %d %q", recorder.Code, recorder.Body.String())
+			}
+		})
+	}
+}
+
 func TestBuildTempRoleScopesRouteAdjustmentToSelectedConfigMaps(t *testing.T) {
 	expiresAt := time.Now().Add(time.Hour)
 	req := &model.AccessRequest{
@@ -93,6 +144,24 @@ func TestBuildTempRoleRejectsUnknownRequestType(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("buildTempRole() unexpectedly granted permissions to an unknown request type")
+	}
+}
+
+func TestBuildTempRoleRejectsReservedNamespaceForUpdates(t *testing.T) {
+	expiresAt := time.Now().Add(time.Hour)
+	for _, requestType := range []string{model.RequestTypeFullUpdate, model.RequestTypeCanaryUpdate} {
+		t.Run(requestType, func(t *testing.T) {
+			_, err := buildTempRole(&model.AccessRequest{
+				Model:       model.Model{ID: 188},
+				Cluster:     "yunqiao",
+				Namespace:   routeAdjustmentNamespace,
+				RequestType: requestType,
+				ExpiresAt:   &expiresAt,
+			})
+			if err == nil {
+				t.Fatal("buildTempRole() unexpectedly granted update access to the reserved namespace")
+			}
+		})
 	}
 }
 

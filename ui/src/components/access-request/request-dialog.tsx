@@ -9,7 +9,9 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import {
+  getSelectableAccessRequestNamespaces,
   REQUEST_TYPE_OPTIONS,
+  ROUTE_ADJUST_NAMESPACE,
   useCreateAccessRequest,
   useFeishuApprovers,
   useResources,
@@ -95,19 +97,18 @@ export function AccessRequestDialog({
     cluster: selectedCluster,
     disable: !open || !selectedCluster || isRouteAdjust,
   })
-  const namespaceNames = useMemo(
-    () =>
-      nsItems
-        .map((ns) => ns.metadata?.name)
-        .filter((n): n is string => !!n)
-        .sort(),
-    [nsItems]
-  )
+  const namespaceNames = useMemo(() => {
+    const names = nsItems
+      .map((ns) => ns.metadata?.name)
+      .filter((n): n is string => !!n)
+      .sort()
+    return getSelectableAccessRequestNamespaces(names, requestType)
+  }, [nsItems, requestType])
 
   // Configmaps for route_adjust (from envoy-gateway-system)
   const { data: cmItems = [] } = useResources(
     'configmaps',
-    'envoy-gateway-system',
+    ROUTE_ADJUST_NAMESPACE,
     {
       cluster: selectedCluster,
       disable: !open || !isRouteAdjust || !selectedCluster,
@@ -163,6 +164,15 @@ export function AccessRequestDialog({
       toast.error(t('accessRequest.errors.namespaceRequired', '请选择命名空间'))
       return
     }
+    if (!isRouteAdjust && selectedNamespaces.includes(ROUTE_ADJUST_NAMESPACE)) {
+      toast.error(
+        t(
+          'accessRequest.errors.routeNamespaceReserved',
+          `${ROUTE_ADJUST_NAMESPACE} 仅允许通过路由调整申请访问`
+        )
+      )
+      return
+    }
     if (needsReportLink && !reportLink.trim()) {
       toast.error(
         t('accessRequest.errors.reportLinkRequired', '请填写测试报告链接')
@@ -188,7 +198,7 @@ export function AccessRequestDialog({
       await createMutation.mutateAsync({
         cluster: selectedCluster,
         namespaces: isRouteAdjust
-          ? ['envoy-gateway-system']
+          ? [ROUTE_ADJUST_NAMESPACE]
           : selectedNamespaces,
         requestType,
         reportLink: reportLink.trim() || undefined,
@@ -226,7 +236,13 @@ export function AccessRequestDialog({
             </Label>
             <Select
               value={requestType}
-              onValueChange={(v) => setRequestType(v as RequestType)}
+              onValueChange={(v) => {
+                const nextType = v as RequestType
+                setRequestType(nextType)
+                setSelectedNamespaces((current) =>
+                  getSelectableAccessRequestNamespaces(current, nextType)
+                )
+              }}
             >
               <SelectTrigger>
                 <SelectValue />

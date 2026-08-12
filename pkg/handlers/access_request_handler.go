@@ -25,6 +25,7 @@ const (
 	accessSummaryConcurrency = 3
 	accessSummaryClaimTTL    = 5 * time.Minute
 	accessSummaryMaxRetry    = time.Hour
+	routeAdjustmentNamespace = "envoy-gateway-system"
 )
 
 var (
@@ -82,6 +83,30 @@ func normalizeTargetResources(resources []string) ([]string, error) {
 		}
 		seen[name] = struct{}{}
 		result = append(result, name)
+	}
+	return result, nil
+}
+
+func normalizeUpdateNamespaces(namespaces []string) ([]string, error) {
+	if len(namespaces) == 0 {
+		return nil, fmt.Errorf("at least one namespace is required")
+	}
+
+	seen := make(map[string]struct{}, len(namespaces))
+	result := make([]string, 0, len(namespaces))
+	for _, raw := range namespaces {
+		namespace := strings.TrimSpace(raw)
+		if namespace == routeAdjustmentNamespace {
+			return nil, fmt.Errorf("命名空间 %s 仅允许通过路由调整申请访问", routeAdjustmentNamespace)
+		}
+		if errs := validation.IsDNS1123Label(namespace); len(errs) > 0 {
+			return nil, fmt.Errorf("无效的命名空间 %q: %s", raw, strings.Join(errs, "; "))
+		}
+		if _, ok := seen[namespace]; ok {
+			continue
+		}
+		seen[namespace] = struct{}{}
+		result = append(result, namespace)
 	}
 	return result, nil
 }
@@ -161,7 +186,7 @@ func buildTempRole(req *model.AccessRequest) (*model.Role, error) {
 
 	switch req.RequestType {
 	case model.RequestTypeRouteAdjust:
-		if len(namespaceNames) != 1 || namespaceNames[0] != "envoy-gateway-system" {
+		if len(namespaceNames) != 1 || namespaceNames[0] != routeAdjustmentNamespace {
 			return nil, fmt.Errorf("route adjustment request %d has invalid namespace %q", req.ID, req.Namespace)
 		}
 		targetResources, err := normalizeTargetResources([]string(req.TargetResources))
@@ -173,6 +198,11 @@ func buildTempRole(req *model.AccessRequest) (*model.Role, error) {
 		role.ResourceNames = model.SliceString(targetResources)
 		role.Verbs = []string{"get", "list", "create", "update", "patch"}
 	case model.RequestTypeFullUpdate, model.RequestTypeCanaryUpdate:
+		normalizedNamespaces, err := normalizeUpdateNamespaces(namespaceNames)
+		if err != nil {
+			return nil, fmt.Errorf("access request %d: %w", req.ID, err)
+		}
+		role.Namespaces = model.SliceString(normalizedNamespaces)
 		// FullUpdate / CanaryUpdate retain full access within the requested namespace.
 		role.Resources = []string{"*"}
 		role.Verbs = []string{"*"}
@@ -339,7 +369,7 @@ func CreateAccessRequest(c *gin.Context) {
 
 	// Type-specific validation
 	switch body.RequestType {
-	case model.RequestTypeFullUpdate:
+	case model.RequestTypeFullUpdate, model.RequestTypeCanaryUpdate:
 		reportLink, err := normalizeReportLink(body.ReportLink)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -347,22 +377,12 @@ func CreateAccessRequest(c *gin.Context) {
 		}
 		body.ReportLink = reportLink
 		body.TargetResources = nil
-		if len(body.Namespaces) == 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "at least one namespace is required"})
-			return
-		}
-	case model.RequestTypeCanaryUpdate:
-		reportLink, err := normalizeReportLink(body.ReportLink)
+		namespaces, err := normalizeUpdateNamespaces(body.Namespaces)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		body.ReportLink = reportLink
-		body.TargetResources = nil
-		if len(body.Namespaces) == 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "at least one namespace is required"})
-			return
-		}
+		body.Namespaces = namespaces
 	case model.RequestTypeRouteAdjust:
 		targetResources, err := normalizeTargetResources(body.TargetResources)
 		if err != nil {
@@ -372,7 +392,7 @@ func CreateAccessRequest(c *gin.Context) {
 		body.TargetResources = targetResources
 		body.ReportLink = ""
 		// Force namespace to envoy-gateway-system regardless of user selection
-		body.Namespaces = []string{"envoy-gateway-system"}
+		body.Namespaces = []string{routeAdjustmentNamespace}
 	}
 
 	// Validate approver is in the configured list
