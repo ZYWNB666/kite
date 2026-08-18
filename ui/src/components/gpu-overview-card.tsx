@@ -1,13 +1,15 @@
-import {
+﻿import {
   IconAlertCircle,
+  IconBolt,
   IconCheck,
   IconCircleFilled,
-  IconBolt,
   IconCpu,
   IconServer,
 } from '@tabler/icons-react'
+import { useTranslation } from 'react-i18next'
 
 import { GPUOverview } from '@/types/api'
+import { Badge } from '@/components/ui/badge'
 import {
   Card,
   CardContent,
@@ -16,7 +18,6 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
-import { Badge } from '@/components/ui/badge'
 
 interface GPUOverviewCardProps {
   data?: GPUOverview
@@ -29,13 +30,15 @@ export function GPUOverviewCard({
   isLoading,
   error,
 }: GPUOverviewCardProps) {
+  const { t } = useTranslation()
+
   if (isLoading) {
     return (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <IconCpu className="size-5" />
-            GPU 资源概览
+            {t('gpu.title')}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -54,13 +57,13 @@ export function GPUOverviewCard({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <IconCpu className="size-5" />
-            GPU 资源概览
+            {t('gpu.title')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col items-center justify-center py-8 gap-2 text-muted-foreground">
             <IconAlertCircle className="size-8" />
-            <p className="text-sm">无法加载 GPU 信息</p>
+            <p className="text-sm">{t('gpu.loadFailed')}</p>
           </div>
         </CardContent>
       </Card>
@@ -73,53 +76,67 @@ export function GPUOverviewCard({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <IconCpu className="size-5" />
-            GPU 资源概览
+            {t('gpu.title')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
             <IconServer className="size-8 mb-2" />
-            <p className="text-sm">集群中未检测到 GPU 节点</p>
+            <p className="text-sm">{t('gpu.noGpuNodes')}</p>
           </div>
         </CardContent>
       </Card>
     )
   }
 
-  const { summary, fullyFreeNodes, untaintedFreeNodes, taintedFreeNodes, partialFreeNodes, namespaceStats, modelStats, noModelGPUCount, modelRoleStats } = data
+  const {
+    summary,
+    fullyFreeNodes,
+    untaintedFreeNodes,
+    taintedFreeNodes,
+    partialFreeNodes,
+    namespaceStats,
+    modelStats,
+    noModelGPUCount,
+    modelRoleStats,
+  } = data
 
   return (
     <Card className="@container/gpu">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <IconCpu className="size-5" />
-          GPU 资源概览
+          {t('gpu.title')}
         </CardTitle>
-        <CardDescription>
-          集群 GPU 资源使用情况统计
-        </CardDescription>
+        <CardDescription>{t('gpu.description')}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* 总体概况 */}
+        {/* Overall summary */}
         <div>
-          <h3 className="text-sm font-semibold mb-3">总体概况</h3>
+          <h3 className="text-sm font-semibold mb-3">{t('gpu.overview')}</h3>
           <div className="grid grid-cols-2 gap-4 @md/gpu:grid-cols-4">
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">GPU 节点</p>
-              <p className="text-2xl font-bold tabular-nums">{summary.totalNodes}</p>
+              <p className="text-xs text-muted-foreground">{t('gpu.nodes')}</p>
+              <p className="text-2xl font-bold tabular-nums">
+                {summary.totalNodes}
+              </p>
             </div>
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">总容量</p>
-              <p className="text-2xl font-bold tabular-nums">{summary.totalGPUs}</p>
+              <p className="text-xs text-muted-foreground">
+                {t('gpu.totalCapacity')}
+              </p>
+              <p className="text-2xl font-bold tabular-nums">
+                {summary.totalGPUs}
+              </p>
             </div>
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">已使用</p>
+              <p className="text-xs text-muted-foreground">{t('gpu.used')}</p>
               <p className="text-2xl font-bold tabular-nums text-orange-600 dark:text-orange-400">
                 {summary.usedGPUs}
               </p>
             </div>
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">空闲</p>
+              <p className="text-xs text-muted-foreground">{t('gpu.free')}</p>
               <p className="text-2xl font-bold tabular-nums text-green-600 dark:text-green-400">
                 {summary.freeGPUs}
               </p>
@@ -127,11 +144,13 @@ export function GPUOverviewCard({
           </div>
           <div className="mt-4 space-y-2">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">使用率</span>
-              <span className="font-semibold tabular-nums">{summary.usagePercent.toFixed(2)}%</span>
+              <span className="text-muted-foreground">{t('gpu.usage')}</span>
+              <span className="font-semibold tabular-nums">
+                {summary.usagePercent.toFixed(2)}%
+              </span>
             </div>
             <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-              <div 
+              <div
                 className="h-full bg-primary transition-all duration-300"
                 style={{ width: `${Math.min(summary.usagePercent, 100)}%` }}
               />
@@ -141,19 +160,25 @@ export function GPUOverviewCard({
 
         <Separator />
 
-        {/* 空闲节点信息 */}
+        {/* Free node information */}
         <div className="grid grid-cols-1 gap-4 @lg/gpu:grid-cols-2">
-          {/* 完全空闲的节点 */}
+          {/* Fully free nodes */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold flex items-center gap-2">
                 <IconCheck className="size-4 text-green-600" />
-                完全空闲节点 ({fullyFreeNodes.length})
+                {t('gpu.fullyFreeNodes', { count: fullyFreeNodes.length })}
               </h3>
               {fullyFreeNodes.length > 0 && (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1"><IconCircleFilled className="size-2 text-green-600" />无污点 {untaintedFreeNodes.length}</span>
-                  <span className="flex items-center gap-1"><IconCircleFilled className="size-2 text-yellow-500" />有污点 {taintedFreeNodes.length}</span>
+                  <span className="flex items-center gap-1">
+                    <IconCircleFilled className="size-2 text-green-600" />
+                    {t('gpu.noTaints', { count: untaintedFreeNodes.length })}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <IconCircleFilled className="size-2 text-yellow-500" />
+                    {t('gpu.hasTaints', { count: taintedFreeNodes.length })}
+                  </span>
                 </div>
               )}
             </div>
@@ -167,17 +192,28 @@ export function GPUOverviewCard({
                     >
                       <div className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <IconCircleFilled className={`size-2 flex-shrink-0 ${node.taints && node.taints.length > 0 ? 'text-yellow-500' : 'text-green-600'}`} />
-                          <span className="font-mono text-xs truncate">{node.nodeName}</span>
+                          <IconCircleFilled
+                            className={`size-2 flex-shrink-0 ${node.taints && node.taints.length > 0 ? 'text-yellow-500' : 'text-green-600'}`}
+                          />
+                          <span className="font-mono text-xs truncate">
+                            {node.nodeName}
+                          </span>
                         </div>
-                        <Badge variant="secondary" className="ml-2 flex-shrink-0">
+                        <Badge
+                          variant="secondary"
+                          className="ml-2 flex-shrink-0"
+                        >
                           {node.capacity} GPU
                         </Badge>
                       </div>
                       {node.taints && node.taints.length > 0 && (
                         <div className="flex flex-wrap gap-1 pl-6">
                           {node.taints.map((taint, i) => (
-                            <Badge key={i} variant="outline" className="text-[10px] h-4 px-1 text-muted-foreground border-yellow-500/30 bg-yellow-500/10">
+                            <Badge
+                              key={i}
+                              variant="outline"
+                              className="text-[10px] h-4 px-1 text-muted-foreground border-yellow-500/30 bg-yellow-500/10"
+                            >
                               {taint}
                             </Badge>
                           ))}
@@ -188,17 +224,17 @@ export function GPUOverviewCard({
                 </div>
               ) : (
                 <div className="flex items-center justify-center h-full text-xs text-muted-foreground">
-                  无完全空闲节点
+                  {t('gpu.noFullyFreeNodes')}
                 </div>
               )}
             </div>
           </div>
 
-          {/* 部分空闲的节点 */}
+          {/* Partially free nodes */}
           <div>
             <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
               <IconBolt className="size-4 text-orange-600" />
-              部分空闲节点 ({partialFreeNodes.length})
+              {t('gpu.partiallyFreeNodes', { count: partialFreeNodes.length })}
             </h3>
             <div className="h-40 rounded-md border p-3 overflow-y-auto">
               {partialFreeNodes.length > 0 ? (
@@ -210,7 +246,9 @@ export function GPUOverviewCard({
                     >
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <IconCircleFilled className="size-2 text-orange-600 flex-shrink-0" />
-                        <span className="font-mono text-xs truncate">{node.nodeName}</span>
+                        <span className="font-mono text-xs truncate">
+                          {node.nodeName}
+                        </span>
                       </div>
                       <Badge variant="secondary" className="ml-2 flex-shrink-0">
                         {node.free}/{node.capacity}
@@ -220,7 +258,7 @@ export function GPUOverviewCard({
                 </div>
               ) : (
                 <div className="flex items-center justify-center h-full text-xs text-muted-foreground">
-                  无部分空闲节点
+                  {t('gpu.noPartiallyFreeNodes')}
                 </div>
               )}
             </div>
@@ -229,9 +267,9 @@ export function GPUOverviewCard({
 
         <Separator />
 
-        {/* 按 Namespace 统计 */}
+        {/* Usage by Namespace */}
         <div>
-          <h3 className="text-sm font-semibold mb-3">按 Namespace 使用统计 (基于 LWS)</h3>
+          <h3 className="text-sm font-semibold mb-3">{t('gpu.byNamespace')}</h3>
           <div className="h-48 rounded-md border overflow-y-auto">
             {namespaceStats.length > 0 ? (
               <div className="p-3 space-y-2">
@@ -243,13 +281,16 @@ export function GPUOverviewCard({
                       key={stat.namespace}
                       className="flex items-center justify-between text-sm p-2 rounded hover:bg-muted/50"
                     >
-                      <span className="font-mono text-xs flex-1 truncate">{stat.namespace}</span>
+                      <span className="font-mono text-xs flex-1 truncate">
+                        {stat.namespace}
+                      </span>
                       <div className="flex items-center gap-2 ml-2 flex-shrink-0">
                         <span className="text-xs text-muted-foreground tabular-nums">
                           {stat.gpuCount} GPU
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          ({machines} 台{remaining > 0 && ` + ${remaining} GPU`})
+                          ({t('gpu.machines', { count: machines })}
+                          {remaining > 0 && ` + ${remaining} GPU`})
                         </span>
                       </div>
                     </div>
@@ -258,7 +299,7 @@ export function GPUOverviewCard({
               </div>
             ) : (
               <div className="flex items-center justify-center h-full text-xs text-muted-foreground">
-                无 GPU 使用
+                {t('gpu.noGpuUsage')}
               </div>
             )}
           </div>
@@ -266,35 +307,48 @@ export function GPUOverviewCard({
 
         <Separator />
 
-        {/* 按模型统计 */}
+        {/* Usage by Model */}
         <div>
-          <h3 className="text-sm font-semibold mb-3">按模型使用统计 (基于 LWS)</h3>
+          <h3 className="text-sm font-semibold mb-3">{t('gpu.byModel')}</h3>
           <div className="h-48 rounded-md border overflow-y-auto">
             {modelStats.length > 0 || noModelGPUCount > 0 ? (
               <div className="p-3 space-y-2">
                 {modelStats.map((stat) => {
                   const machines = Math.floor(stat.gpuCount / 8)
                   const remaining = stat.gpuCount % 8
-                  const roleStat = modelRoleStats?.find((r) => r.modelName === stat.modelName)
+                  const roleStat = modelRoleStats?.find(
+                    (r) => r.modelName === stat.modelName
+                  )
                   return (
                     <div
                       key={stat.modelName}
                       className="flex items-center justify-between text-sm p-2 rounded hover:bg-muted/50"
                     >
-                      <span className="font-mono text-xs flex-1 truncate">{stat.modelName}</span>
+                      <span className="font-mono text-xs flex-1 truncate">
+                        {stat.modelName}
+                      </span>
                       <div className="flex items-center gap-2 ml-2 flex-shrink-0">
                         {roleStat && (
                           <span className="text-xs text-muted-foreground tabular-nums">
-                            <span className="text-blue-500">P:{roleStat.prefillNodes}机</span>
+                            <span className="text-blue-500">
+                              {t('gpu.prefillMachines', {
+                                count: roleStat.prefillNodes,
+                              })}
+                            </span>
                             {' / '}
-                            <span className="text-orange-500">D:{roleStat.decodeNodes}机</span>
+                            <span className="text-orange-500">
+                              {t('gpu.decodeMachines', {
+                                count: roleStat.decodeNodes,
+                              })}
+                            </span>
                           </span>
                         )}
                         <span className="text-xs text-muted-foreground tabular-nums">
                           {stat.gpuCount} GPU
                         </span>
                         <span className="text-xs text-muted-foreground">
-                          ({machines} 台{remaining > 0 && ` + ${remaining} GPU`})
+                          ({t('gpu.machines', { count: machines })}
+                          {remaining > 0 && ` + ${remaining} GPU`})
                         </span>
                       </div>
                     </div>
@@ -303,15 +357,20 @@ export function GPUOverviewCard({
                 {noModelGPUCount > 0 && (
                   <div className="flex items-center justify-between text-sm p-2 rounded hover:bg-muted/50">
                     <span className="font-mono text-xs flex-1 truncate text-muted-foreground">
-                      &lt;未标记模型&gt;
+                      {t('gpu.unlabeledModel')}
                     </span>
                     <div className="flex items-center gap-2 ml-2 flex-shrink-0">
                       <span className="text-xs text-muted-foreground tabular-nums">
                         {noModelGPUCount} GPU
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        ({Math.floor(noModelGPUCount / 8)} 台
-                        {noModelGPUCount % 8 > 0 && ` + ${noModelGPUCount % 8} GPU`})
+                        (
+                        {t('gpu.machines', {
+                          count: Math.floor(noModelGPUCount / 8),
+                        })}
+                        {noModelGPUCount % 8 > 0 &&
+                          ` + ${noModelGPUCount % 8} GPU`}
+                        )
                       </span>
                     </div>
                   </div>
@@ -319,7 +378,7 @@ export function GPUOverviewCard({
               </div>
             ) : (
               <div className="flex items-center justify-center h-full text-xs text-muted-foreground">
-                无 GPU 使用
+                {t('gpu.noGpuUsage')}
               </div>
             )}
           </div>

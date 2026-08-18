@@ -1,6 +1,13 @@
 import { useState } from 'react'
 import { useAuth } from '@/contexts/auth-context'
-import { CaseSensitive, Check, ClipboardList, LogOut, Palette } from 'lucide-react'
+import {
+  CaseSensitive,
+  Check,
+  ClipboardList,
+  LogOut,
+  Palette,
+} from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -24,6 +31,7 @@ interface UserMenuProps {
 }
 
 export function UserMenu({ onMyRequests }: UserMenuProps) {
+  const { t } = useTranslation()
   const { user, logout, hasGlobalSidebarPreference } = useAuth()
   const { colorTheme, setColorTheme, font, setFont } = useAppearance()
   const [open, setOpen] = useState(false)
@@ -163,11 +171,14 @@ export function UserMenu({ onMyRequests }: UserMenuProps) {
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              onClick={() => { setOpen(false); onMyRequests() }}
+              onClick={() => {
+                setOpen(false)
+                onMyRequests()
+              }}
               className="cursor-pointer"
             >
               <ClipboardList className="mr-2 h-4 w-4" />
-              <span>我的权限申请</span>
+              <span>{t('accessRequest.myRequestsTitle')}</span>
             </DropdownMenuItem>
           </>
         )}

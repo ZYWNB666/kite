@@ -316,10 +316,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         }
                       }}
                       className="absolute right-0 top-0 mr-1 mt-1 rounded-sm bg-red-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-red-500 hover:bg-red-500/20"
-                      title={t(
-                        'A newer Kite version is available',
-                        'A newer Kite version is available'
-                      )}
+                      title={t('sidebar.newVersionAvailable')}
                     >
                       New
                     </button>

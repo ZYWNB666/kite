@@ -25,11 +25,18 @@ export function getSelectableAccessRequestNamespaces(
   return namespaces.filter((namespace) => namespace !== ROUTE_ADJUST_NAMESPACE)
 }
 
-export const REQUEST_TYPE_OPTIONS: { label: string; value: RequestType }[] = [
-  { label: '全量更新', value: 'full_update' },
-  { label: '灰度更新', value: 'canary_update' },
-  { label: '路由调整', value: 'route_adjust' },
-]
+export const REQUEST_TYPE_OPTIONS: { labelKey: string; value: RequestType }[] =
+  [
+    { labelKey: 'accessRequest.requestType.fullUpdate', value: 'full_update' },
+    {
+      labelKey: 'accessRequest.requestType.canaryUpdate',
+      value: 'canary_update',
+    },
+    {
+      labelKey: 'accessRequest.requestType.routeAdjust',
+      value: 'route_adjust',
+    },
+  ]
 
 export interface AccessRequest {
   id: number

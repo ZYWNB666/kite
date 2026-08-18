@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAuth } from '@/contexts/auth-context'
 import { useTerminal } from '@/contexts/terminal-context'
 import { Plus, Settings, TerminalSquare } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 
 import { useGeneralSetting } from '@/lib/api'
@@ -10,8 +11,8 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { SidebarTrigger } from '@/components/ui/sidebar'
 
-import { AccessRequestDialog } from './access-request/request-dialog'
 import { MyRequestsDialog } from './access-request/my-requests-dialog'
+import { AccessRequestDialog } from './access-request/request-dialog'
 import { CreateResourceDialog } from './create-resource-dialog'
 import { DynamicBreadcrumb } from './dynamic-breadcrumb'
 import { LanguageToggle } from './language-toggle'
@@ -20,6 +21,7 @@ import { Search } from './search'
 import { UserMenu } from './user-menu'
 
 export function SiteHeader() {
+  const { t } = useTranslation()
   const isMobile = useIsMobile()
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -53,8 +55,8 @@ export function SiteHeader() {
             {/* Permission request button – visible to all authenticated users */}
             <button
               onClick={() => setAccessRequestOpen(true)}
-              title="申请权限"
-              aria-label="申请权限"
+              title={t('accessRequest.requestAccess')}
+              aria-label={t('accessRequest.requestAccess')}
               className="flex items-center justify-center rounded-sm p-1 text-muted-foreground hover:text-foreground transition-colors"
             >
               <svg

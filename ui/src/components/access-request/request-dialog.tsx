@@ -52,15 +52,15 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 
 const DURATION_OPTIONS = [
-  { label: '1 小时', value: 1 },
-  { label: '2 小时', value: 2 },
-  { label: '4 小时', value: 4 },
+  { labelKey: 'accessRequest.duration.1h', value: 1 },
+  { labelKey: 'accessRequest.duration.2h', value: 2 },
+  { labelKey: 'accessRequest.duration.4h', value: 4 },
 ]
 
 const RISK_OPTIONS = [
-  { label: '🟢 低风险', value: 'low' },
-  { label: '🟡 中风险', value: 'medium' },
-  { label: '🔴 高风险', value: 'high' },
+  { labelKey: 'accessRequest.risk.low', value: 'low' },
+  { labelKey: 'accessRequest.risk.medium', value: 'medium' },
+  { labelKey: 'accessRequest.risk.high', value: 'high' },
 ]
 
 interface AccessRequestDialogProps {
@@ -250,7 +250,7 @@ export function AccessRequestDialog({
               <SelectContent>
                 {REQUEST_TYPE_OPTIONS.map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
+                    {t(opt.labelKey)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -360,9 +360,13 @@ export function AccessRequestDialog({
                   onWheel={(e) => e.stopPropagation()}
                 >
                   <Command>
-                    <CommandInput placeholder="搜索配置..." />
+                    <CommandInput
+                      placeholder={t('accessRequest.searchConfigPlaceholder')}
+                    />
                     <CommandList className="max-h-48">
-                      <CommandEmpty>暂无配置</CommandEmpty>
+                      <CommandEmpty>
+                        {t('accessRequest.noConfigFound')}
+                      </CommandEmpty>
                       <CommandGroup>
                         {cmNames.map((cm) => (
                           <CommandItem
@@ -457,9 +461,15 @@ export function AccessRequestDialog({
                   onWheel={(e) => e.stopPropagation()}
                 >
                   <Command>
-                    <CommandInput placeholder="搜索命名空间..." />
+                    <CommandInput
+                      placeholder={t(
+                        'accessRequest.searchNamespacePlaceholder'
+                      )}
+                    />
                     <CommandList className="max-h-48">
-                      <CommandEmpty>暂无命名空间</CommandEmpty>
+                      <CommandEmpty>
+                        {t('accessRequest.noNamespaceFound')}
+                      </CommandEmpty>
                       <CommandGroup>
                         {namespaceNames.map((ns) => (
                           <CommandItem
@@ -519,7 +529,7 @@ export function AccessRequestDialog({
               <SelectContent>
                 {DURATION_OPTIONS.map((opt) => (
                   <SelectItem key={opt.value} value={String(opt.value)}>
-                    {opt.label}
+                    {t(opt.labelKey)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -539,7 +549,7 @@ export function AccessRequestDialog({
               <SelectContent>
                 {RISK_OPTIONS.map((opt) => (
                   <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
+                    {t(opt.labelKey)}
                   </SelectItem>
                 ))}
               </SelectContent>

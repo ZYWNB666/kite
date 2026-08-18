@@ -1,10 +1,5 @@
 import { useMemo } from 'react'
-import {
-  IconBell,
-  IconClock,
-  IconLoader2,
-  IconX,
-} from '@tabler/icons-react'
+import { IconBell, IconClock, IconLoader2, IconX } from '@tabler/icons-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -41,48 +36,55 @@ function statusVariant(
   }
 }
 
-function statusLabel(status: AccessRequestStatus, t: (k: string, d: string) => string): string {
-  const map: Record<AccessRequestStatus, [string, string]> = {
-    pending: ['accessRequest.status.pending', '审批中'],
-    approved: ['accessRequest.status.approved', '已批准'],
-    rejected: ['accessRequest.status.rejected', '已拒绝'],
-    withdrawn: ['accessRequest.status.withdrawn', '已撤回'],
-    expired: ['accessRequest.status.expired', '已过期'],
-  }
-  const [key, def] = map[status] ?? [`accessRequest.status.${status}`, status]
-  return t(key, def)
+function statusLabel(
+  status: AccessRequestStatus,
+  t: (k: string) => string
+): string {
+  return t(`accessRequest.status.${status}`)
 }
 
-function formatDuration(hours: number): string {
-  if (hours < 24) return `${hours} 小时`
+function formatDuration(
+  hours: number,
+  t: (k: string, o?: { count?: number }) => string
+): string {
+  if (hours < 24) return t('accessRequest.duration.hours', { count: hours })
   const days = Math.floor(hours / 24)
   const rem = hours % 24
-  return rem === 0 ? `${days} 天` : `${days} 天 ${rem} 小时`
+  return rem === 0
+    ? t('accessRequest.duration.days', { count: days })
+    : `${t('accessRequest.duration.days', { count: days })} ${t('accessRequest.duration.hours', { count: rem })}`
 }
 
-function formatRiskLevel(level: string): string {
+function formatRiskLevel(level: string, t: (k: string) => string): string {
   const map: Record<string, string> = {
-    low: '🟢 低',
-    medium: '🟡 中',
-    high: '🔴 高',
+    low: 'accessRequest.risk.low',
+    medium: 'accessRequest.risk.medium',
+    high: 'accessRequest.risk.high',
   }
-  return map[level] || level || '-'
+  return map[level] ? t(map[level]) : level || '-'
 }
 
-function formatExpiry(expiresAt?: string): string {
+function formatExpiry(
+  expiresAt: string | undefined,
+  t: (
+    k: string,
+    o?: { count?: number; hours?: number; minutes?: number }
+  ) => string
+): string {
   if (!expiresAt) return '-'
   const d = new Date(expiresAt)
   const now = new Date()
   const diffMs = d.getTime() - now.getTime()
-  if (diffMs <= 0) return '已过期'
+  if (diffMs <= 0) return t('time.expired')
   const diffH = Math.floor(diffMs / 3_600_000)
   const diffM = Math.floor((diffMs % 3_600_000) / 60_000)
   if (diffH >= 24) {
     const days = Math.floor(diffH / 24)
-    return `${days} 天后过期`
+    return t('accessRequest.expiresInDays', { count: days })
   }
-  if (diffH > 0) return `${diffH} 小时 ${diffM} 分后过期`
-  return `${diffM} 分后过期`
+  if (diffH > 0)
+    return t('accessRequest.expiresInHours', { hours: diffH, minutes: diffM })
+  return t('accessRequest.expiresInMinutes', { count: diffM })
 }
 
 interface RequestRowProps {
@@ -95,7 +97,8 @@ function RequestRow({ req }: RequestRowProps) {
   const withdraw = useWithdrawAccessRequest()
   const remind = useMutation({
     mutationFn: () => remindAccessRequest(req.id),
-    onSuccess: () => toast.success(t('accessRequest.remindSuccess', '催办通知已发送')),
+    onSuccess: () =>
+      toast.success(t('accessRequest.remindSuccess', '催办通知已发送')),
     onError: () => toast.error(t('accessRequest.remindError', '催办发送失败')),
   })
 
@@ -114,25 +117,31 @@ function RequestRow({ req }: RequestRowProps) {
       <div className="flex items-start justify-between gap-2">
         <div className="space-y-0.5">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-sm font-mono">{req.namespace}</span>
+            <span className="font-medium text-sm font-mono">
+              {req.namespace}
+            </span>
             <Badge variant={statusVariant(req.status)}>
               {statusLabel(req.status, t)}
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground">
-            {t('accessRequest.fields.duration', '时长')}：{formatDuration(req.durationHours)}
-            {` · ${t('accessRequest.fields.riskLevel', '预估风险')}：${formatRiskLevel(req.riskLevel)}`}
-            {req.approverName ? ` · ${t('accessRequest.fields.approver', '审批人')}：${req.approverName}` : ''}
+            {t('accessRequest.fields.duration', '时长')}：
+            {formatDuration(req.durationHours, t)}
+            {` · ${t('accessRequest.fields.riskLevel', '预估风险')}：${formatRiskLevel(req.riskLevel, t)}`}
+            {req.approverName
+              ? ` · ${t('accessRequest.fields.approver', '审批人')}：${req.approverName}`
+              : ''}
           </p>
           {req.status === 'approved' && req.expiresAt && (
             <div className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
               <IconClock className="h-3 w-3" />
-              {formatExpiry(req.expiresAt)}
+              {formatExpiry(req.expiresAt, t)}
             </div>
           )}
           {req.reviewNote && (
             <p className="text-xs text-muted-foreground italic">
-              {t('accessRequest.fields.reviewNote', '审批意见')}：{req.reviewNote}
+              {t('accessRequest.fields.reviewNote', '审批意见')}：
+              {req.reviewNote}
             </p>
           )}
         </div>
@@ -177,9 +186,7 @@ function RequestRow({ req }: RequestRowProps) {
         )}
       </div>
 
-      <p className="text-xs text-muted-foreground line-clamp-2">
-        {req.reason}
-      </p>
+      <p className="text-xs text-muted-foreground line-clamp-2">{req.reason}</p>
 
       <p className="text-xs text-muted-foreground">
         {t('accessRequest.fields.createdAt', '提交时间')}：
@@ -194,7 +201,10 @@ interface MyRequestsDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
-export function MyRequestsDialog({ open, onOpenChange }: MyRequestsDialogProps) {
+export function MyRequestsDialog({
+  open,
+  onOpenChange,
+}: MyRequestsDialogProps) {
   const { t } = useTranslation()
   const { data: requests = [], isLoading } = useMyAccessRequests()
 

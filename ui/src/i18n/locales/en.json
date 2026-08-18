@@ -1,805 +1,143 @@
 {
-  "common": {
-    "loading": "Loading...",
-    "error": "Error",
-    "success": "Success",
-    "cancel": "Cancel",
-    "confirm": "Confirm",
-    "save": "Save",
-    "delete": "Delete",
-    "edit": "Edit",
-    "create": "Create",
-    "search": "Search",
-    "filter": "Filter",
-    "name": "Name",
-    "namespace": "Namespace",
-    "status": "Status",
-    "created": "Created",
-    "actions": "Actions",
-    "refresh": "Refresh",
-    "language": "Language",
-    "close": "Close",
-    "done": "Done",
-    "desired": "Desired",
-    "current": "Current",
-    "available": "Available"
-  },
-  "globalSearch": {
-    "title": "Global Search",
-    "description": "Search across all Kubernetes resources",
-    "placeholder": "Search resources...",
-    "searching": "Searching...",
-    "emptyHint": "Type at least 3 characters to search or see favorites below...",
-    "favorites": "Favorites",
-    "resources": "Resources",
-    "noResults": "No results found",
-    "navigation": "Navigation",
-    "hidden": "Hidden",
-    "actions": "Actions",
-    "toggleTheme": "Toggle Theme",
-    "switchCluster": "Switch to cluster {{name}}"
-  },
-  "sidebar": {
-    "groups": {
-      "traffic": "Network",
-      "network": "Network",
-      "storage": "Storage",
-      "config": "Config",
-      "other": "Other",
-      "security": "Access Control",
-      "workloads": "Workloads",
-      "namespace": "Namespace",
-      "cluster": "Cluster"
-    },
-    "short": {
-      "pvcs": "PVCs",
-      "pvs": "PVs"
-    },
-    "crd": {
-      "definitions": "Definitions"
-    },
-    "layout": "Layout",
-    "layout.default": "Default",
-    "layout.compact": "Compact",
-    "layout.minimal": "Minimal",
-    "pinnedItems": "Pinned Items",
-    "pinned": "Pinned",
-    "menuGroups": "Menu Groups",
-    "resetToDefault": "Reset to Default",
-    "setAsGlobal": "Set as global sidebar",
-    "setAsGlobalSuccess": "Global sidebar updated successfully",
-    "setAsGlobalError": "Failed to update global sidebar",
-    "unsetGlobal": "Unset global sidebar",
-    "unsetGlobalSuccess": "Global sidebar disabled successfully",
-    "unsetGlobalError": "Failed to disable global sidebar"
-  },
-  "nav": {
-    "overview": "Overview",
-    "leaderworkersets": "LWS",
-    "pods": "Pods",
-    "deployments": "Deployments",
-    "statefulsets": "StatefulSets",
-    "daemonsets": "DaemonSets",
-    "poddisruptionbudgets": "PDB",
-    "jobs": "Jobs",
-    "services": "Services",
-    "ingresses": "Ingresses",
-    "networkpolicies": "Network Policies",
-    "gateways": "Gateways",
-    "httproutes": "HTTP Routes",
-    "configMaps": "ConfigMaps",
-    "secrets": "Secrets",
-    "persistentvolumeclaims": "Persistent Volume Claims",
-    "persistentvolumes": "Persistent Volumes",
-    "nodes": "Nodes",
-    "namespaces": "Namespaces",
-    "customResources": "Custom Resources",
-    "customResourceDefinitions": "Custom Resource Definitions",
-    "replicasets": "ReplicaSets",
-    "cronjobs": "Cron Jobs",
-    "storageclasses": "Storage Classes",
-    "events": "Events",
-    "crds": "CRDs",
-    "kubectl": "Kubectl Terminal",
-    "serviceaccounts": "Service Accounts",
-    "roles": "Roles",
-    "rolebindings": "Role Bindings",
-    "clusterroles": "Cluster Roles",
-    "clusterrolebindings": "Cluster Role Bindings",
-    "horizontalpodautoscalers": "HPA"
-  },
-  "overview": {
-    "title": "Overview",
-    "clusterStats": "Cluster Statistics",
-    "recentEvents": "Recent Events",
-    "resourceCharts": "Resource Charts",
-    "failedToLoad": "Failed to load overview data",
-    "unknownError": "Unknown error occurred"
-  },
-  "pods": {
-    "title": "Pods",
-    "ready": "Ready",
-    "restarts": "Restarts",
-    "age": "Age",
-    "node": "Node",
-    "containerDetails": "Container Details",
-    "logs": "Logs",
-    "terminal": "Terminal",
-    "resizeResources": "Resize Resources",
-    "resizeResourcesTitle": "Resize Pod Resources",
-    "resizeResourcesDescription": "Adjust container CPU and memory requests/limits in-place.",
-    "resizeResourcesSuccess": "Pod resource resize submitted",
-    "container": "Container",
-    "selectContainer": "Select a container"
-  },
-  "deployments": {
-    "title": "Deployments",
-    "replicas": "Replicas",
-    "ready": "Ready",
-    "upToDate": "Up-to-date",
-    "available": "Available",
-    "age": "Age"
-  },
-  "services": {
-    "title": "Services",
-    "type": "Type",
-    "clusterIP": "Cluster IP",
-    "externalIP": "External IP",
-    "ports": "Ports",
-    "age": "Age"
-  },
-  "nodes": {
-    "title": "Nodes",
-    "roles": "Roles",
-    "version": "Version",
-    "internalIP": "Internal IP",
-    "externalIP": "External IP",
-    "os": "OS",
-    "kernelVersion": "Kernel Version",
-    "containerRuntime": "Container Runtime"
-  },
-  "events": {
-    "title": "Events",
-    "type": "Type",
-    "reason": "Reason",
-    "object": "Object",
-    "message": "Message",
-    "firstSeen": "First Seen",
-    "lastSeen": "Last Seen",
-    "count": "Count",
-    "source": "Source",
-    "noEventsFound": "No events found"
-  },
-  "dialog": {
-    "createResource": "Create Resource",
-    "editResource": "Edit Resource",
-    "deleteConfirmation": "Delete Confirmation",
-    "deleteMessage": "Are you sure you want to delete this resource? This action cannot be undone.",
-    "containerEdit": "Edit Container"
-  },
-  "status": {
-    "running": "Running",
-    "pending": "Pending",
-    "succeeded": "Succeeded",
-    "failed": "Failed",
-    "unknown": "Unknown",
-    "terminating": "Terminating",
-    "crashLoopBackOff": "CrashLoopBackOff",
-    "containerCreating": "ContainerCreating",
-    "imagePullBackOff": "ImagePullBackOff"
-  },
-  "monitoring": {
-    "cpuUsage": "CPU Usage",
-    "memoryUsage": "Memory Usage",
-    "networkUsage": "Network Usage",
-    "diskUsage": "Disk Usage",
-    "resourceUtilization": "Resource Utilization",
-    "requests": "Requests",
-    "limits": "Limits",
-    "total": "Total"
-  },
-  "login": {
-    "title": "Sign In",
-    "subtitle": "Access your Kubernetes dashboard",
-    "kubernetesDashboard": "Kubernetes Dashboard",
-    "signIn": "Sign In",
-    "username": "Username",
-    "password": "Password",
-    "enterUsername": "Enter your username",
-    "enterPassword": "Enter your password",
-    "signingIn": "Signing in...",
-    "signInWithPassword": "Sign In with Password",
-    "signInWithLdap": "Sign In with LDAP",
-    "tabs": {
-      "password": "Password",
-      "ldap": "LDAP"
-    },
-    "orContinueWith": "Or continue with",
-    "signInWith": "Sign in with {{provider}}",
-    "tryAgainDifferentAccount": "Try Again with Different Account",
-    "tryAgainHint": "You can try logging in with a different account that has the required permissions.",
-    "noLoginMethods": "No login methods configured",
-    "configureAuth": "Please configure authentication providers in your environment",
-    "footer": "© {{year}} Kite. All rights reserved.",
-    "documentation": "Documentation",
-    "errors": {
-      "accessDenied": "Access Denied",
-      "authenticationFailed": "Authentication Failed",
-      "profileAccessFailed": "Profile Access Failed",
-      "sessionCreationFailed": "Session Creation Failed",
-      "oauthCallbackFailed": "OAuth Callback Failed",
-      "authenticationError": "Authentication Error",
-      "insufficientPermissions": "Insufficient permissions to access this application.",
-      "insufficientPermissionsUser": "Access denied for user \"{{user}}\". Please contact your administrator to verify your permissions.",
-      "insufficientPermissionsDetails": "Your account does not have the required permissions to access this Kubernetes dashboard.",
-      "tokenExchangeFailed": "Failed to complete authentication with {{provider}}.",
-      "tokenExchangeDetails": "There was an issue exchanging the authorization code for an access token. Please try again.",
-      "userInfoFailed": "Unable to retrieve your profile information from {{provider}}.",
-      "userInfoDetails": "The authentication succeeded, but we could not access your profile. Please try again.",
-      "jwtGenerationFailed": "Unable to create your authentication session.",
-      "jwtGenerationFailedUser": "Failed to create a session for user \"{{user}}\".",
-      "jwtGenerationDetails": "Please try logging in again. If the problem persists, contact support.",
-      "callbackFailed": "The OAuth authentication process failed.",
-      "callbackError": "An error occurred during authentication.",
-      "generalError": "An unexpected error occurred during authentication.",
-      "contactSupport": "Please try again or contact support if the issue persists.",
-      "invalidCredentials": "Invalid username or password",
-      "unknownError": "An unknown error occurred",
-      "userDisabled": "User Disabled",
-      "userDisabledMessage": "Your user account has been disabled. Please contact your administrator for more information.",
-      "notInAllowedGroups": "Authentication succeeded, but your account is not a member of the allowed groups in {{provider}}.",
-      "notInAllowedGroupsDetails": "Please contact your administrator to be added to an allowed group."
-    }
-  },
-  "cluster": {
-    "loading": "Loading clusters...",
-    "error": "Error loading clusters: {{error}}",
-    "error403": "You do not have permission to access this cluster. Please contact your administrator for more information."
-  },
-  "resourceTable": {
-    "errorLoading": "Error loading {{resourceName}}",
-    "tryAgain": "Try Again",
-    "delete": "Delete",
-    "deleteSelected": "Delete ({{count}})",
-    "selectAll": "Select All ({{count}})",
-    "deselectAll": "Deselect All",
-    "confirmDeletion": "Confirm Deletion",
-    "confirmDeletionMessage": "Are you sure you want to delete {{count}} selected {{resourceName}}? This action cannot be undone.",
-    "deleting": "Deleting...",
-    "deleteSuccess": "Deleted {{name}} successfully",
-    "deleteFailed": "Failed to delete {{name}}: {{error}}",
-    "watch": "Watch",
-    "watchUnavailable": "Watch is unavailable; switched to 5s refresh.",
-    "namespace": "Namespace",
-    "regexSearch": "Regex search",
-    "regexSearchPlaceholder": "Regex search {{resourceName}}..."
-  },
-  "rbac": {
-    "noPermissionCluster": "User {{user}} does not have permission to {{verb}} {{resource}} on cluster {{cluster}}",
-    "noPermissionNamespace": "User {{user}} does not have permission to {{verb}} {{resource}} in namespace {{namespace}} on cluster {{cluster}}",
-    "accessDenied": "Access Denied",
-    "insufficientPermissions": "You do not have sufficient permissions to perform this action",
-    "allNamespaces": "All Namespaces",
-    "verb": {
-      "get": "Get",
-      "create": "Create",
-      "update": "Update",
-      "delete": "Delete",
-      "log": "View Logs",
-      "exec": "Execute"
-    }
-  },
-  "settings": {
-    "title": "Settings",
-    "description": "Manage clusters, roles and permissions",
-    "tabs": {
-      "clusters": "Cluster",
-      "general": "General",
-      "oauth": "Authentication",
-      "rbac": "RBAC",
-      "users": "User",
-      "accessRequest": "Access Request",
-      "tempPermissions": "Temp Permissions"
-    }
-  },
   "accessRequest": {
-    "title": "Request Namespace Access",
-    "myRequestsTitle": "My Access Requests",
-    "noRequests": "No requests yet",
-    "submit": "Submit Request",
-    "withdraw": "Withdraw",
-    "remind": "Remind",
-    "createSuccess": "Request submitted, awaiting approval",
     "createError": "Failed to submit request",
-    "withdrawSuccess": "Request withdrawn",
-    "withdrawError": "Failed to withdraw",
-    "remindSuccess": "Reminder sent",
-    "remindError": "Failed to send reminder",
-    "fields": {
-      "namespace": "Namespace",
-      "namespacePlaceholder": "e.g. production",
-      "duration": "Duration",
-      "approver": "Approver",
-      "approverPlaceholder": "Select an approver",
-      "reason": "Reason",
-      "reasonPlaceholder": "Explain why you need access...",
-      "reviewNote": "Review Note",
-      "createdAt": "Created At"
-    },
-    "status": {
-      "pending": "Pending",
-      "approved": "Approved",
-      "rejected": "Rejected",
-      "withdrawn": "Withdrawn",
-      "expired": "Expired"
+    "createSuccess": "Request submitted, awaiting approval",
+    "duration": {
+      "1h": "1 hour",
+      "2h": "2 hours",
+      "4h": "4 hours",
+      "days": "{{count}} days",
+      "hours": "{{count}} hours"
     },
     "errors": {
+      "approverRequired": "Please select an approver",
+      "clusterRequired": "Please select a cluster",
+      "cmRequired": "Please select a gateway configuration (ConfigMap)",
       "namespaceRequired": "Namespace is required",
       "reasonRequired": "Reason is required",
-      "approverRequired": "Please select an approver"
-    }
+      "reportLinkRequired": "Please fill in the test report link",
+      "routeNamespaceReserved": "envoy-gateway-system can only be accessed via a route adjustment request"
+    },
+    "expiresInDays": "Expires in {{count}} days",
+    "expiresInHours": "Expires in {{hours}}h {{minutes}}m",
+    "expiresInMinutes": "Expires in {{count}}m",
+    "fields": {
+      "approver": "Approver",
+      "approverPlaceholder": "Select an approver",
+      "canaryReportLink": "Canary test report link",
+      "cluster": "Cluster",
+      "clusterPlaceholder": "Select a cluster",
+      "createdAt": "Created At",
+      "duration": "Duration",
+      "namespace": "Namespace",
+      "namespacePlaceholder": "e.g. production",
+      "reason": "Reason",
+      "reasonPlaceholder": "Explain why you need access...",
+      "reportLink": "Test report link",
+      "reportLinkPlaceholder": "e.g. https://docs.example.com/test-report",
+      "requestType": "Request type",
+      "reviewNote": "Review Note",
+      "riskLevel": "Estimated risk",
+      "targetCM": "Target configuration (ConfigMap)",
+      "targetCMHint": "After approval, grants read/create/update access to the selected ConfigMap only (delete is forbidden)",
+      "targetCMPlaceholder": "Select a ConfigMap under envoy-gateway-system"
+    },
+    "myRequestsTitle": "My Access Requests",
+    "noConfigFound": "No ConfigMaps found",
+    "noNamespaceFound": "No namespaces found",
+    "noRequests": "No requests yet",
+    "remind": "Remind",
+    "remindError": "Failed to send reminder",
+    "remindSuccess": "Reminder sent",
+    "requestAccess": "Request Access",
+    "requestType": {
+      "canaryUpdate": "Canary Update",
+      "fullUpdate": "Full Update",
+      "routeAdjust": "Route Adjustment"
+    },
+    "risk": {
+      "high": "🔴 High risk",
+      "low": "🟢 Low risk",
+      "medium": "🟡 Medium risk"
+    },
+    "searchConfigPlaceholder": "Search ConfigMaps...",
+    "searchNamespacePlaceholder": "Search namespaces...",
+    "status": {
+      "approved": "Approved",
+      "expired": "Expired",
+      "pending": "Pending",
+      "rejected": "Rejected",
+      "withdrawn": "Withdrawn"
+    },
+    "submit": "Submit Request",
+    "title": "Request Namespace Access",
+    "withdraw": "Withdraw",
+    "withdrawError": "Failed to withdraw",
+    "withdrawSuccess": "Request withdrawn"
   },
   "accessRequestSettings": {
-    "saveSuccess": "Feishu settings saved",
-    "saveError": "Failed to save",
     "alreadySet": "Already set, leave blank to keep",
+    "approvers": {
+      "add": "Add",
+      "addTitle": "Add Approver",
+      "description": "Configure people who can approve access requests. Feishu Open ID required (starts with ou_).",
+      "empty": "No approvers yet, please add one",
+      "namePlaceholder": "Name",
+      "openIdPlaceholder": "Open ID (ou_xxx)",
+      "title": "Approvers"
+    },
+    "errors": {
+      "approverDuplicate": "This Open ID already exists",
+      "approverFieldsRequired": "Please fill in approver name and Open ID"
+    },
     "feishuBot": {
-      "title": "Feishu Bot Configuration",
       "description": "Configure a Feishu custom app to send approval messages. Requires 'Send Messages' permission.",
       "groupChatId": "Group Chat ID",
       "groupChatIdHint": "Find the group Chat ID in bot settings (starts with oc_)",
+      "title": "Feishu Bot Configuration",
       "verificationToken": "Verification Token",
       "verificationTokenPlaceholder": "Used to verify card callback signatures"
     },
-    "approvers": {
-      "title": "Approvers",
-      "description": "Configure people who can approve access requests. Feishu Open ID required (starts with ou_).",
-      "empty": "No approvers yet, please add one",
-      "addTitle": "Add Approver",
-      "add": "Add",
-      "namePlaceholder": "Name",
-      "openIdPlaceholder": "Open ID (ou_xxx)"
-    },
-    "errors": {
-      "approverFieldsRequired": "Please fill in approver name and Open ID",
-      "approverDuplicate": "This Open ID already exists"
-    }
-  },
-  "tempPermissions": {
-    "title": "Temp Permissions",
-    "description": "View all access requests and revoke approved temporary permissions.",
-    "revoke": "Revoke",
-    "revokeSuccess": "Revoked {{name}}'s access to {{ns}}",
-    "revokeError": "Failed to revoke",
-    "table": {
-      "requester": "Requester",
-      "namespace": "Namespace",
-      "duration": "Duration",
-      "approver": "Approver",
-      "expiresAt": "Expires At"
-    }
-  },
-  "generalManagement": {
-    "title": "General",
-    "description": "Manage global feature switches and related configuration.",
-    "aiAgent": {
-      "title": "AI Agent",
-      "description": "Enable AI assistant and configure model endpoint.",
-      "form": {
-        "model": "Model",
-        "apiKey": "API Key",
-        "apiKeyPlaceholder": "Leave empty to keep current API Key",
-        "baseUrl": "Base URL",
-        "maxTokens": "Max Tokens"
-      }
-    },
-    "kubectl": {
-      "title": "Kubectl",
-      "description": "Enable kubectl terminal and configure runtime image.",
-      "form": {
-        "image": "Image"
-      }
-    },
-    "nodeTerminal": {
-      "title": "Node Terminal",
-      "description": "Configure runtime image used for node terminal sessions.",
-      "form": {
-        "image": "Image"
-      }
-    },
-    "runtime": {
-      "title": "Runtime",
-      "description": "Configure version checking behavior.",
-      "form": {
-        "enableVersionCheck": "Enable version check"
-      }
-    },
-    "errors": {
-      "modelRequired": "Model is required",
-      "apiKeyRequired": "API Key is required when AI Agent is enabled",
-      "kubectlImageRequired": "Kubectl image is required when kubectl is enabled",
-      "nodeTerminalImageRequired": "Node terminal image is required"
-    },
-    "messages": {
-      "updated": "General settings updated"
-    }
-  },
-  "authenticationManagement": {
-    "title": "Authentication",
-    "ldap": {
-      "title": "LDAP",
-      "description": "Enable LDAP username/password login and sync groups into RBAC.",
-      "form": {
-        "serverUrl": "Server URL",
-        "useStartTLS": "Use StartTLS",
-        "useStartTLSHint": "Enable StartTLS when using ldap:// endpoints.",
-        "bindDn": "Bind DN",
-        "bindPassword": "Bind Password",
-        "bindPasswordPlaceholder": "Leave empty to keep current bind password",
-        "userBaseDn": "User Base DN",
-        "userFilter": "User Filter",
-        "usernameAttribute": "Username Attribute",
-        "displayNameAttribute": "Display Name Attribute",
-        "groupBaseDn": "Group Base DN",
-        "groupFilter": "Group Filter",
-        "groupNameAttribute": "Group Name Attribute"
-      }
-    },
-    "errors": {
-      "serverUrlRequired": "LDAP server URL is required",
-      "bindDnRequired": "LDAP bind DN is required",
-      "bindPasswordRequired": "LDAP bind password is required",
-      "userBaseDnRequired": "LDAP user base DN is required",
-      "groupBaseDnRequired": "LDAP group base DN is required",
-      "userFilterPlaceholder": "LDAP user filter must contain exactly one %s",
-      "groupFilterPlaceholder": "LDAP group filter must contain exactly one %s"
-    },
-    "messages": {
-      "updated": "Authentication settings updated"
-    }
-  },
-  "settingsHint": {
-    "title": "Complete Your Setup",
-    "description": "Configure essential settings to get the most out of Kite",
-    "p8s": {
-      "description": "Configure Prometheus"
-    },
-    "oauth": {
-      "description": "Set up LDAP or OAuth authentication"
-    },
-    "rbac": {
-      "description": "Configure roles and permissions"
-    },
-    "viewAll": "View All Settings"
-  },
-  "clusterManagement": {
-    "title": "Cluster Management",
-    "actions": {
-      "add": "Add Cluster",
-      "edit": "Edit",
-      "delete": "Delete"
-    },
-    "table": {
-      "name": "Name",
-      "type": "Type",
-      "status": "Status",
-      "prometheus": "Prometheus",
-      "actions": "Actions"
-    },
-    "type": {
-      "inCluster": "In-Cluster",
-      "external": "External"
-    },
-    "status": {
-      "enabled": "Enabled",
-      "disabled": "Disabled"
-    },
-    "empty": {
-      "title": "No clusters configured",
-      "description": "Add your first cluster to get started"
-    },
-    "messages": {
-      "created": "Cluster created successfully",
-      "updated": "Cluster updated successfully",
-      "deleted": "Cluster deleted successfully",
-      "createError": "Failed to create cluster",
-      "updateError": "Failed to update cluster",
-      "deleteError": "Failed to delete cluster"
-    },
-    "errors": {
-      "loadFailed": "Failed to load clusters"
-    },
-    "deleteConfirmation": "This action will only remove the current cluster's configuration in kite and will not delete any cluster resources.",
-    "dialog": {
-      "createTitle": "Add Cluster",
-      "editTitle": "Edit Cluster",
-      "name": "Name",
-      "namePlaceholder": "Enter cluster name",
-      "description": "Description",
-      "descriptionPlaceholder": "Enter cluster description (optional)",
-      "type": "Type",
-      "config": "Configuration",
-      "configPlaceholder": "Paste kubeconfig content here...",
-      "prometheusUrl": "Prometheus URL",
-      "prometheusUrlPlaceholder": "https://prometheus.example.com",
-      "enabled": "Enabled",
-      "isDefault": "Set as Default"
-    }
-  },
-  "oauthManagement": {
-    "title": "OAuth Provider Management",
-    "actions": {
-      "add": "Add Provider",
-      "edit": "Edit",
-      "delete": "Delete"
-    },
-    "table": {
-      "name": "Name",
-      "clientId": "Client ID",
-      "issuer": "Issuer",
-      "status": "Status",
-      "actions": "Actions"
-    },
-    "messages": {
-      "created": "OAuth provider created successfully",
-      "updated": "OAuth provider updated successfully",
-      "deleted": "OAuth provider deleted successfully",
-      "createError": "Failed to create OAuth provider",
-      "updateError": "Failed to update OAuth provider",
-      "deleteError": "Failed to delete OAuth provider"
-    },
-    "errors": {
-      "loadFailed": "Failed to load OAuth providers"
-    },
-    "deleteConfirmation": "This action will remove the OAuth provider configuration. Users will no longer be able to login using this provider.",
-    "dialog": {
-      "createTitle": "Add OAuth Provider",
-      "editTitle": "Edit OAuth Provider",
-      "name": "Name",
-      "namePlaceholder": "e.g., github, google",
-      "clientId": "Client ID",
-      "clientIdPlaceholder": "OAuth Client ID",
-      "clientSecret": "Client Secret",
-      "clientSecretRequired": "OAuth Client Secret",
-      "clientSecretPlaceholder": "Leave empty to keep current secret",
-      "authUrl": "Authorization URL",
-      "tokenUrl": "Token URL",
-      "userInfoUrl": "User Info URL",
-      "scopes": "Scopes",
-      "issuer": "Issuer",
-      "enabled": "Enabled"
-    }
-  },
-  "initialization": {
-    "title": "Initial Setup",
-    "welcome": "Welcome! Let's set up your Kite dashboard",
-    "subtitle": "Complete the following steps to get started",
-    "description": "Configure your admin user and connect cluster",
-    "step1": {
-      "title": "Create Super Admin User",
-      "description": "If you want to use it anonymously, please set the `ANONYMOUS_USER_ENABLED` env variable to true",
-      "username": "Username",
-      "usernameRequired": "Username *",
-      "usernamePlaceholder": "Enter admin username",
-      "displayName": "Display Name",
-      "displayNamePlaceholder": "Enter display name (optional)",
-      "password": "Password",
-      "passwordRequired": "Password *",
-      "passwordPlaceholder": "Enter password",
-      "confirmPassword": "Confirm Password",
-      "confirmPasswordRequired": "Confirm Password *",
-      "confirmPasswordPlaceholder": "Confirm password",
-      "creating": "Creating User...",
-      "createButton": "Create Super Admin User",
-      "passwordMismatch": "Passwords do not match",
-      "createSuccess": "Super admin user created successfully",
-      "createError": "Failed to create user"
-    },
-    "step2": {
-      "title": "Import Kubernetes Cluster",
-      "description": "Connect your Kubernetes cluster",
-      "kubeconfig": "Kubeconfig File",
-      "kubeconfigRequired": "Kubeconfig File *",
-      "kubeconfigPlaceholder": "Paste your kubeconfig file content here...",
-      "kubeconfigHint": "You can find your kubeconfig file at ~/.kube/config or get it from your cluster provider",
-      "pasteMode": "Paste Content",
-      "fileMode": "Upload File",
-      "fileHint": "Select your kubeconfig file (usually located at ~/.kube/config)",
-      "importing": "Importing Clusters...",
-      "importButton": "Import Clusters",
-      "importSuccess": "Clusters imported successfully",
-      "importError": "Failed to import clusters",
-      "configRequired": "Please provide a kubeconfig file"
-    },
-    "completion": {
-      "title": "Setup Complete!",
-      "message": "You will be redirected to the dashboard shortly..."
-    }
-  },
-  "resourceHistory": {
-    "title": "Resource History",
-    "operator": "Operator",
-    "operationTime": "Time",
-    "operationType": "Type",
-    "status": "Status",
-    "actions": "Actions",
-    "viewDiff": "View Diff",
-    "yamlDiff": "YAML Diff",
-    "loadingHistory": "Loading history...",
-    "failedToLoadHistory": "Failed to load history",
-    "noHistoryFound": "No history found",
-    "create": "Create",
-    "update": "Update",
-    "delete": "Delete",
-    "apply": "Apply",
-    "patch": "Patch",
-    "success": "Success",
-    "failed": "Failed",
-    "previousVsModified": "Previous vs Modified",
-    "currentVsModified": "Current vs Modified",
-    "rollback": {
-      "previous": "Rollback Previous",
-      "modified": "Rollback Modified",
-      "rollingBack": "Rolling back...",
-      "success": "Successfully rolled back resource",
-      "error": "Failed to rollback resource"
-    }
-  },
-  "pvcs": {
-    "volume": "Volume",
-    "storageClass": "Storage Class",
-    "capacity": "Capacity",
-    "accessModes": "Access Modes"
-  },
-  "pvs": {
-    "storageClass": "Storage Class",
-    "capacity": "Capacity",
-    "accessModes": "Access Modes",
-    "reclaimPolicy": "Reclaim Policy",
-    "claim": "Claim"
-  },
-  "detail": {
-    "buttons": {
-      "refresh": "Refresh",
-      "delete": "Delete",
-      "scale": "Scale",
-      "restart": "Restart",
-      "drain": "Drain",
-      "cordon": "Cordon",
-      "uncordon": "Uncordon",
-      "taint": "Taint",
-      "cancel": "Cancel",
-      "add": "Add",
-      "remove": "Remove",
-      "edit": "Edit",
-      "create": "Create",
-      "save": "Save"
-    },
-    "status": {
-      "loading": "Loading {{resource}} details...",
-      "yamlSaved": "YAML saved successfully",
-      "restartInitiated": "{{resource}} restart initiated",
-      "scaledTo": "{{resource}} scaled to {{replicas}} replicas",
-      "deleted": "{{resource}} deleted successfully",
-      "taintKeyRequired": "Taint key is required",
-      "taintRemoved": "Taint removed from {{resource}} successfully",
-      "nodeDrained": "Node {{name}} drained successfully",
-      "nodeCordoned": "Node {{name}} cordoned successfully",
-      "nodeUncordoned": "Node {{name}} uncordoned successfully",
-      "nodeTainted": "Node {{name}} tainted successfully"
-    },
-    "dialogs": {
-      "drainNode": {
-        "title": "Drain Node",
-        "description": "Safely evict all pods from this node.",
-        "forceDrain": "Force drain",
-        "deleteLocalData": "Delete local data",
-        "ignoreDaemonSets": "Ignore DaemonSets",
-        "gracePeriod": "Grace Period (seconds)",
-        "drainButton": "Drain Node"
-      },
-      "cordonNode": {
-        "title": "Cordon Node",
-        "description": "Mark this node as unschedulable.",
-        "cordonButton": "Cordon Node"
-      },
-      "taintNode": {
-        "title": "Taint Node",
-        "description": "Add a taint to prevent pods from being scheduled.",
-        "key": "Key *",
-        "value": "Value",
-        "effect": "Effect",
-        "keyPlaceholder": "e.g., node.kubernetes.io/maintenance",
-        "valuePlaceholder": "Optional value",
-        "addTaintButton": "Add Taint"
-      },
-      "scaleDeployment": {
-        "title": "Scale Deployment",
-        "description": "Adjust the number of replicas for this deployment.",
-        "replicas": "Replicas",
-        "scaleButton": "Scale"
-      },
-      "restartDeployment": {
-        "title": "Restart Deployment",
-        "description": "This will restart all pods in the deployment by updating the deployment's template with a new restart annotation. This action cannot be undone.",
-        "restartButton": "Restart"
-      },
-      "restartDaemonSet": {
-        "title": "Restart DaemonSet",
-        "description": "This will restart all pods managed by this DaemonSet. This action cannot be undone.",
-        "restartButton": "Restart"
-      }
-    },
-    "sections": {
-      "statusOverview": "Status Overview",
-      "nodeInformation": "Node Information",
-      "resourceCapacity": "Resource Capacity",
-      "nodeTaints": "Node Taints",
-      "nodeConditions": "Node Conditions",
-      "deploymentInformation": "Deployment Information",
-      "daemonSetInformation": "DaemonSet Information",
-      "podInformation": "Pod Information",
-      "initContainers": "Init Containers",
-      "containers": "Containers",
-      "conditions": "Conditions"
-    },
-    "fields": {
-      "created": "Created",
-      "strategy": "Strategy",
-      "replicas": "Replicas",
-      "selector": "Selector",
-      "started": "Started",
-      "podIP": "Pod IP",
-      "hostIP": "Host IP",
-      "owner": "Owner",
-      "role": "Role",
-      "internalIP": "Internal IP",
-      "externalIP": "External IP",
-      "podCIDR": "Pod CIDR",
-      "kubeletVersion": "Kubelet Version",
-      "hostname": "Hostname",
-      "osImage": "OS Image",
-      "kernelVersion": "Kernel Version",
-      "architecture": "Architecture",
-      "containerRuntime": "Container Runtime",
-      "kubeProxyVersion": "Kube Proxy Version",
-      "phase": "Phase",
-      "readyContainers": "Ready Containers",
-      "restartCount": "Restart Count",
-      "node": "Node",
-      "notAssigned": "Not assigned",
-      "notStarted": "Not started",
-      "noOwner": "No owner",
-      "ready": "Ready",
-      "notReady": "Not Ready",
-      "schedulingDisabled": "(SchedulingDisabled)",
-      "capacity": "Capacity",
-      "allocatable": "Allocatable",
-      "cpu": "CPU",
-      "memory": "Memory",
-      "pods": "Pods",
-      "storage": "Storage",
-      "effect": "Effect",
-      "key": "Key",
-      "value": "Value",
-      "timeAdded": "Time Added",
-      "type": "Type",
-      "message": "Message",
-      "lastTransitionTime": "Last Transition Time",
-      "updatedReplicas": "Updated Replicas",
-      "availableReplicas": "Available Replicas",
-      "readyReplicas": "Ready Replicas",
-      "desiredScheduled": "Desired Scheduled",
-      "currentScheduled": "Current Scheduled"
-    }
+    "saveError": "Failed to save",
+    "saveSuccess": "Feishu settings saved"
   },
   "aiChat": {
     "disclaimer": "AI may make mistakes. Please verify carefully before use.",
+    "history": {
+      "empty": "No chat history yet",
+      "newChat": "New Chat",
+      "title": "Chat History"
+    },
     "suggestedPrompts": {
-      "hint": "Start with a focused check",
+      "default": {
+        "healthCheck": "Run a quick cluster check and list top 3 risks",
+        "runbook": "Provide a prioritized troubleshooting runbook",
+        "workloadIssues": "List problematic workloads and probable root causes"
+      },
+      "deploymentDetail": {
+        "recentEvents": "Review recent events for {{resourceKind}}/{{resourceName}} and suggest fixes",
+        "releaseCheck": "Check release progress and rollout blockers for {{resourceKind}}/{{resourceName}}",
+        "replicaGap": "Explain desired vs available replica gap for {{resourceKind}}/{{resourceName}}"
+      },
+      "detail": {
+        "anomaly": "Identify anomalies and likely root causes for {{resourceKind}}/{{resourceName}}",
+        "nextSteps": "Give minimal-impact next actions for {{resourceKind}}/{{resourceName}} in {{namespace}}",
+        "summary": "Summarize current status and key conditions for {{resourceKind}}/{{resourceName}}"
+      },
       "fallback": {
-        "resource": "this resource",
-        "namespace": "this namespace"
+        "namespace": "this namespace",
+        "resource": "this resource"
+      },
+      "hint": "Start with a focused check",
+      "list": {
+        "anomalies": "Find abnormal resources on this page and sort by impact",
+        "namespaceHotspots": "Highlight namespaces with the most issues on this page",
+        "nextActions": "Give a short action list for the current resource list"
+      },
+      "nodeDetail": {
+        "actions": "Provide prioritized remediation actions for {{resourceKind}}/{{resourceName}}",
+        "health": "Check node health, pressure conditions, and critical alerts",
+        "workloadRisk": "Analyze workload risks on {{resourceKind}}/{{resourceName}}"
       },
       "overview": {
         "clusterHealth": "Run a cluster health check and highlight top risks",
@@ -807,52 +145,1178 @@
         "namespaceSummary": "Summarize health and anomalies by namespace"
       },
       "podDetail": {
-        "rootCause": "Analyze {{resourceKind}}/{{resourceName}} using status, events, and logs",
         "riskCheck": "Check restart, OOM, and probe failures for {{resourceKind}}/{{resourceName}}",
+        "rootCause": "Analyze {{resourceKind}}/{{resourceName}} using status, events, and logs",
         "troubleshoot": "Give a prioritized troubleshooting path for {{resourceKind}}/{{resourceName}} in {{namespace}}"
-      },
-      "deploymentDetail": {
-        "releaseCheck": "Check release progress and rollout blockers for {{resourceKind}}/{{resourceName}}",
-        "replicaGap": "Explain desired vs available replica gap for {{resourceKind}}/{{resourceName}}",
-        "recentEvents": "Review recent events for {{resourceKind}}/{{resourceName}} and suggest fixes"
-      },
-      "nodeDetail": {
-        "health": "Check node health, pressure conditions, and critical alerts",
-        "workloadRisk": "Analyze workload risks on {{resourceKind}}/{{resourceName}}",
-        "actions": "Provide prioritized remediation actions for {{resourceKind}}/{{resourceName}}"
-      },
-      "detail": {
-        "summary": "Summarize current status and key conditions for {{resourceKind}}/{{resourceName}}",
-        "anomaly": "Identify anomalies and likely root causes for {{resourceKind}}/{{resourceName}}",
-        "nextSteps": "Give minimal-impact next actions for {{resourceKind}}/{{resourceName}} in {{namespace}}"
-      },
-      "list": {
-        "anomalies": "Find abnormal resources on this page and sort by impact",
-        "namespaceHotspots": "Highlight namespaces with the most issues on this page",
-        "nextActions": "Give a short action list for the current resource list"
-      },
-      "default": {
-        "healthCheck": "Run a quick cluster check and list top 3 risks",
-        "workloadIssues": "List problematic workloads and probable root causes",
-        "runbook": "Provide a prioritized troubleshooting runbook"
       }
+    },
+    "validation": {
+      "required": "Required"
     }
   },
+  "apikeyManagement": {
+    "actions": {
+      "add": "Add API Key",
+      "copy": "Copy",
+      "delete": "Delete"
+    },
+    "copyError": "Failed to copy API key",
+    "deleteConfirmation": "Are you sure you want to delete this API key? This action cannot be undone.",
+    "description": "Manage API keys for programmatic access",
+    "dialog": {
+      "assignRoles": "Assign roles",
+      "createButton": "Create",
+      "createTitle": "Create API Key",
+      "creating": "Creating...",
+      "description": "Create a new API key for programmatic access.",
+      "editTitle": "Edit API Key",
+      "keyLabel": "API Key",
+      "name": "Name",
+      "nameLabel": "Name",
+      "namePlaceholder": "e.g., CI API Key",
+      "nameRequired": "Name is required",
+      "title": "Create API Key"
+    },
+    "empty": {
+      "description": "Create an API key to get started with programmatic access.",
+      "title": "No API keys configured"
+    },
+    "errors": {
+      "loadFailed": "Failed to load API Keys"
+    },
+    "messages": {
+      "copied": "API key copied to clipboard",
+      "copyError": "Failed to copy API key",
+      "createError": "Failed to create API Key. Please try again.",
+      "created": "API Key created successfully",
+      "deleteError": "Failed to delete API Key. Please try again.",
+      "deleted": "API Key deleted successfully"
+    },
+    "neverUsed": "Never",
+    "table": {
+      "actions": "Actions",
+      "createdAt": "Created At",
+      "key": "API Key",
+      "lastUsed": "Last Used",
+      "name": "Name",
+      "roles": "Roles"
+    },
+    "title": "API Key"
+  },
+  "auditLog": {
+    "actions": {
+      "viewDiff": "View Diff"
+    },
+    "description": "Track who changed resources and review YAML diffs",
+    "diffTitle": "YAML Diff",
+    "empty": "No audit logs found",
+    "filters": {
+      "allClusters": "All clusters",
+      "allOperations": "All operations",
+      "allUsers": "All users",
+      "cluster": "All clusters",
+      "operation": "All operations",
+      "search": "Search resource name...",
+      "user": "All users"
+    },
+    "loadFailed": "Failed to load audit logs",
+    "loading": "Loading audit logs...",
+    "noYamlDiff": "No YAML diff available",
+    "status": {
+      "failed": "Failed",
+      "success": "Success"
+    },
+    "table": {
+      "actions": "Actions",
+      "cluster": "Cluster",
+      "operation": "Operation",
+      "operator": "Operator",
+      "resource": "Resource",
+      "status": "Status",
+      "time": "Time"
+    },
+    "title": "Audit Logs"
+  },
+  "authenticationManagement": {
+    "errors": {
+      "bindDnRequired": "LDAP bind DN is required",
+      "bindPasswordRequired": "LDAP bind password is required",
+      "groupBaseDnRequired": "LDAP group base DN is required",
+      "groupFilterPlaceholder": "LDAP group filter must contain exactly one %s",
+      "loadFailed": "Failed to load LDAP settings",
+      "serverUrlRequired": "LDAP server URL is required",
+      "userBaseDnRequired": "LDAP user base DN is required",
+      "userFilterPlaceholder": "LDAP user filter must contain exactly one %s"
+    },
+    "ldap": {
+      "description": "Enable LDAP username/password login and sync groups into RBAC.",
+      "form": {
+        "bindDn": "Bind DN",
+        "bindPassword": "Bind Password",
+        "bindPasswordPlaceholder": "Leave empty to keep current bind password",
+        "displayNameAttribute": "Display Name Attribute",
+        "groupBaseDn": "Group Base DN",
+        "groupFilter": "Group Filter",
+        "groupNameAttribute": "Group Name Attribute",
+        "serverUrl": "Server URL",
+        "useStartTLS": "Use StartTLS",
+        "useStartTLSHint": "Enable StartTLS when using ldap:// endpoints.",
+        "userBaseDn": "User Base DN",
+        "userFilter": "User Filter",
+        "usernameAttribute": "Username Attribute"
+      },
+      "title": "LDAP"
+    },
+    "messages": {
+      "updated": "Authentication settings updated"
+    },
+    "password": {
+      "description": "Allow users to sign in with a username and password.",
+      "title": "Password Login",
+      "warning": {
+        "description": "Verify that your LDAP or OAuth provider is working before saving. Without a working alternative login method, you will be locked out and can only recover by resetting the database.",
+        "title": "Warning: You may lose access!"
+      }
+    },
+    "title": "Authentication"
+  },
+  "cluster": {
+    "error": "Error loading clusters: {{error}}",
+    "error403": "You do not have permission to access this cluster. Please contact your administrator for more information.",
+    "loading": "Loading clusters..."
+  },
+  "clusterManagement": {
+    "actions": {
+      "add": "Add Cluster",
+      "delete": "Delete",
+      "edit": "Edit",
+      "save": "Save Changes"
+    },
+    "deleteConfirmation": "This action will only remove the current cluster's configuration in kite and will not delete any cluster resources.",
+    "dialog": {
+      "add": {
+        "title": "Add New Cluster"
+      },
+      "config": "Configuration",
+      "configPlaceholder": "Paste kubeconfig content here...",
+      "createTitle": "Add Cluster",
+      "description": "Description",
+      "descriptionPlaceholder": "Enter cluster description (optional)",
+      "edit": {
+        "title": "Edit Cluster"
+      },
+      "editTitle": "Edit Cluster",
+      "enabled": "Enabled",
+      "isDefault": "Set as Default",
+      "name": "Name",
+      "namePlaceholder": "Enter cluster name",
+      "prometheusUrl": "Prometheus URL",
+      "prometheusUrlPlaceholder": "https://prometheus.example.com",
+      "type": "Type"
+    },
+    "empty": {
+      "description": "Add your first cluster to get started",
+      "title": "No clusters configured"
+    },
+    "errors": {
+      "loadFailed": "Failed to load clusters"
+    },
+    "form": {
+      "config": {
+        "editNote": "Leave empty to keep current configuration",
+        "label": "Kubeconfig"
+      },
+      "description": {
+        "label": "Description",
+        "placeholder": "Brief description of this cluster"
+      },
+      "enabled": {
+        "label": "Enable Cluster"
+      },
+      "inCluster": {
+        "note": "This cluster uses the in-cluster service account configuration. No additional kubeconfig is required."
+      },
+      "isDefault": {
+        "help": "Use this cluster as the default for new operations",
+        "label": "Set as Default"
+      },
+      "kubeconfig": {
+        "placeholder": "Paste your kubeconfig content here..."
+      },
+      "name": {
+        "label": "Cluster Name",
+        "placeholder": "e.g., production, staging"
+      },
+      "prometheusURL": {
+        "label": "Prometheus URL"
+      },
+      "type": {
+        "external": "External Cluster",
+        "inCluster": "In-Cluster",
+        "label": "Cluster Type"
+      }
+    },
+    "messages": {
+      "createError": "Failed to create cluster",
+      "created": "Cluster created successfully",
+      "deleteError": "Failed to delete cluster",
+      "deleted": "Cluster deleted successfully",
+      "updateError": "Failed to update cluster",
+      "updated": "Cluster updated successfully"
+    },
+    "status": {
+      "disabled": "Disabled",
+      "enabled": "Enabled"
+    },
+    "table": {
+      "Prometheus": "Prometheus",
+      "actions": "Actions",
+      "name": "Name",
+      "status": "Status",
+      "type": "Type"
+    },
+    "title": "Cluster Management",
+    "type": {
+      "external": "External",
+      "inCluster": "In-Cluster"
+    }
+  },
+  "common": {
+    "actions": "Actions",
+    "apply": "Apply",
+    "applying": "Applying...",
+    "assign": "Assign",
+    "assignRoles": "Assign Roles",
+    "available": "Available",
+    "cancel": "Cancel",
+    "close": "Close",
+    "confirm": "Confirm",
+    "copied": "Copied to clipboard",
+    "create": "Create",
+    "created": "Created",
+    "createdAt": "Created At",
+    "creating": "Creating...",
+    "current": "Current",
+    "delete": "Delete",
+    "description": "Description",
+    "desired": "Desired",
+    "disable": "Disable",
+    "disabled": "Disabled",
+    "done": "Done",
+    "edit": "Edit",
+    "enable": "Enable",
+    "enabled": "Enabled",
+    "error": "Error",
+    "filter": "Filter",
+    "language": "Language",
+    "loading": "Loading...",
+    "name": "Name",
+    "namespace": "Namespace",
+    "password": "Password",
+    "refresh": "Refresh",
+    "required": "This field is required",
+    "resetPassword": "Reset Password",
+    "retry": "Retry",
+    "save": "Save",
+    "saving": "Saving...",
+    "search": "Search",
+    "status": "Status",
+    "success": "Success",
+    "update": "Update",
+    "version": "Version",
+    "yaml": "YAML"
+  },
+  "createResource": {
+    "emptyTemplate": "Empty Template",
+    "selectTemplate": "Select a template",
+    "success": "Resource created successfully"
+  },
   "deleteConfirmation": {
-    "title": "Delete {{type}}",
-    "description": "This action cannot be undone.",
     "aboutToDelete": "You are about to delete:",
+    "deleting": "Deleting...",
+    "description": "This action cannot be undone.",
+    "finalizerNote": "If finalizers exist and resource is not deleted after 3 seconds, finalizers will be removed automatically",
+    "forceDelete": "Force delete (set grace period to 0)",
+    "title": "Delete {{type}}",
+    "toConfirm": "to confirm:",
     "type": "Type",
     "typeToConfirm": "Type",
-    "toConfirm": "to confirm:",
-    "wait": "Wait",
-    "forceDelete": "Force delete (set grace period to 0)",
-    "finalizerNote": "If finalizers exist and resource is not deleted after 3 seconds, finalizers will be removed automatically",
-    "deleting": "Deleting..."
+    "wait": "Wait"
   },
+  "deployments": {
+    "age": "Age",
+    "available": "Available",
+    "ready": "Ready",
+    "replicas": "Replicas",
+    "title": "Deployments",
+    "upToDate": "Up-to-date"
+  },
+  "detail": {
+    "buttons": {
+      "add": "Add",
+      "cancel": "Cancel",
+      "cordon": "Cordon",
+      "create": "Create",
+      "delete": "Delete",
+      "drain": "Drain",
+      "edit": "Edit",
+      "refresh": "Refresh",
+      "remove": "Remove",
+      "restart": "Restart",
+      "save": "Save",
+      "scale": "Scale",
+      "taint": "Taint",
+      "uncordon": "Uncordon"
+    },
+    "dialogs": {
+      "cordonNode": {
+        "cordonButton": "Cordon Node",
+        "description": "Mark this node as unschedulable.",
+        "title": "Cordon Node"
+      },
+      "drainNode": {
+        "deleteLocalData": "Delete local data",
+        "description": "Safely evict all pods from this node.",
+        "drainButton": "Drain Node",
+        "forceDrain": "Force drain",
+        "gracePeriod": "Grace Period (seconds)",
+        "ignoreDaemonSets": "Ignore DaemonSets",
+        "title": "Drain Node"
+      },
+      "restartDaemonSet": {
+        "description": "This will restart all pods managed by this DaemonSet. This action cannot be undone.",
+        "restartButton": "Restart",
+        "title": "Restart DaemonSet"
+      },
+      "restartDeployment": {
+        "description": "This will restart all pods in the deployment by updating the deployment's template with a new restart annotation. This action cannot be undone.",
+        "restartButton": "Restart",
+        "title": "Restart Deployment"
+      },
+      "scaleDeployment": {
+        "description": "Adjust the number of replicas for this deployment.",
+        "replicas": "Replicas",
+        "scaleButton": "Scale",
+        "title": "Scale Deployment"
+      },
+      "taintNode": {
+        "addTaintButton": "Add Taint",
+        "description": "Add a taint to prevent pods from being scheduled.",
+        "effect": "Effect",
+        "key": "Key *",
+        "keyPlaceholder": "e.g., node.kubernetes.io/maintenance",
+        "title": "Taint Node",
+        "value": "Value",
+        "valuePlaceholder": "Optional value"
+      }
+    },
+    "fields": {
+      "allocatable": "Allocatable",
+      "architecture": "Architecture",
+      "availableReplicas": "Available Replicas",
+      "capacity": "Capacity",
+      "containerRuntime": "Container Runtime",
+      "cpu": "CPU",
+      "created": "Created",
+      "currentScheduled": "Current Scheduled",
+      "desiredScheduled": "Desired Scheduled",
+      "effect": "Effect",
+      "externalIP": "External IP",
+      "hostIP": "Host IP",
+      "hostname": "Hostname",
+      "internalIP": "Internal IP",
+      "kernelVersion": "Kernel Version",
+      "key": "Key",
+      "kubeProxyVersion": "Kube Proxy Version",
+      "kubeletVersion": "Kubelet Version",
+      "lastTransitionTime": "Last Transition Time",
+      "memory": "Memory",
+      "message": "Message",
+      "noOwner": "No owner",
+      "node": "Node",
+      "notAssigned": "Not assigned",
+      "notReady": "Not Ready",
+      "notStarted": "Not started",
+      "osImage": "OS Image",
+      "owner": "Owner",
+      "phase": "Phase",
+      "podCIDR": "Pod CIDR",
+      "podIP": "Pod IP",
+      "pods": "Pods",
+      "ready": "Ready",
+      "readyContainers": "Ready Containers",
+      "readyReplicas": "Ready Replicas",
+      "replicas": "Replicas",
+      "restartCount": "Restart Count",
+      "role": "Role",
+      "schedulingDisabled": "(SchedulingDisabled)",
+      "selector": "Selector",
+      "started": "Started",
+      "storage": "Storage",
+      "strategy": "Strategy",
+      "timeAdded": "Time Added",
+      "type": "Type",
+      "updatedReplicas": "Updated Replicas",
+      "value": "Value"
+    },
+    "sections": {
+      "conditions": "Conditions",
+      "containers": "Containers",
+      "daemonSetInformation": "DaemonSet Information",
+      "deploymentInformation": "Deployment Information",
+      "initContainers": "Init Containers",
+      "nodeConditions": "Node Conditions",
+      "nodeInformation": "Node Information",
+      "nodeTaints": "Node Taints",
+      "podInformation": "Pod Information",
+      "resourceCapacity": "Resource Capacity",
+      "statusOverview": "Status Overview"
+    },
+    "status": {
+      "deleted": "{{resource}} deleted successfully",
+      "loading": "Loading {{resource}} details...",
+      "nodeCordoned": "Node {{name}} cordoned successfully",
+      "nodeDrained": "Node {{name}} drained successfully",
+      "nodeTainted": "Node {{name}} tainted successfully",
+      "nodeUncordoned": "Node {{name}} uncordoned successfully",
+      "restartInitiated": "{{resource}} restart initiated",
+      "scaledTo": "{{resource}} scaled to {{replicas}} replicas",
+      "taintKeyRequired": "Taint key is required",
+      "taintRemoved": "Taint removed from {{resource}} successfully",
+      "yamlSaved": "YAML saved successfully"
+    }
+  },
+  "dialog": {
+    "containerEdit": "Edit Container",
+    "createResource": "Create Resource",
+    "deleteConfirmation": "Delete Confirmation",
+    "deleteMessage": "Are you sure you want to delete this resource? This action cannot be undone.",
+    "editResource": "Edit Resource"
+  },
+  "error": {
+    "somethingWentWrong": "Something went wrong",
+    "tryAgain": "Try again"
+  },
+  "events": {
+    "count": "Count",
+    "firstSeen": "First Seen",
+    "involvedObject": "Involved Object",
+    "lastSeen": "Last Seen",
+    "message": "Message",
+    "noEventsFound": "No events found",
+    "object": "Object",
+    "reason": "Reason",
+    "source": "Source",
+    "title": "Events",
+    "type": "Type"
+  },
+  "generalManagement": {
+    "aiAgent": {
+      "description": "Enable AI assistant and configure model endpoint.",
+      "form": {
+        "apiKey": "API Key",
+        "apiKeyPlaceholder": "Leave empty to keep current API Key",
+        "baseUrl": "Base URL",
+        "maxTokens": "Max Tokens",
+        "model": "Model",
+        "provider": "Provider",
+        "providers": {
+          "anthropic": "Anthropic Compatible",
+          "openai": "OpenAI Compatible"
+        }
+      },
+      "title": "AI Agent"
+    },
+    "description": "Manage global feature switches and related configuration.",
+    "errors": {
+      "apiKeyRequired": "API Key is required when AI Agent is enabled",
+      "kubectlImageRequired": "Kubectl image is required when kubectl is enabled",
+      "modelRequired": "Model is required",
+      "nodeTerminalImageRequired": "Node terminal image is required"
+    },
+    "kubectl": {
+      "description": "Enable kubectl terminal and configure runtime image.",
+      "form": {
+        "image": "Image"
+      },
+      "title": "Kubectl"
+    },
+    "messages": {
+      "updated": "General settings updated"
+    },
+    "nodeTerminal": {
+      "description": "Configure runtime image used for node terminal sessions.",
+      "form": {
+        "image": "Image"
+      },
+      "title": "Node Terminal"
+    },
+    "runtime": {
+      "description": "Configure version checking behavior.",
+      "form": {
+        "enableVersionCheck": "Enable version check"
+      },
+      "title": "Runtime"
+    },
+    "title": "General"
+  },
+  "globalSearch": {
+    "actions": "Actions",
+    "description": "Search across all Kubernetes resources",
+    "emptyHint": "Type at least 3 characters to search or see favorites below...",
+    "favorites": "Favorites",
+    "hidden": "Hidden",
+    "navigation": "Navigation",
+    "noResults": "No results found",
+    "placeholder": "Search resources...",
+    "resources": "Resources",
+    "searching": "Searching...",
+    "switchCluster": "Switch to cluster {{name}}",
+    "title": "Global Search",
+    "toggleTheme": "Toggle Theme"
+  },
+  "gpu": {
+    "byModel": "Usage by Model (based on LWS)",
+    "byNamespace": "Usage by Namespace (based on LWS)",
+    "decodeMachines": "D: {{count}} machines",
+    "description": "Cluster GPU resource usage statistics",
+    "free": "Free",
+    "fullyFreeNodes": "Fully Free Nodes ({{count}})",
+    "hasTaints": "Has taints {{count}}",
+    "loadFailed": "Failed to load GPU information",
+    "machines": "{{count}} machines",
+    "noFullyFreeNodes": "No fully free nodes",
+    "noGpuNodes": "No GPU nodes detected in the cluster",
+    "noGpuUsage": "No GPU usage",
+    "noPartiallyFreeNodes": "No partially free nodes",
+    "noTaints": "No taints {{count}}",
+    "nodes": "GPU Nodes",
+    "overview": "Overview",
+    "partiallyFreeNodes": "Partially Free Nodes ({{count}})",
+    "prefillMachines": "P: {{count}} machines",
+    "title": "GPU Overview",
+    "totalCapacity": "Total Capacity",
+    "unlabeledModel": "<Unlabeled Model>",
+    "usage": "Usage",
+    "used": "Used"
+  },
+  "initialization": {
+    "completion": {
+      "message": "You will be redirected to the dashboard shortly...",
+      "title": "Setup Complete!"
+    },
+    "description": "Configure your admin user and connect cluster",
+    "step1": {
+      "confirmPassword": "Confirm Password",
+      "confirmPasswordPlaceholder": "Confirm password",
+      "confirmPasswordRequired": "Confirm Password *",
+      "createButton": "Create Super Admin User",
+      "createError": "Failed to create user",
+      "createSuccess": "Super admin user created successfully",
+      "creating": "Creating User...",
+      "description": "If you want to use it anonymously, please set the `ANONYMOUS_USER_ENABLED` env variable to true",
+      "displayName": "Display Name",
+      "displayNamePlaceholder": "Enter display name (optional)",
+      "password": "Password",
+      "passwordMismatch": "Passwords do not match",
+      "passwordPlaceholder": "Enter password",
+      "passwordRequired": "Password *",
+      "title": "Create Super Admin User",
+      "username": "Username",
+      "usernamePlaceholder": "Enter admin username",
+      "usernameRequired": "Username *"
+    },
+    "step2": {
+      "configRequired": "Please provide a kubeconfig file",
+      "description": "Connect your Kubernetes cluster",
+      "fileHint": "Select your kubeconfig file (usually located at ~/.kube/config)",
+      "fileMode": "Upload File",
+      "importButton": "Import Clusters",
+      "importError": "Failed to import clusters",
+      "importSuccess": "Clusters imported successfully",
+      "importing": "Importing Clusters...",
+      "inClusterHint": "Import clusters from inside the running Kite instance. No kubeconfig required.",
+      "inClusterMode": "In-Cluster",
+      "kubeconfig": "Kubeconfig File",
+      "kubeconfigHint": "You can find your kubeconfig file at ~/.kube/config or get it from your cluster provider",
+      "kubeconfigPlaceholder": "Paste your kubeconfig file content here...",
+      "kubeconfigRequired": "Kubeconfig File *",
+      "pasteMode": "Paste Content",
+      "title": "Import Kubernetes Cluster"
+    },
+    "subtitle": "Complete the following steps to get started",
+    "title": "Initial Setup",
+    "welcome": "Welcome! Let's set up your Kite dashboard"
+  },
+  "log": {
+    "jumpToBottom": "Jump to bottom"
+  },
+  "login": {
+    "configureAuth": "Please configure authentication providers in your environment",
+    "documentation": "Documentation",
+    "enterPassword": "Enter your password",
+    "enterUsername": "Enter your username",
+    "errors": {
+      "accessDenied": "Access Denied",
+      "authenticationError": "Authentication Error",
+      "authenticationFailed": "Authentication Failed",
+      "callbackError": "An error occurred during authentication.",
+      "callbackFailed": "The OAuth authentication process failed.",
+      "contactSupport": "Please try again or contact support if the issue persists.",
+      "generalError": "An unexpected error occurred during authentication.",
+      "insufficient permissions": "Insufficient permissions",
+      "insufficientPermissions": "Insufficient permissions to access this application.",
+      "insufficientPermissionsDetails": "Your account does not have the required permissions to access this Kubernetes dashboard.",
+      "insufficientPermissionsUser": "Access denied for user \"{{user}}\". Please contact your administrator to verify your permissions.",
+      "invalid credentials": "Invalid credentials",
+      "invalidCredentials": "Invalid username or password",
+      "jwtGenerationDetails": "Please try logging in again. If the problem persists, contact support.",
+      "jwtGenerationFailed": "Unable to create your authentication session.",
+      "jwtGenerationFailedUser": "Failed to create a session for user \"{{user}}\".",
+      "notInAllowedGroups": "Authentication succeeded, but your account is not a member of the allowed groups in {{provider}}.",
+      "notInAllowedGroupsDetails": "Please contact your administrator to be added to an allowed group.",
+      "oauthCallbackFailed": "OAuth Callback Failed",
+      "profileAccessFailed": "Profile Access Failed",
+      "sessionCreationFailed": "Session Creation Failed",
+      "tokenExchangeDetails": "There was an issue exchanging the authorization code for an access token. Please try again.",
+      "tokenExchangeFailed": "Failed to complete authentication with {{provider}}.",
+      "unknownError": "An unknown error occurred",
+      "userDisabled": "User Disabled",
+      "userDisabledMessage": "Your user account has been disabled. Please contact your administrator for more information.",
+      "userInfoDetails": "The authentication succeeded, but we could not access your profile. Please try again.",
+      "userInfoFailed": "Unable to retrieve your profile information from {{provider}}."
+    },
+    "footer": "© {{year}} Kite. All rights reserved.",
+    "kubernetesDashboard": "Kubernetes Dashboard",
+    "noLoginMethods": "No login methods configured",
+    "orContinueWith": "Or continue with",
+    "password": "Password",
+    "signIn": "Sign In",
+    "signInWith": "Sign in with {{provider}}",
+    "signInWithLdap": "Sign In with LDAP",
+    "signInWithPassword": "Sign In with Password",
+    "signingIn": "Signing in...",
+    "subtitle": "Access your Kubernetes dashboard",
+    "tabs": {
+      "ldap": "LDAP",
+      "password": "Password"
+    },
+    "title": "Sign In",
+    "tryAgainDifferentAccount": "Try Again with Different Account",
+    "tryAgainHint": "You can try logging in with a different account that has the required permissions.",
+    "username": "Username"
+  },
+  "monitoring": {
+    "cpuUsage": "CPU Usage",
+    "diskUsage": "Disk Usage",
+    "limits": "Limits",
+    "memoryUsage": "Memory Usage",
+    "networkUsage": "Network Usage",
+    "requests": "Requests",
+    "resourceUtilization": "Resource Utilization",
+    "total": "Total"
+  },
+  "nav": {
+    "clusterrolebindings": "Cluster Role Bindings",
+    "clusterroles": "Cluster Roles",
+    "configMaps": "ConfigMaps",
+    "crds": "CRDs",
+    "cronjobs": "Cron Jobs",
+    "customResourceDefinitions": "Custom Resource Definitions",
+    "customResources": "Custom Resources",
+    "daemonsets": "DaemonSets",
+    "deployments": "Deployments",
+    "events": "Events",
+    "gateways": "Gateways",
+    "horizontalpodautoscalers": "HPA",
+    "httproutes": "HTTP Routes",
+    "ingresses": "Ingresses",
+    "jobs": "Jobs",
+    "kubectl": "Kubectl Terminal",
+    "leaderworkersets": "LWS",
+    "namespaces": "Namespaces",
+    "networkpolicies": "Network Policies",
+    "nodes": "Nodes",
+    "overview": "Overview",
+    "persistentvolumeclaims": "Persistent Volume Claims",
+    "persistentvolumes": "Persistent Volumes",
+    "poddisruptionbudgets": "PDB",
+    "pods": "Pods",
+    "replicasets": "ReplicaSets",
+    "rolebindings": "Role Bindings",
+    "roles": "Roles",
+    "secrets": "Secrets",
+    "serviceaccounts": "Service Accounts",
+    "services": "Services",
+    "settings": "Settings",
+    "statefulsets": "StatefulSets",
+    "storageclasses": "Storage Classes",
+    "workloads": "Workloads"
+  },
+  "nodes": {
+    "containerRuntime": "Container Runtime",
+    "externalIP": "External IP",
+    "internalIP": "Internal IP",
+    "kernelVersion": "Kernel Version",
+    "os": "OS",
+    "roles": "Roles",
+    "title": "Nodes",
+    "version": "Version"
+  },
+  "oauthManagement": {
+    "actions": {
+      "add": "Add Provider",
+      "addFeishu": "Add Feishu SSO",
+      "delete": "Delete",
+      "edit": "Edit"
+    },
+    "deleteConfirmation": "This action will remove the OAuth provider configuration. Users will no longer be able to login using this provider.",
+    "dialog": {
+      "allowedGroups": "Allowed Groups",
+      "allowedGroupsPlaceholder": "e.g., admin, developers (comma separated)",
+      "authUrl": "Authorization URL",
+      "authUrlPlaceholder": "https://provider.com/oauth/authorize",
+      "clientId": "Client ID",
+      "clientIdPlaceholder": "OAuth Client ID",
+      "clientSecret": "Client Secret",
+      "clientSecretPlaceholder": "Leave empty to keep current secret",
+      "clientSecretRequired": "OAuth Client Secret",
+      "createTitle": "Add OAuth Provider",
+      "editTitle": "Edit OAuth Provider",
+      "enabled": "Enabled",
+      "groupsClaim": "Groups Claim",
+      "groupsClaimPlaceholder": "e.g., memberOf",
+      "issuer": "Issuer",
+      "issuerPlaceholder": "https://provider.com (auto discovery)",
+      "name": "Name",
+      "namePlaceholder": "e.g., github, google",
+      "or": "or",
+      "scopes": "Scopes",
+      "scopesPlaceholder": "openid,profile,email",
+      "section": {
+        "advanced": "Advanced Settings",
+        "basic": "Basic Information",
+        "endpoint": "OAuth Endpoints",
+        "status": "Status"
+      },
+      "tokenUrl": "Token URL",
+      "tokenUrlPlaceholder": "https://provider.com/oauth/token",
+      "userInfoUrl": "User Info URL",
+      "userInfoUrlPlaceholder": "https://provider.com/oauth/userinfo",
+      "usernameClaim": "Username Claim",
+      "usernameClaimPlaceholder": "e.g., preferred_username",
+      "validation": {
+        "issuerOrUrl": "Please fill in either Issuer or OAuth URL (Authorization, Token, User Info)"
+      }
+    },
+    "empty": {
+      "description": "Add your first OAuth provider",
+      "title": "No OAuth providers configured"
+    },
+    "errors": {
+      "loadFailed": "Failed to load OAuth providers"
+    },
+    "messages": {
+      "createError": "Failed to create OAuth provider",
+      "created": "OAuth provider created successfully",
+      "deleteError": "Failed to delete OAuth provider",
+      "deleted": "OAuth provider deleted successfully",
+      "updateError": "Failed to update OAuth provider",
+      "updated": "OAuth provider updated successfully"
+    },
+    "status": {
+      "disabled": "Disabled",
+      "enabled": "Enabled"
+    },
+    "table": {
+      "actions": "Actions",
+      "clientId": "Client ID",
+      "issuer": "Issuer",
+      "name": "Name",
+      "status": "Status"
+    },
+    "title": "OAuth Provider Management"
+  },
+  "overview": {
+    "clusterStats": "Cluster Statistics",
+    "failedToLoad": "Failed to load overview data",
+    "recentEvents": "Recent Events",
+    "resourceCharts": "Resource Charts",
+    "title": "Overview",
+    "unknownError": "Unknown error occurred"
+  },
+  "pods": {
+    "age": "Age",
+    "container": "Container",
+    "containerDetails": "Container Details",
+    "logs": "Logs",
+    "node": "Node",
+    "ready": "Ready",
+    "resizeResources": "Resize Resources",
+    "resizeResourcesDescription": "Adjust container CPU and memory requests/limits in-place.",
+    "resizeResourcesSuccess": "Pod resource resize submitted",
+    "resizeResourcesTitle": "Resize Pod Resources",
+    "restarts": "Restarts",
+    "selectContainer": "Select a container",
+    "terminal": "Terminal",
+    "title": "Pods"
+  },
+  "pvcs": {
+    "accessModes": "Access Modes",
+    "capacity": "Capacity",
+    "storageClass": "Storage Class",
+    "volume": "Volume"
+  },
+  "pvs": {
+    "accessModes": "Access Modes",
+    "capacity": "Capacity",
+    "claim": "Claim",
+    "reclaimPolicy": "Reclaim Policy",
+    "storageClass": "Storage Class"
+  },
+  "rbac": {
+    "accessDenied": "Access Denied",
+    "actions": {
+      "add": "Add Role",
+      "assign": "Assign"
+    },
+    "allNamespaces": "All Namespaces",
+    "assign": {
+      "confirmRemoveSelf": "You are removing your own role assignment. This may affect your permissions. Are you sure?",
+      "current": "Current Assignments",
+      "group": "OIDC Group",
+      "groups": "OIDC Groups",
+      "subject": "Subject",
+      "subjectPlaceholder": "username or group name",
+      "subjectType": "Subject Type",
+      "title": "Assign Role",
+      "user": "User",
+      "users": "Users"
+    },
+    "dialog": {
+      "add": {
+        "title": "Add Role"
+      },
+      "edit": {
+        "title": "Edit Role"
+      }
+    },
+    "empty": {
+      "description": "Create roles to grant permissions",
+      "title": "No roles configured"
+    },
+    "errors": {
+      "loadFailed": "Failed to load roles"
+    },
+    "form": {
+      "allowProxy": {
+        "label": "Allow proxy access via kite-proxy"
+      },
+      "clusters": {
+        "label": "Clusters"
+      },
+      "description": {
+        "label": "Description"
+      },
+      "name": {
+        "label": "Role Name"
+      },
+      "namespaces": {
+        "label": "Namespaces"
+      },
+      "permissions": {
+        "label": "Permissions"
+      },
+      "proxy": {
+        "label": "Proxy Permissions"
+      },
+      "proxyNamespaces": {
+        "label": "Proxy Namespaces (Optional)"
+      },
+      "resourceNames": {
+        "label": "Resource Names (Optional)"
+      },
+      "resources": {
+        "label": "Resources"
+      },
+      "verbs": {
+        "label": "Verbs"
+      }
+    },
+    "get": "Get",
+    "insufficientPermissions": "You do not have sufficient permissions to perform this action",
+    "messages": {
+      "assignError": "Failed to assign",
+      "assigned": "Assigned",
+      "createError": "Failed to create role",
+      "created": "Role created",
+      "deleteError": "Failed to delete role",
+      "deleted": "Role deleted",
+      "unassignError": "Failed to unassign",
+      "unassigned": "Unassigned",
+      "updateError": "Failed to update role",
+      "updated": "Role updated"
+    },
+    "noPermissionCluster": "User {{user}} does not have permission to {{verb}} {{resource}} on cluster {{cluster}}",
+    "noPermissionNamespace": "User {{user}} does not have permission to {{verb}} {{resource}} in namespace {{namespace}} on cluster {{cluster}}",
+    "title": "Role Management",
+    "verb": {
+      "create": "Create",
+      "delete": "Delete",
+      "exec": "Execute",
+      "get": "Get",
+      "log": "View Logs",
+      "update": "Update"
+    }
+  },
+  "resourceHistory": {
+    "actions": "Actions",
+    "apply": "Apply",
+    "create": "Create",
+    "currentVsModified": "Current vs Modified",
+    "delete": "Delete",
+    "failed": "Failed",
+    "failedToLoadHistory": "Failed to load history",
+    "loadingHistory": "Loading history...",
+    "noHistoryFound": "No history found",
+    "operationTime": "Time",
+    "operationType": "Type",
+    "operator": "Operator",
+    "patch": "Patch",
+    "previousVsModified": "Previous vs Modified",
+    "rollback": {
+      "error": "Failed to rollback resource",
+      "modified": "Rollback Modified",
+      "previous": "Rollback Previous",
+      "rollingBack": "Rolling back...",
+      "success": "Successfully rolled back resource"
+    },
+    "status": "Status",
+    "success": "Success",
+    "title": "Resource History",
+    "update": "Update",
+    "viewDiff": "View Diff",
+    "yamlDiff": "YAML Diff"
+  },
+  "resourceTable": {
+    "confirmDeletion": "Confirm Deletion",
+    "confirmDeletionMessage": "Are you sure you want to delete {{count}} selected {{resourceName}}? This action cannot be undone.",
+    "delete": "Delete",
+    "deleteFailed": "Failed to delete {{name}}: {{error}}",
+    "deleteSelected": "Delete ({{count}})",
+    "deleteSuccess": "Deleted {{name}} successfully",
+    "deleting": "Deleting...",
+    "deselectAll": "Deselect All",
+    "errorLoading": "Error loading {{resourceName}}",
+    "namespace": "Namespace",
+    "regexSearch": "Regex search",
+    "regexSearchPlaceholder": "Regex search {{resourceName}}...",
+    "selectAll": "Select All ({{count}})",
+    "tryAgain": "Try Again",
+    "watch": "Watch",
+    "watchUnavailable": "Watch is unavailable; switched to 5s refresh."
+  },
+  "services": {
+    "age": "Age",
+    "clusterIP": "Cluster IP",
+    "externalIP": "External IP",
+    "ports": "Ports",
+    "serviceName": "Service Name",
+    "title": "Services",
+    "type": "Type"
+  },
+  "settings": {
+    "description": "Manage clusters, roles and permissions",
+    "nav": "Settings",
+    "tabs": {
+      "accessRequest": "Access Request",
+      "apikeys": "API Keys",
+      "clusters": "Cluster",
+      "general": "General",
+      "oauth": "Authentication",
+      "p8s": "Prometheus",
+      "rbac": "RBAC",
+      "tempPermissions": "Temp Permissions",
+      "users": "User"
+    },
+    "title": "Settings"
+  },
+  "settingsHint": {
+    "description": "Configure essential settings to get the most out of Kite",
+    "oauth": {
+      "description": "Set up LDAP or OAuth authentication"
+    },
+    "p8s": {
+      "description": "Configure Prometheus"
+    },
+    "rbac": {
+      "description": "Configure roles and permissions"
+    },
+    "title": "Complete Your Setup",
+    "viewAll": "View All Settings"
+  },
+  "sidebar": {
+    "collapse": "Collapse",
+    "crd": {
+      "definitions": "Definitions",
+      "loadFailed": "Failed to load CRDs. Click to retry.",
+      "loading": "Loading CRDs...",
+      "retry": "Retry loading CRDs",
+      "retrying": "Retrying..."
+    },
+    "createGroup": "Create New CRD Group",
+    "customize": "Customize Sidebar",
+    "customizeTitle": "Customize Sidebar",
+    "expand": "Expand",
+    "groups": {
+      "cluster": "Cluster",
+      "config": "Config",
+      "namespace": "Namespace",
+      "network": "Network",
+      "other": "Other",
+      "security": "Access Control",
+      "storage": "Storage",
+      "traffic": "Network",
+      "workloads": "Workloads"
+    },
+    "layout": "Layout",
+    "layoutOptions": {
+      "compact": "Compact",
+      "default": "Default",
+      "minimal": "Minimal"
+    },
+    "menuGroups": "Menu Groups",
+    "moveDown": "Move down",
+    "moveUp": "Move up",
+    "newVersionAvailable": "A newer Kite version is available",
+    "pinned": "Pinned",
+    "pinnedItems": "Pinned Items",
+    "resetToDefault": "Reset to Default",
+    "setAsGlobal": "Set as global sidebar",
+    "setAsGlobalError": "Failed to update global sidebar",
+    "setAsGlobalSuccess": "Global sidebar updated successfully",
+    "short": {
+      "pvcs": "PVCs",
+      "pvs": "PVs"
+    },
+    "unsetGlobal": "Unset global sidebar",
+    "unsetGlobalError": "Failed to disable global sidebar",
+    "unsetGlobalSuccess": "Global sidebar disabled successfully"
+  },
+  "status": {
+    "containerCreating": "ContainerCreating",
+    "crashLoopBackOff": "CrashLoopBackOff",
+    "failed": "Failed",
+    "imagePullBackOff": "ImagePullBackOff",
+    "pending": "Pending",
+    "running": "Running",
+    "succeeded": "Succeeded",
+    "terminating": "Terminating",
+    "unknown": "Unknown"
+  },
+  "tempPermissions": {
+    "approve": "Approve",
+    "approveError": "Failed to approve",
+    "approveSuccess": "Approved {{name}}’s access request",
+    "description": "View all access requests and revoke approved temporary permissions.",
+    "revoke": "Revoke",
+    "revokeError": "Failed to revoke",
+    "revokeSuccess": "Revoked {{name}}'s access to {{ns}}",
+    "table": {
+      "approver": "Approver",
+      "duration": "Duration",
+      "expiresAt": "Expires At",
+      "namespace": "Namespace",
+      "requester": "Requester",
+      "riskLevel": "Estimated risk"
+    },
+    "title": "Temp Permissions"
+  },
+  "templateManagement": {
+    "actions": {
+      "add": "Add Template"
+    },
+    "description": "Manage resource templates for creating new resources.",
+    "dialog": {
+      "createDescription": "Add a new resource template",
+      "createTitle": "Create Template",
+      "editTitle": "Edit Template",
+      "updateDescription": "Update existing template"
+    },
+    "empty": {
+      "description": "No templates found"
+    },
+    "errors": {
+      "required": "Name and YAML are required"
+    },
+    "hints": {
+      "nameImmutable": "Name cannot be changed after creation"
+    },
+    "messages": {
+      "created": "Template created successfully",
+      "deleted": "Template deleted successfully",
+      "updated": "Template updated successfully"
+    },
+    "title": "Templates"
+  },
+  "time": {
+    "days": "{{count}} days",
+    "expired": "Expired",
+    "hours": "{{count}} hours",
+    "minutes": "{{count}} minutes",
+    "remaining": "Remaining"
+  },
+  "userManagement": {
+    "actions": {
+      "add": "Add Password User",
+      "editUser": "Edit user",
+      "search": "Search users..."
+    },
+    "dialog": {
+      "addTitle": "Add Password User",
+      "assignRoles": "Assign roles",
+      "editTitle": "Edit User",
+      "resetPassword": "Reset Password"
+    },
+    "empty": {
+      "description": "No users found",
+      "title": "No users"
+    },
+    "errors": {
+      "loadFailed": "Failed to load users"
+    },
+    "filters": {
+      "allRoles": "All roles",
+      "role": "All roles"
+    },
+    "messages": {
+      "createError": "Failed to create user",
+      "created": "User created",
+      "deleteError": "Failed to delete user",
+      "deleted": "User deleted",
+      "resetPassword": "Password reset",
+      "resetPasswordError": "Failed to reset password",
+      "updateError": "Failed to update user",
+      "updated": "User updated"
+    },
+    "table": {
+      "avatar": "Avatar URL",
+      "createdAt": "Created At",
+      "lastLoginAt": "Last Login",
+      "name": "Name",
+      "provider": "Provider",
+      "roles": "Roles",
+      "status": "Status",
+      "username": "Username"
+    },
+    "title": "User Management"
+  },
+  "username": "Username",
   "yamlEditor": {
-    "wordWrap": "Word Wrap",
     "confirmChangesTitle": "Confirm Changes",
-    "confirmSave": "Confirm Save"
+    "confirmSave": "Confirm Save",
+    "rawDiff": "Raw mode",
+    "rawDiffHint": "Raw mode: show whitespace differences",
+    "wordWrap": "Word Wrap"
   }
 }

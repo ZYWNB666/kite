@@ -9,7 +9,13 @@ import {
   useUpdateFeishuSetting,
 } from '@/lib/api'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
@@ -24,7 +30,9 @@ function ApproverRow({ approver, onRemove }: ApproverRowProps) {
     <div className="flex items-center gap-2 rounded-md border px-3 py-2">
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium truncate">{approver.name}</p>
-        <p className="text-xs text-muted-foreground font-mono truncate">{approver.openId}</p>
+        <p className="text-xs text-muted-foreground font-mono truncate">
+          {approver.openId}
+        </p>
       </div>
       <Button
         variant="ghost"
@@ -66,11 +74,11 @@ export function AccessRequestSettings() {
     const name = newApproverName.trim()
     const openId = newApproverOpenId.trim()
     if (!name || !openId) {
-      toast.error(t('accessRequestSettings.errors.approverFieldsRequired', '请填写审批人姓名和 Open ID'))
+      toast.error(t('accessRequestSettings.errors.approverFieldsRequired'))
       return
     }
     if (approvers.some((a) => a.openId === openId)) {
-      toast.error(t('accessRequestSettings.errors.approverDuplicate', '该 Open ID 已存在'))
+      toast.error(t('accessRequestSettings.errors.approverDuplicate'))
       return
     }
     setApprovers((prev) => [...prev, { name, openId }])
@@ -94,7 +102,9 @@ export function AccessRequestSettings() {
       })
       setAppSecret('')
       setVerificationToken('')
-      toast.success(t('accessRequestSettings.saveSuccess', '飞书通知设置已保存'))
+      toast.success(
+        t('accessRequestSettings.saveSuccess', '飞书通知设置已保存')
+      )
     } catch {
       toast.error(t('accessRequestSettings.saveError', '保存失败'))
     }
@@ -115,12 +125,11 @@ export function AccessRequestSettings() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>{t('accessRequestSettings.feishuBot.title', '飞书机器人配置')}</CardTitle>
+              <CardTitle>
+                {t('accessRequestSettings.feishuBot.title', '飞书机器人配置')}
+              </CardTitle>
               <CardDescription className="mt-1">
-                {t(
-                  'accessRequestSettings.feishuBot.description',
-                  '配置飞书自建应用，用于发送权限申请审批消息。需要开通「发送消息」权限。'
-                )}
+                {t('accessRequestSettings.feishuBot.description')}
               </CardDescription>
             </div>
             <Switch checked={enabled} onCheckedChange={setEnabled} />
@@ -142,7 +151,8 @@ export function AccessRequestSettings() {
                 App Secret{' '}
                 {setting?.appSecretSet && (
                   <span className="text-xs text-muted-foreground">
-                    ({t('accessRequestSettings.alreadySet', '已设置，留空保留')})
+                    ({t('accessRequestSettings.alreadySet', '已设置，留空保留')}
+                    )
                   </span>
                 )}
               </Label>
@@ -176,7 +186,10 @@ export function AccessRequestSettings() {
 
           <div className="grid gap-1.5">
             <Label htmlFor="fs-verify-token">
-              {t('accessRequestSettings.feishuBot.verificationToken', 'Verification Token')}{' '}
+              {t(
+                'accessRequestSettings.feishuBot.verificationToken',
+                'Verification Token'
+              )}{' '}
               {setting?.verificationTokenSet && (
                 <span className="text-xs text-muted-foreground">
                   ({t('accessRequestSettings.alreadySet', '已设置，留空保留')})
@@ -189,7 +202,10 @@ export function AccessRequestSettings() {
               placeholder={
                 setting?.verificationTokenSet
                   ? '••••••••'
-                  : t('accessRequestSettings.feishuBot.verificationTokenPlaceholder', '用于验证卡片回调签名')
+                  : t(
+                      'accessRequestSettings.feishuBot.verificationTokenPlaceholder',
+                      '用于验证卡片回调签名'
+                    )
               }
               value={verificationToken}
               onChange={(e) => setVerificationToken(e.target.value)}
@@ -201,7 +217,9 @@ export function AccessRequestSettings() {
       {/* Approver Management */}
       <Card>
         <CardHeader>
-          <CardTitle>{t('accessRequestSettings.approvers.title', '审批人列表')}</CardTitle>
+          <CardTitle>
+            {t('accessRequestSettings.approvers.title', '审批人列表')}
+          </CardTitle>
           <CardDescription>
             {t(
               'accessRequestSettings.approvers.description',
@@ -213,7 +231,10 @@ export function AccessRequestSettings() {
           <div className="space-y-2">
             {approvers.length === 0 ? (
               <p className="text-sm text-muted-foreground py-2">
-                {t('accessRequestSettings.approvers.empty', '暂无审批人，请添加')}
+                {t(
+                  'accessRequestSettings.approvers.empty',
+                  '暂无审批人，请添加'
+                )}
               </p>
             ) : (
               approvers.map((a) => (
@@ -233,7 +254,10 @@ export function AccessRequestSettings() {
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <Input
-                placeholder={t('accessRequestSettings.approvers.namePlaceholder', '姓名')}
+                placeholder={t(
+                  'accessRequestSettings.approvers.namePlaceholder',
+                  '姓名'
+                )}
                 value={newApproverName}
                 onChange={(e) => setNewApproverName(e.target.value)}
               />

@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { IconLoader, IconTextWrap, IconTextWrapDisabled, IconIndentIncrease } from '@tabler/icons-react'
+import {
+  IconIndentIncrease,
+  IconLoader,
+  IconTextWrap,
+  IconTextWrapDisabled,
+} from '@tabler/icons-react'
 import * as yaml from 'js-yaml'
 import type { editor as monacoEditor } from 'monaco-editor'
 import { useTranslation } from 'react-i18next'
@@ -173,11 +178,11 @@ export function YamlDiffViewer({
                 variant={showRawDiff ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setShowRawDiff(!showRawDiff)}
-                title={t('yamlEditor.rawDiff', '原始模式：显示空白差异')}
+                title={t('yamlEditor.rawDiffHint')}
               >
                 <IconIndentIncrease className="w-4 h-4" />
                 <span className="ml-1 hidden sm:inline">
-                  {t('yamlEditor.rawDiff', '原始模式')}
+                  {t('yamlEditor.rawDiff')}
                 </span>
               </Button>
 
@@ -193,24 +198,22 @@ export function YamlDiffViewer({
                 ) : (
                   <IconTextWrapDisabled className="w-4 h-4" />
                 )}
-                <span className="ml-1 hidden sm:inline">{t('yamlEditor.wordWrap')}</span>
+                <span className="ml-1 hidden sm:inline">
+                  {t('yamlEditor.wordWrap')}
+                </span>
               </Button>
 
               {/* Confirm/Cancel buttons (save confirmation mode) */}
               {onConfirm && (
                 <>
-                  <Button
-                    onClick={onConfirm}
-                    disabled={isConfirming}
-                    size="sm"
-                  >
+                  <Button onClick={onConfirm} disabled={isConfirming} size="sm">
                     {isConfirming ? (
                       <>
                         <IconLoader className="w-4 h-4 mr-1 animate-spin" />
                         {t('common.saving', 'Saving...')}
                       </>
                     ) : (
-                      confirmLabel ?? t('common.confirm')
+                      (confirmLabel ?? t('common.confirm'))
                     )}
                   </Button>
                   <Button

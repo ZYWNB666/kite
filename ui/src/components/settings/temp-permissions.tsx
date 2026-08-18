@@ -38,65 +38,92 @@ function statusVariant(
   }
 }
 
-function formatExpiry(expiresAt?: string): React.ReactNode {
+function formatExpiry(
+  expiresAt: string | undefined,
+  t: (k: string, o?: { count?: number }) => string,
+  language: string
+): React.ReactNode {
   if (!expiresAt) return <span className="text-muted-foreground">-</span>
   const d = new Date(expiresAt)
   const now = new Date()
   const diffMs = d.getTime() - now.getTime()
-  const dateStr = d.toLocaleString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  const dateStr = d.toLocaleString(
+    language.startsWith('zh') ? 'zh-CN' : 'en-US',
+    {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    }
+  )
   if (diffMs <= 0)
-    return <span className="text-destructive text-xs">{dateStr}（已过期）</span>
+    return (
+      <span className="text-destructive text-xs">
+        {dateStr} ({t('time.expired')})
+      </span>
+    )
   const diffH = Math.floor(diffMs / 3_600_000)
   const diffM = Math.floor((diffMs % 3_600_000) / 60_000)
   let remaining: string
   if (diffH >= 24) {
-    remaining = `${Math.floor(diffH / 24)} 天`
+    remaining = t('time.days', { count: Math.floor(diffH / 24) })
   } else if (diffH > 0) {
-    remaining = `${diffH} 小时 ${diffM} 分`
+    remaining = `${t('time.hours', { count: diffH })} ${t('time.minutes', { count: diffM })}`
   } else {
-    remaining = `${diffM} 分钟`
+    remaining = t('time.minutes', { count: diffM })
   }
   return (
     <span className="text-xs">
       {dateStr}
-      <span className="ml-1 text-muted-foreground">（剩余 {remaining}）</span>
+      <span className="ml-1 text-muted-foreground">
+        ({t('time.remaining')} {remaining})
+      </span>
     </span>
   )
 }
 
-function formatDuration(hours: number): string {
-  if (hours < 24) return `${hours} 小时`
+function formatDuration(
+  hours: number,
+  t: (k: string, o?: { count?: number }) => string
+): string {
+  if (hours < 24) return t('time.hours', { count: hours })
   const days = Math.floor(hours / 24)
   const rem = hours % 24
-  return rem === 0 ? `${days} 天` : `${days} 天 ${rem} 小时`
+  return rem === 0
+    ? t('time.days', { count: days })
+    : `${t('time.days', { count: days })} ${t('time.hours', { count: rem })}`
 }
 
-function formatRiskLevel(level: string): React.ReactNode {
-  const map: Record<string, { label: string; className: string }> = {
-    low: { label: '🟢 低', className: 'text-green-600 dark:text-green-400' },
+function formatRiskLevel(
+  level: string,
+  t: (k: string) => string
+): React.ReactNode {
+  const map: Record<string, { key: string; className: string }> = {
+    low: {
+      key: 'accessRequest.risk.low',
+      className: 'text-green-600 dark:text-green-400',
+    },
     medium: {
-      label: '🟡 中',
+      key: 'accessRequest.risk.medium',
       className: 'text-yellow-600 dark:text-yellow-400',
     },
-    high: { label: '🔴 高', className: 'text-red-600 dark:text-red-400' },
+    high: {
+      key: 'accessRequest.risk.high',
+      className: 'text-red-600 dark:text-red-400',
+    },
   }
   const item = map[level]
   if (!item)
     return <span className="text-xs text-muted-foreground">{level || '-'}</span>
   return (
     <span className={`text-xs font-medium ${item.className}`}>
-      {item.label}
+      {t(item.key)}
     </span>
   )
 }
 
 export function TempPermissionsManagement() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 20,
@@ -134,13 +161,13 @@ export function TempPermissionsManagement() {
         id: 'duration',
         header: t('tempPermissions.table.duration', '时长'),
         cell: ({ row: { original: r } }) => (
-          <span className="text-sm">{formatDuration(r.durationHours)}</span>
+          <span className="text-sm">{formatDuration(r.durationHours, t)}</span>
         ),
       },
       {
         id: 'riskLevel',
         header: t('tempPermissions.table.riskLevel', '预估风险'),
-        cell: ({ row: { original: r } }) => formatRiskLevel(r.riskLevel),
+        cell: ({ row: { original: r } }) => formatRiskLevel(r.riskLevel, t),
       },
       {
         id: 'status',
@@ -163,7 +190,8 @@ export function TempPermissionsManagement() {
       {
         id: 'expiresAt',
         header: t('tempPermissions.table.expiresAt', '过期时间'),
-        cell: ({ row: { original: r } }) => formatExpiry(r.expiresAt),
+        cell: ({ row: { original: r } }) =>
+          formatExpiry(r.expiresAt, t, i18n.language),
       },
       {
         id: 'reason',
@@ -178,7 +206,7 @@ export function TempPermissionsManagement() {
         ),
       },
     ],
-    [t]
+    [t, i18n.language]
   )
 
   const actions = useMemo<Action<AccessRequest>[]>(
