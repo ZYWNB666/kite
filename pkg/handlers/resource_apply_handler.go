@@ -1,6 +1,10 @@
 package handlers
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -11,8 +15,8 @@ import (
 	"github.com/zxh326/kite/pkg/rbac"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/runtime/serializer/yaml"
+	"k8s.io/apimachinery/pkg/runtime"
+	yamlutil "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	syaml "sigs.k8s.io/yaml"
@@ -30,7 +34,22 @@ type ApplyResourceRequest struct {
 	CreateOnly bool   `json:"createOnly"`
 }
 
-// ApplyResource applies a YAML resource to the cluster
+type appliedResource struct {
+	Kind      string `json:"kind"`
+	Name      string `json:"name"`
+	Namespace string `json:"namespace,omitempty"`
+}
+
+type preparedResource struct {
+	object       *unstructured.Unstructured
+	existing     *unstructured.Unstructured
+	resource     string
+	documentYAML string
+	verb         string
+}
+
+// ApplyResource applies one or more YAML documents to the cluster. Documents
+// are processed in input order so later resources can depend on earlier ones.
 func (h *ResourceApplyHandler) ApplyResource(c *gin.Context) {
 	cs := c.MustGet("cluster").(*cluster.ClientSet)
 	user := c.MustGet("user").(model.User)
@@ -41,102 +60,163 @@ func (h *ResourceApplyHandler) ApplyResource(c *gin.Context) {
 		return
 	}
 
-	// Decode YAML into unstructured object
-	decodeUniversal := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme)
-	obj := &unstructured.Unstructured{}
-
-	_, _, err := decodeUniversal.Decode([]byte(req.YAML), nil, obj)
+	objects, err := decodeYAMLDocuments(req.YAML)
 	if err != nil {
 		klog.Errorf("Failed to decode YAML: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid YAML format: " + err.Error()})
 		return
 	}
 
-	resource := strings.ToLower(obj.GetKind()) + "s"
-
 	ctx := c.Request.Context()
+	prepared := make([]preparedResource, 0, len(objects))
+	for i, obj := range objects {
+		resource := strings.ToLower(obj.GetKind()) + "s"
+		existing := &unstructured.Unstructured{}
+		existing.SetGroupVersionKind(obj.GroupVersionKind())
+		err = cs.K8sClient.Get(ctx, client.ObjectKey{
+			Name:      obj.GetName(),
+			Namespace: obj.GetNamespace(),
+		}, existing)
 
-	existingObj := &unstructured.Unstructured{}
-	existingObj.SetGroupVersionKind(obj.GetObjectKind().GroupVersionKind())
-	existingObj.SetName(obj.GetName())
-	existingObj.SetNamespace(obj.GetNamespace())
-
-	err = cs.K8sClient.Get(ctx, client.ObjectKey{
-		Name:      obj.GetName(),
-		Namespace: obj.GetNamespace(),
-	}, existingObj)
-	verb := string(common.VerbCreate)
-	switch {
-	case err == nil:
-		verb = string(common.VerbUpdate)
-	case apierrors.IsNotFound(err):
-		// Creating a new resource keeps the create verb.
-	default:
-		klog.Errorf("Failed to get resource before authorization: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get resource: " + err.Error()})
-		return
-	}
-	if !rbac.CanAccess(user, resource, verb, cs.Name, obj.GetNamespace(), obj.GetName()) {
-		c.JSON(http.StatusForbidden, gin.H{
-			"error": rbac.NoAccess(user.Key(), verb, resource, obj.GetNamespace(), cs.Name)})
-		return
-	}
-
-	defer func() {
-		previousYAML := []byte{}
-		if existingObj.GetResourceVersion() != "" {
-			existingObj.SetManagedFields(nil)
-			previousYAML, _ = syaml.Marshal(existingObj)
+		verb := string(common.VerbCreate)
+		switch {
+		case err == nil:
+			verb = string(common.VerbUpdate)
+		case apierrors.IsNotFound(err):
+			// Creating a new resource keeps the create verb.
+		default:
+			klog.Errorf("Failed to get resource in document %d before authorization: %v", i+1, err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("Document %d: failed to get resource: %v", i+1, err),
+			})
+			return
 		}
-		errMessage := ""
-		if err != nil {
-			errMessage = err.Error()
+
+		if !rbac.CanAccess(user, resource, verb, cs.Name, obj.GetNamespace(), obj.GetName()) {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error": fmt.Sprintf("Document %d: %s", i+1, rbac.NoAccess(user.Key(), verb, resource, obj.GetNamespace(), cs.Name)),
+			})
+			return
 		}
-		model.DB.Create(&model.ResourceHistory{
-			ClusterName:   cs.Name,
-			ResourceType:  resource,
-			ResourceName:  obj.GetName(),
-			Namespace:     obj.GetNamespace(),
-			OperationType: "apply",
-			ResourceYAML:  req.YAML,
-			PreviousYAML:  string(previousYAML),
-			OperatorID:    user.ID,
-			Success:       err == nil,
-			ErrorMessage:  errMessage,
+		if req.CreateOnly && err == nil {
+			c.JSON(http.StatusConflict, gin.H{
+				"error": fmt.Sprintf("Document %d: %s \"%s\" already exists", i+1, obj.GetKind(), obj.GetName()),
+			})
+			return
+		}
+
+		documentYAML, _ := syaml.Marshal(obj)
+		prepared = append(prepared, preparedResource{
+			object:       obj,
+			existing:     existing,
+			resource:     resource,
+			documentYAML: string(documentYAML),
+			verb:         verb,
 		})
-	}()
-
-	switch {
-	case apierrors.IsNotFound(err):
-		if err := cs.K8sClient.Create(ctx, obj); err != nil {
-			klog.Errorf("Failed to create resource: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create resource: " + err.Error()})
-			return
-		}
-		err = nil // Clear error after successful creation
-	case err == nil:
-		if req.CreateOnly {
-			err = apierrors.NewAlreadyExists(schema.GroupResource{Resource: resource}, obj.GetName())
-			c.JSON(http.StatusConflict, gin.H{"error": obj.GetKind() + " \"" + obj.GetName() + "\" already exists"})
-			return
-		}
-		obj.SetResourceVersion(existingObj.GetResourceVersion())
-		if err := cs.K8sClient.Update(ctx, obj); err != nil {
-			klog.Errorf("Failed to update resource: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update resource: " + err.Error()})
-			return
-		}
-	default:
-		klog.Errorf("Failed to get resource: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get resource: " + err.Error()})
-		return
 	}
 
-	klog.Infof("Successfully applied resource: %s/%s", obj.GetKind(), obj.GetName())
+	results := make([]appliedResource, 0, len(prepared))
+	for i := range prepared {
+		item := &prepared[i]
+		applyErr := applyPreparedResource(ctx, cs, item)
+		recordApplyHistory(cs, user, item, applyErr)
+		if applyErr != nil {
+			klog.Errorf("Failed to apply resource in document %d: %v", i+1, applyErr)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   fmt.Sprintf("Document %d: failed to apply %s %q: %v", i+1, item.object.GetKind(), item.object.GetName(), applyErr),
+				"applied": results,
+				"count":   len(results),
+			})
+			return
+		}
+
+		klog.Infof("Successfully applied resource: %s/%s", item.object.GetKind(), item.object.GetName())
+		results = append(results, appliedResource{
+			Kind:      item.object.GetKind(),
+			Name:      item.object.GetName(),
+			Namespace: item.object.GetNamespace(),
+		})
+	}
+
+	first := results[0]
+	message := "Resource applied successfully"
+	if len(results) > 1 {
+		message = fmt.Sprintf("%d resources applied successfully", len(results))
+	}
 	c.JSON(http.StatusOK, gin.H{
-		"message":   "Resource applied successfully",
-		"kind":      obj.GetKind(),
-		"name":      obj.GetName(),
-		"namespace": obj.GetNamespace(),
+		"message":   message,
+		"kind":      first.Kind,
+		"name":      first.Name,
+		"namespace": first.Namespace,
+		"resources": results,
+		"count":     len(results),
+	})
+}
+
+func decodeYAMLDocuments(content string) ([]*unstructured.Unstructured, error) {
+	decoder := yamlutil.NewYAMLOrJSONDecoder(strings.NewReader(content), 4096)
+	objects := make([]*unstructured.Unstructured, 0, 1)
+	document := 0
+	for {
+		document++
+		var raw runtime.RawExtension
+		if err := decoder.Decode(&raw); err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return nil, fmt.Errorf("document %d: %w", document, err)
+		}
+		if len(raw.Raw) == 0 {
+			continue
+		}
+
+		obj := &unstructured.Unstructured{}
+		if _, _, err := unstructured.UnstructuredJSONScheme.Decode(raw.Raw, nil, obj); err != nil {
+			return nil, fmt.Errorf("document %d: %w", document, err)
+		}
+		if obj.GetAPIVersion() == "" || obj.GetKind() == "" {
+			return nil, fmt.Errorf("document %d: apiVersion and kind are required", document)
+		}
+		objects = append(objects, obj)
+	}
+	if len(objects) == 0 {
+		return nil, errors.New("no Kubernetes resources found")
+	}
+	return objects, nil
+}
+
+func applyPreparedResource(ctx context.Context, cs *cluster.ClientSet, item *preparedResource) error {
+	if item.verb == string(common.VerbCreate) {
+		return cs.K8sClient.Create(ctx, item.object)
+	}
+
+	item.object.SetResourceVersion(item.existing.GetResourceVersion())
+	return cs.K8sClient.Update(ctx, item.object)
+}
+
+func recordApplyHistory(cs *cluster.ClientSet, user model.User, item *preparedResource, applyErr error) {
+	if model.DB == nil {
+		return
+	}
+	previousYAML := []byte{}
+	if item.existing.GetResourceVersion() != "" {
+		item.existing.SetManagedFields(nil)
+		previousYAML, _ = syaml.Marshal(item.existing)
+	}
+	errMessage := ""
+	if applyErr != nil {
+		errMessage = applyErr.Error()
+	}
+	model.DB.Create(&model.ResourceHistory{
+		ClusterName:   cs.Name,
+		ResourceType:  item.resource,
+		ResourceName:  item.object.GetName(),
+		Namespace:     item.object.GetNamespace(),
+		OperationType: "apply",
+		ResourceYAML:  item.documentYAML,
+		PreviousYAML:  string(previousYAML),
+		OperatorID:    user.ID,
+		Success:       applyErr == nil,
+		ErrorMessage:  errMessage,
 	})
 }

@@ -71,9 +71,15 @@ function CreateResourceDialogContent({
 
     setIsLoading(true)
     try {
-      await applyResource(yamlContent, true)
+      const result = await applyResource(yamlContent, true)
       toast.success(
-        t('createResource.success', 'Resource created successfully')
+        result.count > 1
+          ? t(
+              'createResource.successMultiple',
+              '{{count}} resources created successfully',
+              { count: result.count }
+            )
+          : t('createResource.success', 'Resource created successfully')
       )
     } catch (err) {
       console.error('Failed to apply resource', err)
@@ -103,8 +109,8 @@ function CreateResourceDialogContent({
           <div className="text-left">
             <DialogTitle>Create Resource</DialogTitle>
             <DialogDescription>
-              Paste any Kubernetes resource YAML configuration and apply it to the
-              cluster
+              Paste one or more Kubernetes resource YAML documents, separated by
+              ---, and apply them to the cluster
             </DialogDescription>
           </div>
           <Button
@@ -150,7 +156,9 @@ function CreateResourceDialogContent({
           </Select>
         </div>
         <div className="flex-1 flex flex-col min-h-0">
-          <Label htmlFor="yaml" className="shrink-0 mb-2">YAML Configuration</Label>
+          <Label htmlFor="yaml" className="shrink-0 mb-2">
+            YAML Configuration
+          </Label>
           <div className="flex-1 min-h-0">
             <SimpleYamlEditor
               value={yamlContent}

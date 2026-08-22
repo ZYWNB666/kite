@@ -429,7 +429,8 @@
   "createResource": {
     "emptyTemplate": "Empty Template",
     "selectTemplate": "Select a template",
-    "success": "Resource created successfully"
+    "success": "Resource created successfully",
+    "successMultiple": "{{count}} resources created successfully"
   },
   "deleteConfirmation": {
     "aboutToDelete": "You are about to delete:",

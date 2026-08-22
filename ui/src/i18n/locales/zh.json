@@ -429,7 +429,8 @@
   "createResource": {
     "emptyTemplate": "空模板",
     "selectTemplate": "选择模板",
-    "success": "资源创建成功"
+    "success": "资源创建成功",
+    "successMultiple": "已成功创建 {{count}} 个资源"
   },
   "deleteConfirmation": {
     "aboutToDelete": "您即将删除：",

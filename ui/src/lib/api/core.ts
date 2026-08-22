@@ -329,6 +329,12 @@ export interface ApplyResourceResponse {
   kind: string
   name: string
   namespace?: string
+  resources: Array<{
+    kind: string
+    name: string
+    namespace?: string
+  }>
+  count: number
 }
 
 export const applyResource = async (
