@@ -10,6 +10,12 @@ function resourcesInGroup(groupKey: string) {
 }
 
 describe('resource catalog navigation', () => {
+  it('includes ReplicaSets in Workloads', () => {
+    expect(resourcesInGroup('sidebar.groups.workloads')).toContain(
+      'replicasets'
+    )
+  })
+
   it('includes the requested Config resources', () => {
     expect(resourcesInGroup('sidebar.groups.config')).toEqual(
       expect.arrayContaining([
@@ -21,6 +27,8 @@ describe('resource catalog navigation', () => {
         'leases',
         'mutatingwebhookconfigurations',
         'validatingwebhookconfigurations',
+        'validatingadmissionpolicies',
+        'validatingadmissionpolicybindings',
       ])
     )
   })

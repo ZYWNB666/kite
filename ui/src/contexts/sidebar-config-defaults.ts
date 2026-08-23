@@ -49,7 +49,7 @@ resourceCatalog
     })
   })
 
-export const SIDEBAR_CONFIG_VERSION = 6
+export const SIDEBAR_CONFIG_VERSION = 8
 
 const legacyGroupAliases = new Map([
   ['sidebar-groups-traffic', 'sidebar-groups-network'],

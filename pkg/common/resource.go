@@ -38,6 +38,8 @@ const (
 	Leases                   ResourceType = "leases"
 	MutatingWebhookConfigs   ResourceType = "mutatingwebhookconfigurations"
 	ValidatingWebhookConfigs ResourceType = "validatingwebhookconfigurations"
+	AdmissionPolicies        ResourceType = "validatingadmissionpolicies"
+	AdmissionPolicyBindings  ResourceType = "validatingadmissionpolicybindings"
 	Roles                    ResourceType = "roles"
 	RoleBindings             ResourceType = "rolebindings"
 	ClusterRoles             ResourceType = "clusterroles"
@@ -113,6 +115,8 @@ var Registry = []ResourceMeta{
 	// admissionregistration.k8s.io/v1
 	{Kind: "MutatingWebhookConfiguration", Singular: "mutatingwebhookconfiguration", Plural: MutatingWebhookConfigs, Group: "admissionregistration.k8s.io", Version: "v1", ClusterScoped: true},
 	{Kind: "ValidatingWebhookConfiguration", Singular: "validatingwebhookconfiguration", Plural: ValidatingWebhookConfigs, Group: "admissionregistration.k8s.io", Version: "v1", ClusterScoped: true},
+	{Kind: "ValidatingAdmissionPolicy", Singular: "validatingadmissionpolicy", Plural: AdmissionPolicies, Group: "admissionregistration.k8s.io", Version: "v1", ClusterScoped: true},
+	{Kind: "ValidatingAdmissionPolicyBinding", Singular: "validatingadmissionpolicybinding", Plural: AdmissionPolicyBindings, Group: "admissionregistration.k8s.io", Version: "v1", ClusterScoped: true},
 
 	// storage.k8s.io/v1
 	{Kind: "StorageClass", Singular: "storageclass", Plural: StorageClasses, Short: []string{"sc"}, Group: "storage.k8s.io", Version: "v1", ClusterScoped: true},

@@ -16,6 +16,8 @@ func TestRequestedResourceMetadata(t *testing.T) {
 		{Leases, "coordination.k8s.io", false},
 		{MutatingWebhookConfigs, "admissionregistration.k8s.io", true},
 		{ValidatingWebhookConfigs, "admissionregistration.k8s.io", true},
+		{AdmissionPolicies, "admissionregistration.k8s.io", true},
+		{AdmissionPolicyBindings, "admissionregistration.k8s.io", true},
 		{EndpointSlices, "discovery.k8s.io", false},
 		{Endpoints, "", false},
 		{IngressClasses, "networking.k8s.io", true},

@@ -1,11 +1,25 @@
 import { SidebarConfig } from '@/types/sidebar'
 
 import {
+  buildDefaultSidebarConfig,
   mergeSidebarConfigWithDefaults,
   SIDEBAR_CONFIG_VERSION,
 } from './sidebar-config-defaults'
 
 describe('mergeSidebarConfigWithDefaults', () => {
+  it('places ReplicaSets in the default Workloads group', () => {
+    const workloads = buildDefaultSidebarConfig().groups.find(
+      (group) => group.id === 'sidebar-groups-workloads'
+    )
+
+    const urls = workloads?.items.map((item) => item.url)
+
+    expect(urls).toContain('/replicasets')
+    expect(urls?.indexOf('/replicasets')).toBe(
+      (urls?.indexOf('/deployments') ?? -2) + 1
+    )
+  })
+
   it('adds new default resources while preserving user preferences', () => {
     const config: SidebarConfig = {
       version: SIDEBAR_CONFIG_VERSION - 1,
@@ -61,6 +75,8 @@ describe('mergeSidebarConfigWithDefaults', () => {
         '/leases',
         '/mutatingwebhookconfigurations',
         '/validatingwebhookconfigurations',
+        '/validatingadmissionpolicies',
+        '/validatingadmissionpolicybindings',
       ])
     )
     expect(merged.groups).toEqual(

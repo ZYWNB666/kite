@@ -138,7 +138,7 @@ export const resourceCatalog = [
     clusterScope: false,
     titleKey: 'nav.statefulsets',
     icon: 'IconStack2',
-    sidebar: { groupKey: 'sidebar.groups.workloads', order: 2 },
+    sidebar: { groupKey: 'sidebar.groups.workloads', order: 3 },
   },
   {
     type: 'daemonsets',
@@ -149,7 +149,7 @@ export const resourceCatalog = [
     clusterScope: false,
     titleKey: 'nav.daemonsets',
     icon: 'IconTopologyBus',
-    sidebar: { groupKey: 'sidebar.groups.workloads', order: 3 },
+    sidebar: { groupKey: 'sidebar.groups.workloads', order: 4 },
   },
   {
     type: 'jobs',
@@ -160,7 +160,7 @@ export const resourceCatalog = [
     clusterScope: false,
     titleKey: 'nav.jobs',
     icon: 'IconPlayerPlay',
-    sidebar: { groupKey: 'sidebar.groups.workloads', order: 4 },
+    sidebar: { groupKey: 'sidebar.groups.workloads', order: 5 },
   },
   {
     type: 'cronjobs',
@@ -170,7 +170,7 @@ export const resourceCatalog = [
     clusterScope: false,
     titleKey: 'nav.cronjobs',
     icon: 'IconClockHour4',
-    sidebar: { groupKey: 'sidebar.groups.workloads', order: 5 },
+    sidebar: { groupKey: 'sidebar.groups.workloads', order: 6 },
   },
   {
     type: 'services',
@@ -321,6 +321,24 @@ export const resourceCatalog = [
     sidebar: { groupKey: 'sidebar.groups.config', order: 10 },
   },
   {
+    type: 'validatingadmissionpolicies',
+    singular: 'validatingadmissionpolicy',
+    singularLabel: 'ValidatingAdmissionPolicy',
+    pluralLabel: 'ValidatingAdmissionPolicies',
+    clusterScope: true,
+    icon: 'IconShieldCheck',
+    sidebar: { groupKey: 'sidebar.groups.config', order: 11 },
+  },
+  {
+    type: 'validatingadmissionpolicybindings',
+    singular: 'validatingadmissionpolicybinding',
+    singularLabel: 'ValidatingAdmissionPolicyBinding',
+    pluralLabel: 'ValidatingAdmissionPolicyBindings',
+    clusterScope: true,
+    icon: 'IconKey',
+    sidebar: { groupKey: 'sidebar.groups.config', order: 12 },
+  },
+  {
     type: 'ingresses',
     singular: 'ingress',
     singularLabel: 'Ingress',
@@ -444,6 +462,7 @@ export const resourceCatalog = [
     clusterScope: false,
     titleKey: 'nav.replicasets',
     icon: 'IconBox',
+    sidebar: { groupKey: 'sidebar.groups.workloads', order: 2 },
   },
   {
     type: 'serviceaccounts',

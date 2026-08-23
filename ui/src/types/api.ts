@@ -3,6 +3,10 @@
 import {
   MutatingWebhookConfiguration,
   MutatingWebhookConfigurationList,
+  ValidatingAdmissionPolicy,
+  ValidatingAdmissionPolicyBinding,
+  ValidatingAdmissionPolicyBindingList,
+  ValidatingAdmissionPolicyList,
   ValidatingWebhookConfiguration,
   ValidatingWebhookConfigurationList,
 } from 'kubernetes-types/admissionregistration/v1'
@@ -187,6 +191,8 @@ export interface ResourcesTypeMap {
   leases: LeaseList
   mutatingwebhookconfigurations: MutatingWebhookConfigurationList
   validatingwebhookconfigurations: ValidatingWebhookConfigurationList
+  validatingadmissionpolicies: ValidatingAdmissionPolicyList
+  validatingadmissionpolicybindings: ValidatingAdmissionPolicyBindingList
   serviceaccounts: ServiceAccountList
   roles: RoleList
   rolebindings: RoleBindingList
@@ -272,6 +278,8 @@ export interface ResourceTypeMap {
   leases: Lease
   mutatingwebhookconfigurations: MutatingWebhookConfiguration
   validatingwebhookconfigurations: ValidatingWebhookConfiguration
+  validatingadmissionpolicies: ValidatingAdmissionPolicy
+  validatingadmissionpolicybindings: ValidatingAdmissionPolicyBinding
   podmetrics: PodMetrics
   serviceaccounts: ServiceAccount
   roles: RawRole

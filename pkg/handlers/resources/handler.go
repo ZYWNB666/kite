@@ -88,6 +88,8 @@ func RegisterRoutes(group *gin.RouterGroup) {
 		string(common.Leases):                   NewGenericResourceHandler[*coordinationv1.Lease, *coordinationv1.LeaseList](common.Leases),
 		string(common.MutatingWebhookConfigs):   NewGenericResourceHandler[*admissionregistrationv1.MutatingWebhookConfiguration, *admissionregistrationv1.MutatingWebhookConfigurationList](common.MutatingWebhookConfigs),
 		string(common.ValidatingWebhookConfigs): NewGenericResourceHandler[*admissionregistrationv1.ValidatingWebhookConfiguration, *admissionregistrationv1.ValidatingWebhookConfigurationList](common.ValidatingWebhookConfigs),
+		string(common.AdmissionPolicies):        NewGenericResourceHandler[*admissionregistrationv1.ValidatingAdmissionPolicy, *admissionregistrationv1.ValidatingAdmissionPolicyList](common.AdmissionPolicies),
+		string(common.AdmissionPolicyBindings):  NewGenericResourceHandler[*admissionregistrationv1.ValidatingAdmissionPolicyBinding, *admissionregistrationv1.ValidatingAdmissionPolicyBindingList](common.AdmissionPolicyBindings),
 		string(common.Roles):                    NewGenericResourceHandler[*rbacv1.Role, *rbacv1.RoleList](common.Roles),
 		string(common.RoleBindings):             NewGenericResourceHandler[*rbacv1.RoleBinding, *rbacv1.RoleBindingList](common.RoleBindings),
 		string(common.ClusterRoles):             NewGenericResourceHandler[*rbacv1.ClusterRole, *rbacv1.ClusterRoleList](common.ClusterRoles),
