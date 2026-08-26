@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 
 import { globalSearch, SearchResult } from '@/lib/api'
+import { withCurrentNamespacesHref } from '@/lib/current-namespace'
 import {
   getResourceCatalogEntry,
   getResourceIconComponent,
@@ -325,7 +326,7 @@ export function GlobalSearch({ open, onOpenChange }: GlobalSearchProps) {
   // Handle item selection
   const handleSelect = useCallback(
     (path: string) => {
-      navigate(path)
+      navigate(withCurrentNamespacesHref(path))
       onOpenChange(false)
       setQuery('')
     },

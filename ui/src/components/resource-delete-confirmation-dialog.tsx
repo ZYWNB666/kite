@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 
 import { ResourceType } from '@/types/api'
 import { deleteResource } from '@/lib/api'
+import { withCurrentNamespacesHref } from '@/lib/current-namespace'
 import {
   getResourceListPath,
   getResourceSingularLabel,
@@ -44,7 +45,7 @@ export function ResourceDeleteConfirmationDialog({
       toast.success(
         `${getResourceSingularLabel(resourceType) || resourceType} deleted successfully`
       )
-      navigate(getResourceListPath(resourceType))
+      navigate(withCurrentNamespacesHref(getResourceListPath(resourceType)))
     } catch (error) {
       toast.error(translateError(error, t))
     } finally {

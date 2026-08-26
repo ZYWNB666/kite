@@ -1,21 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createColumnHelper } from '@tanstack/react-table'
-import { EndpointSlice } from 'kubernetes-types/discovery/v1'
 import { Service } from 'kubernetes-types/core/v1'
+import { EndpointSlice } from 'kubernetes-types/discovery/v1'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router-dom'
 
+import { useResources } from '@/lib/api'
+import { getCurrentNamespaces } from '@/lib/current-namespace'
 import {
   createSearchFilter,
   getServiceExternalIP,
   getServicePortSearchValues,
 } from '@/lib/k8s'
 import { formatDate } from '@/lib/utils'
-import { getClusterScopedStorageKey } from '@/lib/current-cluster'
-import { useResources } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
-import { ResourceTable } from '@/components/resource-table'
-import { multiSelectFilter } from '@/components/resource-table'
+import { multiSelectFilter, ResourceTable } from '@/components/resource-table'
 
 const serviceSearchFilter = createSearchFilter<Service>(
   (s) => s.metadata?.name,
@@ -30,24 +29,10 @@ export function ServiceListPage() {
   const columnHelper = createColumnHelper<Service>()
 
   const [namespace, setNamespace] = useState<string | undefined>(() => {
-    const stored = localStorage.getItem(
-      getClusterScopedStorageKey('selectedNamespaces')
-    )
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored)
-        if (Array.isArray(parsed)) {
-          if (parsed.includes('_all') || parsed.length > 1) return undefined
-          return parsed[0]
-        }
-      } catch {
-        // fall through to legacy
-      }
-    }
-    const legacy = localStorage.getItem(
-      getClusterScopedStorageKey('selectedNamespace')
-    )
-    return legacy === '_all' ? undefined : legacy || 'default'
+    const namespaces = getCurrentNamespaces()
+    return namespaces.includes('_all') || namespaces.length > 1
+      ? undefined
+      : namespaces[0]
   })
 
   useEffect(() => {
@@ -64,9 +49,13 @@ export function ServiceListPage() {
     return () => window.removeEventListener('kite:namespace-change', handler)
   }, [])
 
-  const { data: endpointSlices = [] } = useResources('endpointslices', namespace, {
-    staleTime: 5000,
-  })
+  const { data: endpointSlices = [] } = useResources(
+    'endpointslices',
+    namespace,
+    {
+      staleTime: 5000,
+    }
+  )
 
   const endpointSliceMap = useMemo(() => {
     const map = new Map<string, EndpointSlice[]>()

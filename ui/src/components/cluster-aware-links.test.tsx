@@ -2,12 +2,22 @@
 
 import { ClusterContext } from '@/contexts/cluster-context'
 import { render, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ClusterAwareLinks } from './cluster-aware-links'
 
 describe('ClusterAwareLinks', () => {
-  it('keeps the current cluster when a link is opened in another tab', async () => {
+  beforeEach(() => {
+    localStorage.clear()
+    sessionStorage.clear()
+    window.history.replaceState(
+      {},
+      '',
+      '/pods?cluster=cluster-a&namespace=team-a'
+    )
+  })
+
+  it('keeps the current cluster and namespace in new-tab links', async () => {
     const { getByRole } = render(
       <ClusterContext.Provider
         value={{
@@ -27,7 +37,7 @@ describe('ClusterAwareLinks', () => {
     await waitFor(() => {
       expect(getByRole('link', { name: 'Nodes' })).toHaveAttribute(
         'href',
-        '/nodes?view=wide&cluster=cluster-a'
+        '/nodes?view=wide&cluster=cluster-a&namespace=team-a'
       )
     })
   })

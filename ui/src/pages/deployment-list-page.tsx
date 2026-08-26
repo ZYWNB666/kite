@@ -4,6 +4,7 @@ import { Deployment } from 'kubernetes-types/apps/v1'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router-dom'
 
+import { withCurrentNamespacesHref } from '@/lib/current-namespace'
 import { createSearchFilter, getDeploymentStatus } from '@/lib/k8s'
 import { formatDate } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
@@ -87,7 +88,11 @@ export function DeploymentListPage() {
 
   const handleCreateSuccess = (deployment: Deployment, namespace: string) => {
     // Navigate to the newly created deployment's detail page
-    navigate(`/deployments/${namespace}/${deployment.metadata?.name}`)
+    navigate(
+      withCurrentNamespacesHref(
+        `/deployments/${namespace}/${deployment.metadata?.name}`
+      )
+    )
   }
 
   return (

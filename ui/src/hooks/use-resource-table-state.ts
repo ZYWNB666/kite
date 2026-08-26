@@ -5,8 +5,15 @@ import {
   RowSelectionState,
   SortingState,
 } from '@tanstack/react-table'
+import { useSearchParams } from 'react-router-dom'
 
 import { getClusterScopedStorageKey } from '@/lib/current-cluster'
+import {
+  getCurrentNamespaces,
+  getNamespacesFromUrl,
+  setCurrentNamespaces,
+  setNamespacesInSearchParams,
+} from '@/lib/current-namespace'
 
 interface UseResourceTableStateOptions {
   resourceName: string
@@ -34,6 +41,7 @@ export function useResourceTableState({
   defaultHiddenColumns,
   watchSupported,
 }: UseResourceTableStateOptions) {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() =>
     readStoredJSON(
@@ -83,22 +91,9 @@ export function useResourceTableState({
   )
   const [selectedNamespaces, setSelectedNamespaces] = useState<string[]>(() => {
     if (clusterScope) return []
-    const stored = localStorage.getItem(
-      getClusterScopedStorageKey('selectedNamespaces')
-    )
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored)
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed
-      } catch {
-        // fall through to legacy migration
-      }
-    }
-    // Migrate legacy single-value storage
-    const legacy = localStorage.getItem(
-      getClusterScopedStorageKey('selectedNamespace')
-    )
-    return legacy ? [legacy] : ['default']
+    const urlNamespaces = getNamespacesFromUrl(searchParams.toString())
+    if (urlNamespaces.length > 0) return urlNamespaces
+    return getCurrentNamespaces()
   })
   const [useSSE, setUseSSE] = useState(watchSupported)
   const [useRegex, setUseRegex] = useState(false)
@@ -113,26 +108,30 @@ export function useResourceTableState({
       : '_all'
 
   useEffect(() => {
-    if (clusterScope || selectedNamespaces.length > 0) {
+    if (clusterScope) return
+
+    const urlNamespaces = getNamespacesFromUrl(searchParams.toString())
+    if (urlNamespaces.length === 0) {
+      setSearchParams(
+        (current) => setNamespacesInSearchParams(current, selectedNamespaces),
+        { replace: true }
+      )
       return
     }
 
-    const stored = localStorage.getItem(
-      getClusterScopedStorageKey('selectedNamespaces')
+    const normalized = setCurrentNamespaces(urlNamespaces)
+    setSelectedNamespaces((current) =>
+      current.length === normalized.length &&
+      current.every((namespace, index) => namespace === normalized[index])
+        ? current
+        : normalized
     )
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored)
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setSelectedNamespaces(parsed)
-          return
-        }
-      } catch {
-        // ignore
-      }
-    }
-    setSelectedNamespaces(['default'])
-  }, [clusterScope, selectedNamespaces])
+    window.dispatchEvent(
+      new CustomEvent('kite:namespace-change', {
+        detail: { namespaces: normalized },
+      })
+    )
+  }, [clusterScope, searchParams, selectedNamespaces, setSearchParams])
 
   useEffect(() => {
     const storageKey = getClusterScopedStorageKey(
@@ -176,26 +175,24 @@ export function useResourceTableState({
     setPagination((prev) => ({ ...prev, pageIndex: 0 }))
   }, [columnFilters, searchQuery])
 
-  const handleNamespaceChange = useCallback((value: string[]) => {
-    const normalized = value.length === 0 ? ['default'] : value
-    localStorage.setItem(
-      getClusterScopedStorageKey('selectedNamespaces'),
-      JSON.stringify(normalized)
-    )
-    // Also update legacy key for components still reading it
-    localStorage.setItem(
-      getClusterScopedStorageKey('selectedNamespace'),
-      normalized.includes('_all') ? '_all' : normalized[0]
-    )
-    setSelectedNamespaces(normalized)
-    setPagination((prev) => ({ ...prev, pageIndex: 0 }))
-    setSearchQuery('')
-    window.dispatchEvent(
-      new CustomEvent('kite:namespace-change', {
-        detail: { namespaces: normalized },
-      })
-    )
-  }, [])
+  const handleNamespaceChange = useCallback(
+    (value: string[]) => {
+      const normalized = setCurrentNamespaces(value)
+      setSelectedNamespaces(normalized)
+      setSearchParams(
+        (current) => setNamespacesInSearchParams(current, normalized),
+        { replace: true }
+      )
+      setPagination((prev) => ({ ...prev, pageIndex: 0 }))
+      setSearchQuery('')
+      window.dispatchEvent(
+        new CustomEvent('kite:namespace-change', {
+          detail: { namespaces: normalized },
+        })
+      )
+    },
+    [setSearchParams]
+  )
 
   const handleUseSSEChange = useCallback(
     (pressed: boolean) => {

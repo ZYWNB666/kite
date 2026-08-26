@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
 
 import { useGeneralSetting } from '@/lib/api'
+import { withCurrentNamespacesHref } from '@/lib/current-namespace'
 import { useIsMobile } from '@/hooks/use-mobile'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -99,7 +100,9 @@ export function SiteHeader() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => navigate('/settings')}
+                    onClick={() =>
+                      navigate(withCurrentNamespacesHref('/settings'))
+                    }
                     className="hidden sm:flex"
                   >
                     <Settings className="h-5 w-5" />

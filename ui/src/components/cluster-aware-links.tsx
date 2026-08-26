@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 
 import { withClusterHref, withClusterRequestHref } from '@/lib/current-cluster'
+import { withCurrentNamespacesHref } from '@/lib/current-namespace'
 import { useCluster } from '@/hooks/use-cluster'
 
 export function ClusterAwareLinks() {
@@ -25,8 +26,11 @@ export function ClusterAwareLinks() {
       const clusterHref = targetUrl.pathname.includes('/api/v1/')
         ? withClusterRequestHref(href, currentCluster)
         : withClusterHref(href, currentCluster)
-      if (clusterHref !== href) {
-        anchor.setAttribute('href', clusterHref)
+      const contextHref = targetUrl.pathname.includes('/api/v1/')
+        ? clusterHref
+        : withCurrentNamespacesHref(clusterHref)
+      if (contextHref !== href) {
+        anchor.setAttribute('href', contextHref)
       }
     }
 
@@ -38,6 +42,8 @@ export function ClusterAwareLinks() {
     }
 
     updateLinks(document)
+    const handleNamespaceChange = () => updateLinks(document)
+    window.addEventListener('kite:namespace-change', handleNamespaceChange)
     const observer = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         if (mutation.type === 'attributes') {
@@ -58,7 +64,10 @@ export function ClusterAwareLinks() {
       attributeFilter: ['href'],
     })
 
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('kite:namespace-change', handleNamespaceChange)
+    }
   }, [currentCluster])
 
   return null
