@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ColumnFiltersState,
   PaginationState,
@@ -14,13 +14,29 @@ import {
   setCurrentNamespaces,
   setNamespacesInSearchParams,
 } from '@/lib/current-namespace'
+import {
+  areResourceFiltersEqual,
+  hasResourceFilters,
+  readResourceFilters,
+  RESOURCE_SEARCH_MODE_KEY,
+  RESOURCE_SEARCH_MODE_REGEX,
+  RESOURCE_SEARCH_QUERY_KEY,
+  setResourceFiltersInSearchParams,
+  setResourceQueryInSearchParams,
+  setResourceSearchModeInSearchParams,
+} from '@/lib/resource-table-url-state'
 
 interface UseResourceTableStateOptions {
   resourceName: string
   clusterScope: boolean
   defaultHiddenColumns: string[]
   watchSupported: boolean
+  filterableColumnIds: string[]
 }
+
+type ColumnFiltersUpdater =
+  | ColumnFiltersState
+  | ((current: ColumnFiltersState) => ColumnFiltersState)
 
 function readStoredJSON<T>(storage: Storage, key: string, fallback: T): T {
   const value = storage.getItem(key)
@@ -40,19 +56,32 @@ export function useResourceTableState({
   clusterScope,
   defaultHiddenColumns,
   watchSupported,
+  filterableColumnIds,
 }: UseResourceTableStateOptions) {
   const [searchParams, setSearchParams] = useSearchParams()
+  const searchParamsValue = searchParams.toString()
+  const namespaceUrlValue =
+    getNamespacesFromUrl(searchParamsValue).join('\u0000')
+  const filterableColumnIdsValue = filterableColumnIds.join('\u0000')
   const [sorting, setSorting] = useState<SortingState>([])
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(() =>
-    readStoredJSON(
-      sessionStorage,
-      getClusterScopedStorageKey(`-${resourceName}-columnFilters`),
-      []
-    )
+  const [columnFilters, setColumnFiltersState] = useState<ColumnFiltersState>(
+    () => {
+      if (hasResourceFilters(searchParams)) {
+        return readResourceFilters(searchParams, filterableColumnIds)
+      }
+      return readStoredJSON(
+        sessionStorage,
+        getClusterScopedStorageKey(`-${resourceName}-columnFilters`),
+        []
+      )
+    }
   )
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({})
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [searchQuery, setSearchQuery] = useState<string>(() => {
+  const [searchQuery, setSearchQueryState] = useState<string>(() => {
+    if (searchParams.has(RESOURCE_SEARCH_QUERY_KEY)) {
+      return searchParams.get(RESOURCE_SEARCH_QUERY_KEY) ?? ''
+    }
     return (
       sessionStorage.getItem(
         getClusterScopedStorageKey(`-${resourceName}-searchQuery`)
@@ -91,12 +120,19 @@ export function useResourceTableState({
   )
   const [selectedNamespaces, setSelectedNamespaces] = useState<string[]>(() => {
     if (clusterScope) return []
-    const urlNamespaces = getNamespacesFromUrl(searchParams.toString())
+    const urlNamespaces = namespaceUrlValue
+      ? namespaceUrlValue.split('\u0000')
+      : []
     if (urlNamespaces.length > 0) return urlNamespaces
     return getCurrentNamespaces()
   })
   const [useSSE, setUseSSE] = useState(watchSupported)
-  const [useRegex, setUseRegex] = useState(false)
+  const [useRegex, setUseRegex] = useState(
+    searchParams.get(RESOURCE_SEARCH_MODE_KEY) === RESOURCE_SEARCH_MODE_REGEX
+  )
+  const resourceSearchInitialized = useRef(false)
+  const initialSearchQuery = useRef(searchQuery)
+  const initialColumnFilters = useRef(columnFilters)
 
   // The namespace to send to the API. When exactly one namespace is selected
   // (and it's not _all), we query that specific namespace for efficiency.
@@ -110,7 +146,9 @@ export function useResourceTableState({
   useEffect(() => {
     if (clusterScope) return
 
-    const urlNamespaces = getNamespacesFromUrl(searchParams.toString())
+    const urlNamespaces = namespaceUrlValue
+      ? namespaceUrlValue.split('\u0000')
+      : []
     if (urlNamespaces.length === 0) {
       setSearchParams(
         (current) => setNamespacesInSearchParams(current, selectedNamespaces),
@@ -131,7 +169,62 @@ export function useResourceTableState({
         detail: { namespaces: normalized },
       })
     )
-  }, [clusterScope, searchParams, selectedNamespaces, setSearchParams])
+  }, [clusterScope, namespaceUrlValue, selectedNamespaces, setSearchParams])
+
+  useEffect(() => {
+    const currentParams = new URLSearchParams(searchParamsValue)
+    const allowedColumnIds = filterableColumnIdsValue
+      ? filterableColumnIdsValue.split('\u0000')
+      : []
+
+    if (!resourceSearchInitialized.current) {
+      resourceSearchInitialized.current = true
+      let shouldCanonicalize = false
+
+      if (
+        !currentParams.has(RESOURCE_SEARCH_QUERY_KEY) &&
+        initialSearchQuery.current
+      ) {
+        setResourceQueryInSearchParams(
+          currentParams,
+          initialSearchQuery.current
+        )
+        shouldCanonicalize = true
+      }
+      if (
+        !hasResourceFilters(currentParams) &&
+        initialColumnFilters.current.length > 0
+      ) {
+        setResourceFiltersInSearchParams(
+          currentParams,
+          initialColumnFilters.current,
+          allowedColumnIds
+        )
+        shouldCanonicalize = true
+      }
+
+      if (shouldCanonicalize) {
+        setSearchParams(currentParams, { replace: true })
+      }
+      return
+    }
+
+    const urlQuery = currentParams.get(RESOURCE_SEARCH_QUERY_KEY) ?? ''
+    setSearchQueryState((current) =>
+      current === urlQuery ? current : urlQuery
+    )
+
+    const urlUseRegex =
+      currentParams.get(RESOURCE_SEARCH_MODE_KEY) === RESOURCE_SEARCH_MODE_REGEX
+    setUseRegex((current) => (current === urlUseRegex ? current : urlUseRegex))
+
+    const urlFilters = hasResourceFilters(currentParams)
+      ? readResourceFilters(currentParams, allowedColumnIds)
+      : []
+    setColumnFiltersState((current) =>
+      areResourceFiltersEqual(current, urlFilters) ? current : urlFilters
+    )
+  }, [filterableColumnIdsValue, searchParamsValue, setSearchParams])
 
   useEffect(() => {
     const storageKey = getClusterScopedStorageKey(
@@ -184,7 +277,6 @@ export function useResourceTableState({
         { replace: true }
       )
       setPagination((prev) => ({ ...prev, pageIndex: 0 }))
-      setSearchQuery('')
       window.dispatchEvent(
         new CustomEvent('kite:namespace-change', {
           detail: { namespaces: normalized },
@@ -192,6 +284,31 @@ export function useResourceTableState({
       )
     },
     [setSearchParams]
+  )
+
+  const setSearchQuery = useCallback(
+    (value: string) => {
+      setSearchQueryState(value)
+      setSearchParams(
+        (current) => setResourceQueryInSearchParams(current, value),
+        { replace: true }
+      )
+    },
+    [setSearchParams]
+  )
+
+  const setColumnFilters = useCallback(
+    (updater: ColumnFiltersUpdater) => {
+      const next =
+        typeof updater === 'function' ? updater(columnFilters) : updater
+      setColumnFiltersState(next)
+      setSearchParams(
+        (current) =>
+          setResourceFiltersInSearchParams(current, next, filterableColumnIds),
+        { replace: true }
+      )
+    },
+    [columnFilters, filterableColumnIds, setSearchParams]
   )
 
   const handleUseSSEChange = useCallback(
@@ -211,9 +328,16 @@ export function useResourceTableState({
     [watchSupported]
   )
 
-  const handleUseRegexChange = useCallback((pressed: boolean) => {
-    setUseRegex(pressed)
-  }, [])
+  const handleUseRegexChange = useCallback(
+    (pressed: boolean) => {
+      setUseRegex(pressed)
+      setSearchParams(
+        (current) => setResourceSearchModeInSearchParams(current, pressed),
+        { replace: true }
+      )
+    },
+    [setSearchParams]
+  )
 
   const handleRefreshIntervalChange = useCallback((value: number) => {
     setRefreshInterval(value)

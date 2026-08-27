@@ -5,7 +5,6 @@ import {
   IconLock,
   IconLockOpen,
   IconPlus,
-  IconSearch,
   IconShieldCheck,
   IconTrash,
   IconUser,
@@ -19,6 +18,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { UserItem } from '@/types/api'
@@ -31,6 +31,7 @@ import {
   useRoleList,
   useUserList,
 } from '@/lib/api'
+import { setClassifiedSearchParam } from '@/lib/classified-search-params'
 import { formatDate } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -57,6 +58,7 @@ import {
 } from '@/components/ui/select'
 import { DeleteConfirmationDialog } from '@/components/delete-confirmation-dialog'
 import { ResourceTableView } from '@/components/resource-table-view'
+import { SubmittedSearchInput } from '@/components/submitted-search-input'
 
 import { Action } from '../action-table'
 import { Badge } from '../ui/badge'
@@ -65,13 +67,19 @@ import UserRoleAssignment from './user-role-assignment'
 export function UserManagement() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const searchParamsValue = searchParams.toString()
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 20,
   })
   const [sorting, setSorting] = useState<SortingState>([])
-  const [searchQuery, setSearchQuery] = useState('')
-  const [roleFilter, setRoleFilter] = useState('')
+  const [searchQuery, setSearchQuery] = useState(
+    () => searchParams.get('users.q') ?? ''
+  )
+  const [roleFilter, setRoleFilter] = useState(
+    () => searchParams.get('users.role') ?? ''
+  )
   const { data: roles = [] } = useRoleList()
 
   const sortParams = useMemo(() => {
@@ -92,6 +100,37 @@ export function UserManagement() {
     sortParams.sortBy,
     sortParams.sortOrder,
     roleFilter
+  )
+
+  useEffect(() => {
+    const currentParams = new URLSearchParams(searchParamsValue)
+    const urlQuery = currentParams.get('users.q') ?? ''
+    const urlRole = currentParams.get('users.role') ?? ''
+    setSearchQuery((current) => (current === urlQuery ? current : urlQuery))
+    setRoleFilter((current) => (current === urlRole ? current : urlRole))
+  }, [searchParamsValue])
+
+  const handleSearchSubmit = useCallback(
+    (value: string) => {
+      setSearchQuery(value)
+      setSearchParams(
+        (current) => setClassifiedSearchParam(current, 'users.q', value),
+        { replace: true }
+      )
+    },
+    [setSearchParams]
+  )
+
+  const handleRoleChange = useCallback(
+    (value: string) => {
+      const role = value === 'all' ? '' : value
+      setRoleFilter(role)
+      setSearchParams(
+        (current) => setClassifiedSearchParam(current, 'users.role', role),
+        { replace: true }
+      )
+    },
+    [setSearchParams]
   )
 
   const getStatusBadge = useCallback(
@@ -517,9 +556,7 @@ export function UserManagement() {
             <div className="flex items-center gap-3">
               <Select
                 value={roleFilter || 'all'}
-                onValueChange={(value) =>
-                  setRoleFilter(value === 'all' ? '' : value)
-                }
+                onValueChange={handleRoleChange}
               >
                 <SelectTrigger className="w-48">
                   <SelectValue
@@ -537,18 +574,15 @@ export function UserManagement() {
                   ))}
                 </SelectContent>
               </Select>
-              <div className="relative">
-                <IconSearch className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder={t(
-                    'userManagement.actions.search',
-                    'Search users...'
-                  )}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9 w-64"
-                />
-              </div>
+              <SubmittedSearchInput
+                value={searchQuery}
+                onSearch={handleSearchSubmit}
+                placeholder={t(
+                  'userManagement.actions.search',
+                  'Search users...'
+                )}
+                inputClassName="w-64"
+              />
               <Button onClick={() => setShowAddDialog(true)} className="gap-2">
                 <IconPlus className="h-4 w-4" />
                 {t('userManagement.actions.add', 'Add Password User')}

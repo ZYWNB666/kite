@@ -7,6 +7,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
+import { useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { ResourceHistory } from '@/types/api'
@@ -16,11 +17,11 @@ import {
   useClusterList,
   useUserList,
 } from '@/lib/api'
+import { setClassifiedSearchParam } from '@/lib/classified-search-params'
 import { formatDate } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -29,25 +30,36 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { ResourceTableView } from '@/components/resource-table-view'
+import { SubmittedSearchInput } from '@/components/submitted-search-input'
 import { YamlDiffViewer } from '@/components/yaml-diff-viewer'
 
 export function AuditLog() {
   const { t } = useTranslation()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const searchParamsValue = searchParams.toString()
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 20,
   })
-  const [operatorName, setOperatorName] = useState('')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [operationFilter, setOperationFilter] = useState('')
-  const [clusterFilter, setClusterFilter] = useState('')
+  const [operatorName, setOperatorName] = useState(
+    () => searchParams.get('audit.operator') ?? ''
+  )
+  const [searchQuery, setSearchQuery] = useState(
+    () => searchParams.get('audit.q') ?? ''
+  )
+  const [operationFilter, setOperationFilter] = useState(
+    () => searchParams.get('audit.operation') ?? ''
+  )
+  const [clusterFilter, setClusterFilter] = useState(
+    () => searchParams.get('audit.cluster') ?? ''
+  )
   const [selectedHistory, setSelectedHistory] =
     useState<ResourceHistory | null>(null)
   const [isDiffOpen, setIsDiffOpen] = useState(false)
   const [loadingDiffId, setLoadingDiffId] = useState<number | null>(null)
 
   const { data: usersData } = useUserList(1, 200)
-  const { data: clusters = [] } = useClusterList()
+  const { data: clusters = [], isLoading: isClustersLoading } = useClusterList()
   const showCluster = clusters.length > 1
   const {
     data: auditData,
@@ -63,10 +75,35 @@ export function AuditLog() {
   )
 
   useEffect(() => {
-    if (!showCluster && clusterFilter) {
+    const currentParams = new URLSearchParams(searchParamsValue)
+    const nextOperator = currentParams.get('audit.operator') ?? ''
+    const nextQuery = currentParams.get('audit.q') ?? ''
+    const nextOperation = currentParams.get('audit.operation') ?? ''
+    const nextCluster = currentParams.get('audit.cluster') ?? ''
+    setOperatorName((current) =>
+      current === nextOperator ? current : nextOperator
+    )
+    setSearchQuery((current) => (current === nextQuery ? current : nextQuery))
+    setOperationFilter((current) =>
+      current === nextOperation ? current : nextOperation
+    )
+    setClusterFilter((current) =>
+      current === nextCluster ? current : nextCluster
+    )
+    setPagination((current) =>
+      current.pageIndex === 0 ? current : { ...current, pageIndex: 0 }
+    )
+  }, [searchParamsValue])
+
+  useEffect(() => {
+    if (!isClustersLoading && !showCluster && clusterFilter) {
       setClusterFilter('')
+      setSearchParams(
+        (current) => setClassifiedSearchParam(current, 'audit.cluster', ''),
+        { replace: true }
+      )
     }
-  }, [clusterFilter, showCluster])
+  }, [clusterFilter, isClustersLoading, setSearchParams, showCluster])
 
   const userNames = useMemo(
     () =>
@@ -80,10 +117,19 @@ export function AuditLog() {
     [usersData]
   )
 
-  const handleUserFilterChange = useCallback((value: string) => {
-    setPagination((prev) => ({ ...prev, pageIndex: 0 }))
-    setOperatorName(value === 'all' ? '' : value)
-  }, [])
+  const handleUserFilterChange = useCallback(
+    (value: string) => {
+      const operator = value === 'all' ? '' : value
+      setPagination((prev) => ({ ...prev, pageIndex: 0 }))
+      setOperatorName(operator)
+      setSearchParams(
+        (current) =>
+          setClassifiedSearchParam(current, 'audit.operator', operator),
+        { replace: true }
+      )
+    },
+    [setSearchParams]
+  )
 
   const handleViewDiff = useCallback(
     async (item: ResourceHistory) => {
@@ -105,20 +151,45 @@ export function AuditLog() {
     [t]
   )
 
-  const handleSearchChange = useCallback((value: string) => {
-    setPagination((prev) => ({ ...prev, pageIndex: 0 }))
-    setSearchQuery(value)
-  }, [])
+  const handleSearchSubmit = useCallback(
+    (value: string) => {
+      setPagination((prev) => ({ ...prev, pageIndex: 0 }))
+      setSearchQuery(value)
+      setSearchParams(
+        (current) => setClassifiedSearchParam(current, 'audit.q', value),
+        { replace: true }
+      )
+    },
+    [setSearchParams]
+  )
 
-  const handleOperationChange = useCallback((value: string) => {
-    setPagination((prev) => ({ ...prev, pageIndex: 0 }))
-    setOperationFilter(value === 'all' ? '' : value)
-  }, [])
+  const handleOperationChange = useCallback(
+    (value: string) => {
+      const operation = value === 'all' ? '' : value
+      setPagination((prev) => ({ ...prev, pageIndex: 0 }))
+      setOperationFilter(operation)
+      setSearchParams(
+        (current) =>
+          setClassifiedSearchParam(current, 'audit.operation', operation),
+        { replace: true }
+      )
+    },
+    [setSearchParams]
+  )
 
-  const handleClusterChange = useCallback((value: string) => {
-    setPagination((prev) => ({ ...prev, pageIndex: 0 }))
-    setClusterFilter(value === 'all' ? '' : value)
-  }, [])
+  const handleClusterChange = useCallback(
+    (value: string) => {
+      const cluster = value === 'all' ? '' : value
+      setPagination((prev) => ({ ...prev, pageIndex: 0 }))
+      setClusterFilter(cluster)
+      setSearchParams(
+        (current) =>
+          setClassifiedSearchParam(current, 'audit.cluster', cluster),
+        { replace: true }
+      )
+    },
+    [setSearchParams]
+  )
 
   const getOperationTypeColor = (operationType: string) => {
     switch (operationType.toLowerCase()) {
@@ -317,14 +388,14 @@ export function AuditLog() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <Input
+            <SubmittedSearchInput
+              value={searchQuery}
+              onSearch={handleSearchSubmit}
               placeholder={t(
                 'auditLog.filters.search',
                 'Search resource name...'
               )}
-              value={searchQuery}
-              onChange={(event) => handleSearchChange(event.target.value)}
-              className="w-64"
+              inputClassName="w-64"
             />
             <Select
               value={operationFilter || 'all'}

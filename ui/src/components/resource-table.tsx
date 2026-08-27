@@ -68,6 +68,18 @@ export interface ResourceTableProps<T> {
   defaultHiddenColumns?: string[] // Columns to hide by default
 }
 
+function getFilterableColumnIds<T>(columns: ColumnDef<T, unknown>[]) {
+  return columns.flatMap((column) => {
+    const definition = column as ColumnDef<T, unknown> & {
+      accessorKey?: string
+      enableColumnFilter?: boolean
+    }
+    if (!definition.enableColumnFilter) return []
+    const id = definition.id ?? definition.accessorKey?.replace(/\./g, '_')
+    return id ? [id] : []
+  })
+}
+
 export function ResourceTable<T>({
   resourceName,
   resourceType,
@@ -85,6 +97,10 @@ export function ResourceTable<T>({
   const resolvedResourceType = (resourceType ??
     (resourceName.toLowerCase() as ResourceType)) as ResourceType
   const watchSupported = supportsResourceWatch(resolvedResourceType)
+  const filterableColumnIds = useMemo(
+    () => getFilterableColumnIds(columns),
+    [columns]
+  )
   const {
     sorting,
     setSorting,
@@ -115,6 +131,7 @@ export function ResourceTable<T>({
     clusterScope,
     defaultHiddenColumns,
     watchSupported,
+    filterableColumnIds,
   })
   const [isDeleting, setIsDeleting] = useState(false)
   // When multiple namespaces are selected (not _all), fetch _all and filter
