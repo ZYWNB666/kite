@@ -98,7 +98,7 @@ func executeGetResource(ctx context.Context, cs *cluster.ClientSet, args map[str
 func redactSensitiveResourceData(resource resourceInfo, obj *unstructured.Unstructured) {
 	kind := strings.ToLower(strings.TrimSpace(resource.Kind))
 	switch kind {
-	case "secret", "configmap":
+	case "secret":
 		redactObjectMapValues(obj.Object, "data")
 		redactObjectMapValues(obj.Object, "stringData")
 		redactObjectMapValues(obj.Object, "binaryData")

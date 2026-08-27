@@ -34,11 +34,12 @@ func TestObjectToYAML(t *testing.T) {
 
 func TestRedactSensitiveResourceData(t *testing.T) {
 	tests := []struct {
-		name     string
-		resource resourceInfo
+		name         string
+		resource     resourceInfo
+		wantRedacted bool
 	}{
-		{name: "secret", resource: resourceInfo{Kind: "Secret"}},
-		{name: "configmap", resource: resourceInfo{Kind: "ConfigMap"}},
+		{name: "secret", resource: resourceInfo{Kind: "Secret"}, wantRedacted: true},
+		{name: "configmap", resource: resourceInfo{Kind: "ConfigMap"}, wantRedacted: false},
 	}
 
 	for _, tc := range tests {
@@ -59,11 +60,20 @@ func TestRedactSensitiveResourceData(t *testing.T) {
 
 			redactSensitiveResourceData(tc.resource, obj)
 
+			wantValues := map[string]string{
+				"data":       "abc",
+				"stringData": "secret",
+				"binaryData": "YWJj",
+			}
 			for _, key := range []string{"data", "stringData", "binaryData"} {
 				raw := obj.Object[key].(map[string]interface{})
 				for field, value := range raw {
-					if value != "***" {
-						t.Fatalf("expected %s.%s to be redacted, got %#v", key, field, value)
+					want := wantValues[key]
+					if tc.wantRedacted {
+						want = "***"
+					}
+					if value != want {
+						t.Fatalf("expected %s.%s to be %#v, got %#v", key, field, want, value)
 					}
 				}
 			}
