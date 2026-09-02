@@ -175,7 +175,7 @@ func writeResourceWatchEvent(
 		items := filterAndSortWatchSnapshot(c, options.Resource, event.Items)
 		transformed := make([]any, 0, len(items))
 		for _, item := range items {
-			object, err := transformWatchObject(options, kube.ResourceWatchSnapshot, item)
+			object, err := transformWatchObject(c, options, kube.ResourceWatchSnapshot, item)
 			if err != nil {
 				klog.Warningf("failed to transform %s watch snapshot item: %v", options.Resource, err)
 				continue
@@ -190,7 +190,7 @@ func writeResourceWatchEvent(
 		if event.Object == nil || !canStreamWatchObject(c, options.Resource, event.Object) {
 			return nil
 		}
-		object, err := transformWatchObject(options, event.Type, event.Object)
+		object, err := transformWatchObject(c, options, event.Type, event.Object)
 		if err != nil {
 			return err
 		}
@@ -210,11 +210,19 @@ func writeResourceWatchEvent(
 }
 
 func transformWatchObject(
+	c *gin.Context,
 	options resourceWatchStreamOptions,
 	eventType string,
 	obj *unstructured.Unstructured,
 ) (any, error) {
 	prepared := prepareWatchObject(obj)
+	user := c.MustGet("user").(model.User)
+	cs := c.MustGet("cluster").(*cluster.ClientSet)
+	if options.Resource == string(common.Secrets) && !hasResourceWriteAccess(
+		user, options.Resource, cs.Name, prepared.GetNamespace(), prepared.GetName(),
+	) {
+		redactSecretContent(prepared)
+	}
 	if options.Reduce {
 		reduceWatchObject(options.Resource, prepared)
 	}
@@ -298,6 +306,9 @@ func canStreamWatchObject(c *gin.Context, resource string, obj *unstructured.Uns
 		if !rbac.CanAccessNamespace(user, cs.Name, obj.GetNamespace()) {
 			return false
 		}
+	}
+	if !canViewResourceObject(user, resource, cs.Name, obj.GetNamespace(), obj.GetName(), obj) {
+		return false
 	}
 	return canReadResourceObject(user, resource, cs.Name, obj.GetNamespace(), obj.GetName())
 }

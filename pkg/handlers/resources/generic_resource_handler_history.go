@@ -9,6 +9,7 @@ import (
 	"github.com/zxh326/kite/pkg/cluster"
 	"github.com/zxh326/kite/pkg/common"
 	"github.com/zxh326/kite/pkg/model"
+	"github.com/zxh326/kite/pkg/rbac"
 	"k8s.io/kubectl/pkg/describe"
 )
 
@@ -22,6 +23,18 @@ func (h *GenericResourceHandler[T, V]) ListHistory(c *gin.Context) {
 	cs := c.MustGet("cluster").(*cluster.ClientSet)
 	namespace := c.Param("namespace")
 	resourceName := c.Param("name")
+	user := c.MustGet("user").(model.User)
+	if h.name == string(common.Secrets) && !hasResourceWriteAccess(user, h.name, cs.Name, namespace, resourceName) {
+		c.JSON(http.StatusForbidden, gin.H{"error": rbac.NoAccess(user.Key(), string(common.VerbUpdate), h.name, namespace, cs.Name)})
+		return
+	}
+	if h.name == string(common.ConfigMaps) {
+		_, err := h.GetResource(c, namespace, resourceName)
+		if err != nil && !hasResourceWriteAccess(user, h.name, cs.Name, namespace, resourceName) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
+	}
 	pageSize, err := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid pageSize parameter"})
@@ -66,6 +79,12 @@ func (h *GenericResourceHandler[T, V]) ListHistory(c *gin.Context) {
 
 func (h *GenericResourceHandler[T, V]) Describe(c *gin.Context) {
 	cs := c.MustGet("cluster").(*cluster.ClientSet)
+	if h.name == string(common.ConfigMaps) {
+		if _, err := h.GetResource(c, c.Param("namespace"), c.Param("name")); err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
+	}
 	gk := h.getGroupKind()
 	describer, ok := describe.DescriberFor(gk, cs.K8sClient.Configuration)
 	if !ok {

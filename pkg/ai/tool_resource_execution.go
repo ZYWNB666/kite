@@ -11,6 +11,7 @@ import (
 	"github.com/zxh326/kite/pkg/cluster"
 	"github.com/zxh326/kite/pkg/common"
 	pkgmodel "github.com/zxh326/kite/pkg/model"
+	"github.com/zxh326/kite/pkg/rbac"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -57,7 +58,24 @@ func objectToYAML(obj *unstructured.Unstructured) string {
 	return string(yamlBytes)
 }
 
-func executeGetResource(ctx context.Context, cs *cluster.ClientSet, args map[string]interface{}) (string, bool) {
+const (
+	gatewayProviderLabel = "gateway.magikcompute.ai/provider"
+	leaderWorkerSetGroup = "leaderworkerset.x-k8s.io"
+)
+
+func canWriteAIResource(user pkgmodel.User, cs *cluster.ClientSet, resource resourceInfo, namespace, name string) bool {
+	return rbac.CanAccess(user, resource.Resource, string(common.VerbUpdate), cs.Name, namespace, name)
+}
+
+func isLeaderWorkerSetResource(resource resourceInfo) bool {
+	return resource.Group == leaderWorkerSetGroup && resource.Resource == "leaderworkersets"
+}
+
+func isDynamicResource(resource resourceInfo) bool {
+	return common.LookupResource(resource.Resource) == nil
+}
+
+func executeGetResource(ctx context.Context, cs *cluster.ClientSet, user pkgmodel.User, args map[string]interface{}) (string, bool) {
 	kind, err := getRequiredString(args, "kind")
 	if err != nil {
 		return "Error: " + err.Error(), true
@@ -76,6 +94,15 @@ func executeGetResource(ctx context.Context, cs *cluster.ClientSet, args map[str
 	}
 	if err := cs.K8sClient.Get(ctx, key, obj); err != nil {
 		return fmt.Sprintf("Error getting %s/%s: %v", resource.Kind, name, err), true
+	}
+	canWrite := canWriteAIResource(user, cs, resource, key.Namespace, name)
+	if resource.Resource == string(common.ConfigMaps) {
+		if _, protected := obj.GetLabels()[gatewayProviderLabel]; protected && !canWrite {
+			return fmt.Sprintf("Error getting %s/%s: not found", resource.Kind, name), true
+		}
+	}
+	if isDynamicResource(resource) && !isLeaderWorkerSetResource(resource) && !canWrite {
+		return "Forbidden: resource details are not available to read-only users", true
 	}
 
 	// Clean up managed fields
@@ -123,7 +150,7 @@ func redactObjectMapValues(object map[string]interface{}, key string) {
 	object[key] = valueMap
 }
 
-func executeListResources(ctx context.Context, cs *cluster.ClientSet, args map[string]interface{}) (string, bool) {
+func executeListResources(ctx context.Context, cs *cluster.ClientSet, user pkgmodel.User, args map[string]interface{}) (string, bool) {
 	kind, err := getRequiredString(args, "kind")
 	if err != nil {
 		return "Error: " + err.Error(), true
@@ -152,10 +179,22 @@ func executeListResources(ctx context.Context, cs *cluster.ClientSet, args map[s
 		return fmt.Sprintf("Error listing %s: %v", resource.Kind, err), true
 	}
 
+	visibleItems := make([]unstructured.Unstructured, 0, len(list.Items))
+	for i := range list.Items {
+		item := list.Items[i]
+		if resource.Resource == string(common.ConfigMaps) {
+			if _, protected := item.GetLabels()[gatewayProviderLabel]; protected &&
+				!canWriteAIResource(user, cs, resource, item.GetNamespace(), item.GetName()) {
+				continue
+			}
+		}
+		visibleItems = append(visibleItems, item)
+	}
+
 	// Build a summary
 	var sb strings.Builder
 	kindLower := strings.ToLower(resource.Kind)
-	fmt.Fprintf(&sb, "Found %d %s(s)", len(list.Items), resource.Kind)
+	fmt.Fprintf(&sb, "Found %d %s(s)", len(visibleItems), resource.Kind)
 	if namespace != "" {
 		fmt.Fprintf(&sb, " in namespace %s", namespace)
 	}
@@ -164,7 +203,7 @@ func executeListResources(ctx context.Context, cs *cluster.ClientSet, args map[s
 	}
 	sb.WriteString(":\n\n")
 
-	for _, item := range list.Items {
+	for _, item := range visibleItems {
 		name := item.GetName()
 		ns := item.GetNamespace()
 		creationTime := item.GetCreationTimestamp().Format("2006-01-02 15:04:05")
@@ -175,8 +214,12 @@ func executeListResources(ctx context.Context, cs *cluster.ClientSet, args map[s
 			fmt.Fprintf(&sb, "- %s (created: %s)", name, creationTime)
 		}
 
-		for _, detail := range resourceSummaryDetails(kindLower, item) {
-			fmt.Fprintf(&sb, " | %s", detail)
+		canViewDetails := !isDynamicResource(resource) || isLeaderWorkerSetResource(resource) ||
+			canWriteAIResource(user, cs, resource, item.GetNamespace(), item.GetName())
+		if canViewDetails {
+			for _, detail := range resourceSummaryDetails(kindLower, item) {
+				fmt.Fprintf(&sb, " | %s", detail)
+			}
 		}
 		sb.WriteString("\n")
 	}

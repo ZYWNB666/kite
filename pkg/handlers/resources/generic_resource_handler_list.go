@@ -137,6 +137,14 @@ func (h *GenericResourceHandler[T, V]) list(c *gin.Context) (V, error) {
 		) {
 			continue
 		}
+		if !canViewResourceObject(user, h.Name(), cs.Name, obj.GetNamespace(), obj.GetName(), obj) {
+			continue
+		}
+		if h.Name() == string(common.Secrets) && !hasResourceWriteAccess(
+			user, h.Name(), cs.Name, obj.GetNamespace(), obj.GetName(),
+		) {
+			redactSecretContent(items[i])
+		}
 		if c.Query("reduce") == "true" {
 			reduceResourceObject(h.name, items[i])
 		}
@@ -204,6 +212,9 @@ func (h *GenericResourceHandler[T, V]) Search(c *gin.Context, q string, limit in
 		if h.Name() != string(common.Namespaces) && !canReadResourceObject(
 			user, h.Name(), cs.Name, obj.GetNamespace(), obj.GetName(),
 		) {
+			continue
+		}
+		if !canViewResourceObject(user, h.Name(), cs.Name, obj.GetNamespace(), obj.GetName(), obj) {
 			continue
 		}
 		result := common.SearchResult{

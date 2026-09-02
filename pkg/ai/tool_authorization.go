@@ -186,9 +186,9 @@ func ExecuteTool(ctx context.Context, c *gin.Context, cs *cluster.ClientSet, too
 
 	switch toolName {
 	case "get_resource":
-		return executeGetResource(ctx, cs, args)
+		return executeGetResource(ctx, cs, user, args)
 	case "list_resources":
-		return executeListResources(ctx, cs, args)
+		return executeListResources(ctx, cs, user, args)
 	case "get_pod_logs":
 		return executeGetPodLogs(ctx, cs, args)
 	case "get_cluster_overview":

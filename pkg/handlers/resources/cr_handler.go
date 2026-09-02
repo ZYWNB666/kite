@@ -160,6 +160,7 @@ func (h *CRHandler) List(c *gin.Context) {
 		return
 	}
 	filtered := make([]unstructured.Unstructured, 0, len(crList.Items))
+	user := c.MustGet("user").(model.User)
 	for i := range crList.Items {
 		item := &crList.Items[i]
 		if crd.Spec.Scope == apiextensionsv1.NamespaceScoped && !matchesRequestedNamespace(c, item.GetNamespace()) {
@@ -170,6 +171,9 @@ func (h *CRHandler) List(c *gin.Context) {
 		if annotations != nil {
 			delete(annotations, common.KubectlAnnotation)
 			item.SetAnnotations(annotations)
+		}
+		if !canViewCustomResourceDetails(user, cs.Name, crdName, item.GetNamespace(), item.GetName(), crd) {
+			reduceCustomResourceToMetadata(item)
 		}
 		filtered = append(filtered, *item)
 	}
@@ -215,6 +219,13 @@ func (h *CRHandler) Watch(c *gin.Context) {
 		Resource:      crdName,
 		ClusterScoped: crd.Spec.Scope == apiextensionsv1.ClusterScoped,
 		Reduce:        c.Query("reduce") == "true",
+		Transform: func(_ string, obj *unstructured.Unstructured) (any, error) {
+			user := c.MustGet("user").(model.User)
+			if !canViewCustomResourceDetails(user, cs.Name, crdName, obj.GetNamespace(), obj.GetName(), crd) {
+				reduceCustomResourceToMetadata(obj)
+			}
+			return obj, nil
+		},
 	})
 }
 
@@ -268,6 +279,11 @@ func (h *CRHandler) Get(c *gin.Context) {
 	} else {
 		// For cluster-scoped resources, ignore namespace parameter
 		namespacedName = types.NamespacedName{Name: name}
+	}
+	user := c.MustGet("user").(model.User)
+	if !canViewCustomResourceDetails(user, cs.Name, crdName, namespacedName.Namespace, name, crd) {
+		denyCustomResourceDetails(c)
+		return
 	}
 
 	if err := cs.K8sClient.Get(ctx, namespacedName, cr); err != nil {
@@ -573,6 +589,12 @@ func (h *CRHandler) Describe(c *gin.Context) {
 	}
 
 	gvr := h.getGVRFromCRD(crd)
+	namespace := c.Param("namespace")
+	user := c.MustGet("user").(model.User)
+	if !canViewCustomResourceDetails(user, cs.Name, crdName, namespace, name, crd) {
+		denyCustomResourceDetails(c)
+		return
+	}
 
 	// Create RESTMapping for GenericDescriberFor
 	gvk := schema.GroupVersionKind{
@@ -594,7 +616,6 @@ func (h *CRHandler) Describe(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create describer"})
 		return
 	}
-	namespace := c.Param("namespace")
 	out, err := describer.Describe(namespace, name, describe.DescriberSettings{
 		ShowEvents: true,
 	})
@@ -611,6 +632,11 @@ func (h *CRHandler) ListHistory(c *gin.Context) {
 	namespace := c.Param("namespace")
 	resourceName := c.Param("name")
 	cs := c.MustGet("cluster").(*cluster.ClientSet)
+	user := c.MustGet("user").(model.User)
+	if crdName != leaderWorkerSetCRD && !hasResourceWriteAccess(user, crdName, cs.Name, namespace, resourceName) {
+		denyCustomResourceDetails(c)
+		return
+	}
 
 	pageSize, err := strconv.Atoi(c.DefaultQuery("pageSize", "10"))
 	if err != nil {

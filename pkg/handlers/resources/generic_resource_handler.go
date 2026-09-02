@@ -122,6 +122,12 @@ func (h *GenericResourceHandler[T, V]) GetResource(c *gin.Context, namespace, na
 	if err := cs.K8sClient.Get(c.Request.Context(), namespacedName, object); err != nil {
 		return nil, err
 	}
+	if h.name == string(common.ConfigMaps) {
+		user := c.MustGet("user").(model.User)
+		if !canViewResourceObject(user, h.name, cs.Name, object.GetNamespace(), object.GetName(), object) {
+			return nil, errors.NewNotFound(schema.GroupResource{Resource: h.name}, name)
+		}
+	}
 	return object, nil
 }
 
@@ -144,6 +150,13 @@ func (h *GenericResourceHandler[T, V]) Get(c *gin.Context) {
 	anno := obj.GetAnnotations()
 	if anno != nil {
 		delete(anno, common.KubectlAnnotation)
+	}
+	if h.name == string(common.Secrets) {
+		user := c.MustGet("user").(model.User)
+		cs := c.MustGet("cluster").(*cluster.ClientSet)
+		if !hasResourceWriteAccess(user, h.name, cs.Name, obj.GetNamespace(), obj.GetName()) {
+			redactSecretContent(object)
+		}
 	}
 
 	c.JSON(http.StatusOK, object)
