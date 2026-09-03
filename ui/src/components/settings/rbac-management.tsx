@@ -127,6 +127,8 @@ export function RBACManagement() {
             r.assignments?.filter((a) => a.subjectType === 'user') || []
           const groups =
             r.assignments?.filter((a) => a.subjectType === 'group') || []
+          const localGroups =
+            r.assignments?.filter((a) => a.subjectType === 'local_group') || []
           const maxShow = 2
           return (
             <div className="flex flex-wrap gap-1 text-xs max-w-[200px]">
@@ -150,9 +152,21 @@ export function RBACManagement() {
                   +{groups.length - maxShow}
                 </Badge>
               )}
-              {users.length === 0 && groups.length === 0 && (
-                <span className="text-xs text-muted-foreground">-</span>
+              {localGroups.slice(0, maxShow).map((a) => (
+                <Badge key={a.id} variant="secondary" className="text-xs">
+                  local group: {a.subject}
+                </Badge>
+              ))}
+              {localGroups.length > maxShow && (
+                <Badge variant="outline" className="text-xs">
+                  +{localGroups.length - maxShow}
+                </Badge>
               )}
+              {users.length === 0 &&
+                groups.length === 0 &&
+                localGroups.length === 0 && (
+                  <span className="text-xs text-muted-foreground">-</span>
+                )}
             </div>
           )
         },
@@ -260,7 +274,7 @@ export function RBACManagement() {
 
   const handleAssign = async (
     roleId: number,
-    subjectType: 'user' | 'group',
+    subjectType: 'user' | 'group' | 'local_group',
     subject: string
   ) => {
     try {
@@ -287,7 +301,7 @@ export function RBACManagement() {
 
   const handleUnassign = async (
     roleId: number,
-    subjectType: 'user' | 'group',
+    subjectType: 'user' | 'group' | 'local_group',
     subject: string
   ) => {
     try {

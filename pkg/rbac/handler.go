@@ -127,8 +127,8 @@ func AssignRole(c *gin.Context) {
 		return
 	}
 	// validate subject type
-	if req.SubjectType != model.SubjectTypeUser && req.SubjectType != model.SubjectTypeGroup {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "subjectType must be 'user' or 'group'"})
+	if req.SubjectType != model.SubjectTypeUser && req.SubjectType != model.SubjectTypeGroup && req.SubjectType != model.SubjectTypeLocalGroup {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "subjectType must be 'user', 'group', or 'local_group'"})
 		return
 	}
 	// ensure role exists
@@ -136,6 +136,13 @@ func AssignRole(c *gin.Context) {
 	if err := model.DB.First(&role, uint(dbID)).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "role not found"})
 		return
+	}
+	if req.SubjectType == model.SubjectTypeLocalGroup {
+		var count int64
+		if err := model.DB.Model(&model.UserGroup{}).Where("name = ?", req.Subject).Count(&count).Error; err != nil || count == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "local user group not found"})
+			return
+		}
 	}
 
 	// check exists

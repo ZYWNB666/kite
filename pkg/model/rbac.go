@@ -21,8 +21,8 @@ type Role struct {
 	Assignments []RoleAssignment `json:"assignments" gorm:"foreignKey:RoleID;constraint:OnDelete:CASCADE"`
 }
 
-// RoleAssignment maps a role to a subject which can be a user or an OIDC group.
-// SubjectType: 'user' or 'group'
+// RoleAssignment maps a role to a user, an external identity-provider group,
+// or a locally managed user group.
 type RoleAssignment struct {
 	Model
 
@@ -34,8 +34,9 @@ type RoleAssignment struct {
 
 // Convenience constants for SubjectType
 const (
-	SubjectTypeUser  = "user"
-	SubjectTypeGroup = "group"
+	SubjectTypeUser       = "user"
+	SubjectTypeGroup      = "group"
+	SubjectTypeLocalGroup = "local_group"
 )
 
 var (

@@ -4,6 +4,7 @@ import { IconX } from '@tabler/icons-react'
 import { useTranslation } from 'react-i18next'
 
 import { Role } from '@/types/api'
+import { useUserGroupList } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -29,12 +30,12 @@ interface Props {
   role?: Role | null
   onAssign: (
     roleId: number,
-    subjectType: 'user' | 'group',
+    subjectType: 'user' | 'group' | 'local_group',
     subject: string
   ) => void
   onUnassign: (
     roleId: number,
-    subjectType: 'user' | 'group',
+    subjectType: 'user' | 'group' | 'local_group',
     subject: string
   ) => void
 }
@@ -48,7 +49,10 @@ export function RBACAssignmentDialog({
 }: Props) {
   const { t } = useTranslation()
   const { user } = useAuth()
-  const [subjectType, setSubjectType] = useState<'user' | 'group'>('user')
+  const { data: localGroups = [] } = useUserGroupList()
+  const [subjectType, setSubjectType] = useState<
+    'user' | 'group' | 'local_group'
+  >('user')
   const [subject, setSubject] = useState('')
 
   useEffect(() => {
@@ -66,7 +70,7 @@ export function RBACAssignmentDialog({
   }
 
   const handleRemoveAssignment = (
-    assignmentSubjectType: 'user' | 'group',
+    assignmentSubjectType: 'user' | 'group' | 'local_group',
     assignmentSubject: string
   ) => {
     if (!role) return
@@ -93,6 +97,8 @@ export function RBACAssignmentDialog({
     role?.assignments?.filter((a) => a.subjectType === 'user') || []
   const currentGroups =
     role?.assignments?.filter((a) => a.subjectType === 'group') || []
+  const currentLocalGroups =
+    role?.assignments?.filter((a) => a.subjectType === 'local_group') || []
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -104,7 +110,9 @@ export function RBACAssignmentDialog({
         </DialogHeader>
 
         <div className="space-y-6">
-          {(currentUsers.length > 0 || currentGroups.length > 0) && (
+          {(currentUsers.length > 0 ||
+            currentGroups.length > 0 ||
+            currentLocalGroups.length > 0) && (
             <div className="space-y-3">
               <Label>{t('rbac.assign.current', 'Current Assignments')}</Label>
               <div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-3">
@@ -162,6 +170,33 @@ export function RBACAssignmentDialog({
                     </div>
                   </div>
                 )}
+                {currentLocalGroups.length > 0 && (
+                  <div>
+                    <div className="text-xs font-semibold text-muted-foreground mb-1">
+                      {t('rbac.assign.localGroups', 'Local User Groups')}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {currentLocalGroups.map((a) => (
+                        <Badge
+                          key={a.id}
+                          variant="secondary"
+                          className="gap-1 pl-2 pr-1"
+                        >
+                          {a.subject}
+                          <button
+                            onClick={() =>
+                              handleRemoveAssignment('local_group', a.subject)
+                            }
+                            className="ml-1 hover:bg-destructive/20 rounded-sm p-0.5"
+                            type="button"
+                          >
+                            <IconX className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -171,7 +206,10 @@ export function RBACAssignmentDialog({
               <Label>{t('rbac.assign.subjectType', 'Subject Type')}</Label>
               <Select
                 value={subjectType}
-                onValueChange={(v) => setSubjectType(v as 'user' | 'group')}
+                onValueChange={(value) => {
+                  setSubjectType(value as 'user' | 'group' | 'local_group')
+                  setSubject('')
+                }}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -183,20 +221,43 @@ export function RBACAssignmentDialog({
                   <SelectItem value="group">
                     {t('rbac.assign.group', 'OIDC Group')}
                   </SelectItem>
+                  <SelectItem value="local_group">
+                    {t('rbac.assign.localGroup', 'Local User Group')}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
               <Label>{t('rbac.assign.subject', 'Subject')}</Label>
-              <Input
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                placeholder={t(
-                  'rbac.assign.subjectPlaceholder',
-                  'username or group name'
-                )}
-              />
+              {subjectType === 'local_group' ? (
+                <Select value={subject} onValueChange={setSubject}>
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={t(
+                        'rbac.assign.selectLocalGroup',
+                        'Select a user group'
+                      )}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {localGroups.map((group) => (
+                      <SelectItem key={group.id} value={group.name}>
+                        {group.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  placeholder={t(
+                    'rbac.assign.subjectPlaceholder',
+                    'username or group name'
+                  )}
+                />
+              )}
             </div>
 
             <DialogFooter>

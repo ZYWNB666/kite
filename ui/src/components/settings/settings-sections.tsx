@@ -1,16 +1,18 @@
 import type { ComponentType, ReactNode } from 'react'
 import type { TFunction } from 'i18next'
+
 import type { AuthUser } from '@/lib/api'
 
-import { APIKeyManagement } from './apikey-management'
 import { AccessRequestSettings } from './access-request-settings'
+import { APIKeyManagement } from './apikey-management'
 import { AuditLog } from './audit-log'
 import { AuthenticationManagement } from './authentication-management'
 import { ClusterManagement } from './cluster-management'
 import { GeneralManagement } from './general-management'
 import { RBACManagement } from './rbac-management'
-import { TemplateManagement } from './template-management'
 import { TempPermissionsManagement } from './temp-permissions'
+import { TemplateManagement } from './template-management'
+import { UserGroupManagement } from './user-group-management'
 import { UserManagement } from './user-management'
 
 export interface SettingsSectionDefinition {
@@ -74,6 +76,13 @@ export const settingsSectionRegistry: SettingsSectionDefinition[] = [
     true
   ),
   createSettingsSectionDefinition(
+    'user-groups',
+    'settings.tabs.userGroups',
+    'User Groups',
+    UserGroupManagement,
+    true
+  ),
+  createSettingsSectionDefinition(
     'apikeys',
     'settings.tabs.apikeys',
     'API Keys',
@@ -110,7 +119,9 @@ export const settingsSectionRegistry: SettingsSectionDefinition[] = [
 ]
 
 export function createSettingsTabs(t: TFunction, user?: AuthUser | null) {
-  const isAdmin = user?.roles?.some((role: { name: string }) => role.name === 'admin') ?? false
+  const isAdmin =
+    user?.roles?.some((role: { name: string }) => role.name === 'admin') ??
+    false
 
   return settingsSectionRegistry
     .filter((section) => !section.requiresAdmin || isAdmin)

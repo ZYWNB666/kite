@@ -112,6 +112,13 @@ func registerAdminRoutes(r *gin.RouterGroup, authHandler *auth.AuthHandler, cm *
 	userAPI.DELETE("/:id", handlers.DeleteUser)
 	userAPI.POST("/:id/reset_password", handlers.ResetPassword)
 	userAPI.POST("/:id/enable", handlers.SetUserEnabled)
+
+	userGroupAPI := adminAPI.Group("/user-groups")
+	userGroupAPI.GET("/", handlers.ListUserGroups)
+	userGroupAPI.POST("/", handlers.CreateUserGroup)
+	userGroupAPI.GET("/:id", handlers.GetUserGroup)
+	userGroupAPI.PUT("/:id", handlers.UpdateUserGroup)
+	userGroupAPI.DELETE("/:id", handlers.DeleteUserGroup)
 	adminAPI.POST("/sidebar_preference/global", handlers.UpdateGlobalSidebarPreference)
 	adminAPI.DELETE("/sidebar_preference/global", handlers.ClearGlobalSidebarPreference)
 

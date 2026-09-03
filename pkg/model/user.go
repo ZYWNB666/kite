@@ -27,6 +27,7 @@ type User struct {
 
 	APIKey SecretString  `json:"apiKey,omitempty" gorm:"type:text"`
 	Roles  []common.Role `json:"roles,omitempty" gorm:"-"`
+	Groups []UserGroup   `json:"groups,omitempty" gorm:"many2many:user_group_members"`
 
 	SidebarPreference string `json:"sidebar_preference,omitempty" gorm:"size:16777215"`
 }
@@ -200,22 +201,26 @@ func GetUserByUsername(username string) (*User, error) {
 }
 
 // GetUserRolesFromDB retrieves all roles assigned to a user from the database.
-// This includes both direct user assignments and group assignments.
+// This includes both direct user assignments and locally managed group assignments.
 func GetUserRolesFromDB(username string) ([]common.Role, error) {
 	if DB == nil {
 		return nil, fmt.Errorf("database not initialized")
 	}
-	type RoleWithAssignment struct {
-		Role
-		SubjectType string
-		Subject     string
-	}
+	localGroups := DB.Table("user_groups").
+		Select("user_groups.name").
+		Joins("JOIN user_group_members ON user_group_members.user_group_id = user_groups.id").
+		Joins("JOIN users ON users.id = user_group_members.user_id").
+		Where("users.username = ?", username)
 
-	var results []RoleWithAssignment
+	var results []Role
 	err := DB.Table("roles").
-		Select("roles.*, role_assignments.subject_type, role_assignments.subject").
+		Select("DISTINCT roles.*").
 		Joins("JOIN role_assignments ON role_assignments.role_id = roles.id").
-		Where("role_assignments.subject_type = ? AND role_assignments.subject = ?", SubjectTypeUser, username).
+		Where(
+			"(role_assignments.subject_type = ? AND role_assignments.subject = ?) OR "+
+				"(role_assignments.subject_type = ? AND role_assignments.subject IN (?))",
+			SubjectTypeUser, username, SubjectTypeLocalGroup, localGroups,
+		).
 		Find(&results).Error
 
 	if err != nil {
@@ -247,10 +252,16 @@ func ListUsers(limit int, offset int, search string, sortBy string, sortOrder st
 	}
 	query := DB.Model(&User{}).Where("users.provider != ?", common.APIKeyProvider)
 	if role != "" {
-		query = query.Joins(
-			"JOIN role_assignments ra ON ra.subject = users.username AND ra.subject_type = ?",
-			SubjectTypeUser,
-		).Joins("JOIN roles r ON r.id = ra.role_id").Where("r.name = ?", role)
+		query = query.Where(`EXISTS (
+			SELECT 1 FROM role_assignments ra
+			JOIN roles r ON r.id = ra.role_id
+			LEFT JOIN user_groups ug ON ra.subject_type = ? AND ra.subject = ug.name
+			LEFT JOIN user_group_members ugm ON ugm.user_group_id = ug.id AND ugm.user_id = users.id
+			WHERE r.name = ? AND (
+				(ra.subject_type = ? AND ra.subject = users.username) OR
+				(ra.subject_type = ? AND ugm.user_id IS NOT NULL)
+			)
+		)`, SubjectTypeLocalGroup, role, SubjectTypeUser, SubjectTypeLocalGroup)
 	}
 	if search != "" {
 		likeQuery := "%" + search + "%"
@@ -342,6 +353,7 @@ func LoginUser(u *User) error {
 // DeleteUserByID removes a user by ID
 func DeleteUserByID(id uint) error {
 	_ = DB.Where("operator_id = ?", id).Delete(&ResourceHistory{}).Error
+	_ = DB.Model(&User{Model: Model{ID: id}}).Association("Groups").Clear()
 	err := DB.Delete(&User{}, id).Error
 	InvalidateUserCache(uint64(id))
 	return err

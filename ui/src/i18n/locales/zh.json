@@ -987,6 +987,9 @@
       "current": "当前分配",
       "group": "OIDC 群组",
       "groups": "OIDC 群组",
+      "localGroup": "本地用户组",
+      "localGroups": "本地用户组",
+      "selectLocalGroup": "选择用户组",
       "subject": "主体",
       "subjectPlaceholder": "用户名或群组名",
       "subjectType": "主体类型",
@@ -1126,6 +1129,35 @@
     "title": "服务",
     "type": "类型"
   },
+  "groupManagement": {
+    "actions": {
+      "add": "添加用户组"
+    },
+    "dialog": {
+      "addDescription": "创建用户组并选择初始成员。",
+      "addTitle": "添加用户组",
+      "editDescription": "更新用户组信息和成员。",
+      "editTitle": "编辑用户组"
+    },
+    "empty": {
+      "description": "创建用户组，为多个用户统一管理权限",
+      "title": "暂无用户组"
+    },
+    "errors": {
+      "loadFailed": "加载用户组失败"
+    },
+    "members": "成员",
+    "messages": {
+      "created": "用户组已创建",
+      "deleted": "用户组已删除",
+      "updated": "用户组已更新"
+    },
+    "noUsers": "未找到用户",
+    "roles": "角色",
+    "searchUsers": "搜索用户...",
+    "selected": "已选择",
+    "title": "用户组管理"
+  },
   "settings": {
     "description": "管理集群、角色和权限",
     "nav": "设置",
@@ -1138,6 +1170,7 @@
       "p8s": "Prometheus",
       "rbac": "权限控制",
       "tempPermissions": "临时权限",
+      "userGroups": "用户组",
       "users": "用户"
     },
     "title": "设置"

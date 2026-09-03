@@ -57,8 +57,10 @@ func loadRolesFromDB() error {
 			}
 			if a.SubjectType == model.SubjectTypeUser {
 				rm.Users = append(rm.Users, a.Subject)
-			} else {
+			} else if a.SubjectType == model.SubjectTypeGroup {
 				rm.OIDCGroups = append(rm.OIDCGroups, a.Subject)
+			} else {
+				continue
 			}
 			cfg.RoleMapping = append(cfg.RoleMapping, rm)
 		}

@@ -987,6 +987,9 @@
       "current": "Current Assignments",
       "group": "OIDC Group",
       "groups": "OIDC Groups",
+      "localGroup": "Local User Group",
+      "localGroups": "Local User Groups",
+      "selectLocalGroup": "Select a user group",
       "subject": "Subject",
       "subjectPlaceholder": "username or group name",
       "subjectType": "Subject Type",
@@ -1126,6 +1129,35 @@
     "title": "Services",
     "type": "Type"
   },
+  "groupManagement": {
+    "actions": {
+      "add": "Add Group"
+    },
+    "dialog": {
+      "addDescription": "Create a group and choose its initial members.",
+      "addTitle": "Add User Group",
+      "editDescription": "Update the group details and membership.",
+      "editTitle": "Edit User Group"
+    },
+    "empty": {
+      "description": "Create a group to manage permissions for multiple users",
+      "title": "No user groups"
+    },
+    "errors": {
+      "loadFailed": "Failed to load user groups"
+    },
+    "members": "Members",
+    "messages": {
+      "created": "User group created",
+      "deleted": "User group deleted",
+      "updated": "User group updated"
+    },
+    "noUsers": "No users found",
+    "roles": "Roles",
+    "searchUsers": "Search users...",
+    "selected": "selected",
+    "title": "User Group Management"
+  },
   "settings": {
     "description": "Manage clusters, roles and permissions",
     "nav": "Settings",
@@ -1138,6 +1170,7 @@
       "p8s": "Prometheus",
       "rbac": "RBAC",
       "tempPermissions": "Temp Permissions",
+      "userGroups": "User Groups",
       "users": "User"
     },
     "title": "Settings"

@@ -459,7 +459,7 @@ export interface OAuthProvider {
 export interface RoleAssignment {
   id: number
   roleId: number
-  subjectType: 'user' | 'group'
+  subjectType: 'user' | 'group' | 'local_group'
   subject: string
   createdAt: string
   updatedAt: string
@@ -493,6 +493,16 @@ export interface UserItem {
   name?: string
   sub?: string
   roles?: Role[]
+  groups?: UserGroup[]
+}
+
+export interface UserGroup {
+  id: number
+  name: string
+  description?: string
+  members: UserItem[]
+  createdAt: string
+  updatedAt: string
 }
 
 export interface FetchUserListResponse {

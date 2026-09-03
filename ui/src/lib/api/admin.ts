@@ -8,6 +8,7 @@ import {
   FetchUserListResponse,
   OAuthProvider,
   Role,
+  UserGroup,
   UserItem,
 } from '@/types/api'
 
@@ -172,14 +173,17 @@ export const deleteRole = async (id: number) => {
 
 export const assignRole = async (
   id: number,
-  data: { subjectType: 'user' | 'group' | 'apikey'; subject: string }
+  data: {
+    subjectType: 'user' | 'group' | 'local_group' | 'apikey'
+    subject: string
+  }
 ) => {
   return await apiClient.post(`/admin/roles/${id}/assign`, data)
 }
 
 export const unassignRole = async (
   id: number,
-  subjectType: 'user' | 'group',
+  subjectType: 'user' | 'group' | 'local_group',
   subject: string
 ) => {
   const params = new URLSearchParams({ subjectType, subject })
@@ -257,6 +261,38 @@ export const useUserList = (
     queryFn: () => fetchUserList(page, size, search, sortBy, sortOrder, role),
     staleTime: 20000,
   })
+}
+
+export interface UserGroupRequest {
+  name: string
+  description?: string
+  memberIds: number[]
+}
+
+export const fetchUserGroupList = (): Promise<UserGroup[]> => {
+  return fetchAPI<{ groups: UserGroup[] }>('/admin/user-groups/').then(
+    (response) => response.groups
+  )
+}
+
+export const useUserGroupList = (options?: { staleTime?: number }) => {
+  return useQuery({
+    queryKey: ['user-group-list'],
+    queryFn: fetchUserGroupList,
+    staleTime: options?.staleTime || 20000,
+  })
+}
+
+export const createUserGroup = async (data: UserGroupRequest) => {
+  return apiClient.post<{ group: UserGroup }>('/admin/user-groups/', data)
+}
+
+export const updateUserGroup = async (id: number, data: UserGroupRequest) => {
+  return apiClient.put<{ group: UserGroup }>(`/admin/user-groups/${id}`, data)
+}
+
+export const deleteUserGroup = async (id: number) => {
+  return apiClient.delete<{ success: boolean }>(`/admin/user-groups/${id}`)
 }
 
 export const fetchAuditLogs = async (

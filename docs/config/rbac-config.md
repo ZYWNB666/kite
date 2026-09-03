@@ -56,6 +56,16 @@ You can assign roles to specified users to give them corresponding permissions.
 
 ![RBAC User Mapping](../screenshots/assign-role2.png)
 
+### Managing Local User Groups
+
+Local user groups let administrators manage permissions for several Kite users together, independently of OAuth or LDAP group claims.
+
+1. Open **Settings > User Groups** and create a group.
+2. Select the users who belong to the group.
+3. Assign one or more roles from the group actions, or select **Local User Group** when assigning a role.
+
+Members inherit all roles assigned to the group in addition to roles assigned directly to them. Renaming a group preserves its role assignments; deleting it removes those assignments without deleting its users.
+
 ## Example Scenarios
 
 ### Scenario 1: Testing Environment

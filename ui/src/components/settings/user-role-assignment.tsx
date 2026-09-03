@@ -19,7 +19,7 @@ interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   subject?: {
-    type: 'user'
+    type: 'user' | 'local_group'
     name: string
   }
 }
@@ -62,6 +62,7 @@ export function UserRoleAssignment({ open, onOpenChange, subject }: Props) {
       queryClient.invalidateQueries({ queryKey: ['user-list'] })
       queryClient.invalidateQueries({ queryKey: ['apikey-list'] })
       queryClient.invalidateQueries({ queryKey: ['role-list'] })
+      queryClient.invalidateQueries({ queryKey: ['user-group-list'] })
       setSelected((s) => ({ ...s, [roleId]: !s[roleId] }))
     } catch (err: unknown) {
       toast.error(

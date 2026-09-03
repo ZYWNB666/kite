@@ -87,3 +87,7 @@ temp/
 node_modules/
 CLAUDE.md
 strix_runs/
+.cache/
+.kilo/
+.mimocode/
+.claude/
