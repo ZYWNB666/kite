@@ -1156,7 +1156,8 @@
     "roles": "Roles",
     "searchUsers": "Search users...",
     "selected": "selected",
-    "title": "User Group Management"
+    "title": "User Group Management",
+    "viewMembers": "View all members"
   },
   "settings": {
     "description": "Manage clusters, roles and permissions",

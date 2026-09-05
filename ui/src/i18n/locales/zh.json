@@ -1156,7 +1156,8 @@
     "roles": "角色",
     "searchUsers": "搜索用户...",
     "selected": "已选择",
-    "title": "用户组管理"
+    "title": "用户组管理",
+    "viewMembers": "查看全部成员"
   },
   "settings": {
     "description": "管理集群、角色和权限",

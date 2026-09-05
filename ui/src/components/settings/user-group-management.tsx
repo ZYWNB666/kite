@@ -35,6 +35,11 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { Textarea } from '@/components/ui/textarea'
 import { Action, ActionTable } from '@/components/action-table'
 import { DeleteConfirmationDialog } from '@/components/delete-confirmation-dialog'
@@ -288,8 +293,49 @@ export function UserGroupManagement() {
                 {member.name || member.username}
               </Badge>
             ))}
-            {(group.members?.length || 0) > 4 && (
-              <Badge variant="outline">+{group.members.length - 4}</Badge>
+            {group.members && group.members.length > 4 && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label={t(
+                      'groupManagement.viewMembers',
+                      'View all members'
+                    )}
+                    className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <Badge
+                      variant="outline"
+                      className="cursor-pointer transition-colors hover:border-primary hover:text-primary"
+                    >
+                      +{group.members.length - 4}
+                    </Badge>
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56 p-2" align="start">
+                  <div className="px-2 pb-1.5 text-xs font-semibold text-muted-foreground">
+                    {t('groupManagement.members', 'Members')} ·{' '}
+                    {group.members.length}
+                  </div>
+                  <div className="max-h-64 overflow-y-auto">
+                    {group.members.map((member) => (
+                      <div
+                        key={member.id}
+                        className="rounded px-2 py-1.5 text-sm hover:bg-muted/50"
+                      >
+                        <span className="block truncate font-medium">
+                          {member.name || member.username}
+                        </span>
+                        {member.name && (
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {member.username}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
             )}
             {!group.members?.length && (
               <span className="text-sm text-muted-foreground">-</span>
